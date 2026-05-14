@@ -14,7 +14,6 @@ export async function buscarMeridiano(): Promise<Edital[]> {
     const htmlBase = await resBase.text();
     const $base = cheerio.load(htmlBase);
 
-    // MUDANÇA 1: Agora guardamos não apenas o Link, mas também o Ano correspondente a ele
     const linksAnos: { url: string; ano: number }[] = [];
 
     $base('a.ces-card').each((_, el) => {
@@ -30,7 +29,6 @@ export async function buscarMeridiano(): Promise<Edital[]> {
       }
     });
 
-    // 2. NÍVEL 2: Entrar na página de cada Ano
     for (const itemAno of linksAnos) {
       try {
         const resAno = await fetch(itemAno.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
@@ -51,7 +49,6 @@ export async function buscarMeridiano(): Promise<Edital[]> {
           }
         });
 
-        // 3. NÍVEL 3: Entrar em "Ver Detalhes"
         for (const concurso of concursosDesteAno) {
           try {
             const resDet = await fetch(concurso.urlDetalhes, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
@@ -64,20 +61,38 @@ export async function buscarMeridiano(): Promise<Edital[]> {
               ordemGlobal++;
 
               const dataRaw = $det(el).find('.ces-timeline-date').text().trim();
-              const titulo = $det(el).find('.ces-timeline-title').text().replace(/\s+/g, ' ').trim();
+              const tituloOriginal = $det(el).find('.ces-timeline-title').text().replace(/\s+/g, ' ').trim();
               const href = $det(el).find('a.ces-timeline-link').attr('href') || '';
 
               if (!href) return;
 
               const linkCompleto = href.startsWith('http') ? href : `https://meridiano.sp.gov.br${href}`;
 
+              // VARIÁVEIS DO CARD
               let dataFormatada = 'sem data';
               let dataTimestamp = 0;
+              let tituloFinal = tituloOriginal; // Por padrão, usa o título do HTML
 
-              // MUDANÇA 2: A regra de exceção para o ano de 2022
+              // --- MUDANÇA: REGRAS ESPECÍFICAS PARA O ANO 2022 ---
               if (itemAno.ano === 2022) {
+                // 1. Força a data para 01/03/2022
                 dataFormatada = '01/03/2022';
                 dataTimestamp = new Date('2022-03-01T00:00:00').getTime();
+
+                // 2. Extrai o título direto do nome do arquivo (URL)
+                // Pega a última parte da URL após a barra "/"
+                let nomeArquivo = href.split('/').pop() || '';
+
+                // Descodifica (ex: %20 vira espaço), tira a extensão e troca os hifens
+                nomeArquivo = decodeURIComponent(nomeArquivo);
+                nomeArquivo = nomeArquivo.replace(/\.pdf$/i, '').replace(/\.docx?$/i, '');
+                nomeArquivo = nomeArquivo.replace(/-/g, ' ').trim();
+
+                // Substitui o título original falho por esse novo
+                if (nomeArquivo) {
+                  tituloFinal = nomeArquivo;
+                }
+
               } else {
                 // Comportamento normal para os outros anos
                 const matchData = dataRaw.match(/(\d{2})\/(\d{2})\/(\d{4})/);
@@ -90,7 +105,7 @@ export async function buscarMeridiano(): Promise<Edital[]> {
               resultados.push({
                 cidade: 'Meridiano',
                 orgao: 'Prefeitura',
-                titulo: titulo,
+                titulo: tituloFinal, // Recebe o título tratado
                 link: linkCompleto,
                 metadados: concurso.metadado,
                 dataPublicacao: dataFormatada,
