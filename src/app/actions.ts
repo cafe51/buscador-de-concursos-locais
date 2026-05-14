@@ -7,6 +7,7 @@ import { buscarMacedonia } from '../lib/scrapers/macedonia';
 import { buscarPedranopolis } from '../lib/scrapers/pedranopolis';
 import { buscarEstrela } from '../lib/scrapers/estrela';
 import { buscarJales } from '../lib/scrapers/jales';
+import { buscarMeridiano } from '../lib/scrapers/meridiano';
 
 export type ResultadoBusca = {
   editais: Edital[];
@@ -38,7 +39,8 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
       rodarComProtecao('Macedônia', buscarMacedonia),
       rodarComProtecao('Pedranópolis', buscarPedranopolis),
       rodarComProtecao("Estrela d'Oeste", buscarEstrela),
-      rodarComProtecao('Jales', buscarJales)
+      rodarComProtecao('Jales', buscarJales),
+      rodarComProtecao('Meridiano', buscarMeridiano)
     ]);
 
     promessas.forEach((resultado) => {
