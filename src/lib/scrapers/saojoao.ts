@@ -6,21 +6,16 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
   const resultados: Edital[] = [];
   let ordemGlobal = 0;
 
-  // Os 4 links base que você mapeou
   const endpoints = [
-    { url: 'https://sjduaspontes.sp.gov.br/paginas/portal/concursos/exercicio?id=1' }, // Em Andamento
-    { url: 'https://sjduaspontes.sp.gov.br/paginas/portal/concursos/exercicio?id=2' }, // Em Convocação
-    { url: 'https://sjduaspontes.sp.gov.br/paginas/portal/concursos/exercicio?id=3' }, // Encerrado
-    { url: 'https://sjduaspontes.sp.gov.br/paginas/portal/concursos/exercicio?id=4' }  // Futuros
+    { url: 'https://sjduaspontes.sp.gov.br/paginas/portal/concursos/exercicio?id=1' },
+    { url: 'https://sjduaspontes.sp.gov.br/paginas/portal/concursos/exercicio?id=2' },
+    { url: 'https://sjduaspontes.sp.gov.br/paginas/portal/concursos/exercicio?id=3' },
+    { url: 'https://sjduaspontes.sp.gov.br/paginas/portal/concursos/exercicio?id=4' }
   ];
 
   for (const endpoint of endpoints) {
     try {
-      const response = await fetch(endpoint.url, {
-        headers: { 'User-Agent': 'Mozilla/5.0' },
-        cache: 'no-store'
-      });
-
+      const response = await fetch(endpoint.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
       if (!response.ok) continue;
 
       const html = await response.text();
@@ -28,7 +23,6 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
 
       const linksAnos: { ano: string; url: string }[] = [];
 
-      // Busca os links que são apenas 4 dígitos numéricos (os Anos)
       $('a').each((_, el) => {
         const textoLink = $(el).text().trim();
         if (/^\d{4}$/.test(textoLink)) {
@@ -40,7 +34,6 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
         }
       });
 
-      // Entra em cada ano encontrado
       for (const itemAno of linksAnos) {
         try {
           const resAno = await fetch(itemAno.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
@@ -49,40 +42,77 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
           const htmlAno = await resAno.text();
           const $ano = cheerio.load(htmlAno);
 
-          const linksPdfs = $ano('div.card-body ul.list.list-icons.list-primary.list-side-borders li a').toArray();
+          const headersCards = $ano('.card-header').toArray();
 
-          // Fallback (data do anterior): Começa com 01/01/ANO
-          let dataFallback = {
-            formatada: `01/01/${itemAno.ano}`,
-            timestamp: new Date(`${itemAno.ano}-01-01T00:00:00`).getTime()
-          };
+          for (const headerEl of headersCards) {
+            const metadado = $ano(headerEl).find('h4.card-title a').text().replace(/\s+/g, ' ').trim();
 
-          for (const el of linksPdfs) {
-            ordemGlobal++;
+            const $paiDoCard = $ano(headerEl).parent();
+            const linksPdfs = $paiDoCard.find('div.card-body ul.list.list-icons.list-primary.list-side-borders li a').toArray();
 
-            const tituloRaw = $ano(el).find('strong').text();
-            const tituloLimpo = tituloRaw.replace(/\s+/g, ' ').trim();
+            let dataFallback = {
+              formatada: `01/01/${itemAno.ano}`,
+              timestamp: new Date(`${itemAno.ano}-01-01T00:00:00`).getTime()
+            };
 
-            const href = $ano(el).attr('href') || '';
-            const linkCompleto = href.startsWith('http') ? href : `https://sjduaspontes.sp.gov.br${href}`;
+            for (const el of linksPdfs) {
+              ordemGlobal++;
 
-            // Extrai a data baixando e lendo a página 1 do PDF
-            const dataDoArquivo = await extrairDataDoArquivo(linkCompleto);
+              const textoLinkInteiro = $ano(el).text().replace(/\s+/g, ' ').trim();
+              let tituloLimpo = $ano(el).find('strong').text().replace(/\s+/g, ' ').trim();
 
-            // Atualiza o fallback se der sucesso
-            if (dataDoArquivo) {
-              dataFallback = dataDoArquivo;
+              const href = $ano(el).attr('href') || '';
+              const linkCompleto = href.startsWith('http') ? href : `https://sjduaspontes.sp.gov.br${href}`;
+
+              let dataFormatada = 'sem data';
+              let dataTimestamp = 0;
+              let dataAchadaNoHtml = false;
+
+              // 1. TENTA ACHAR A DATA DIRETAMENTE NO TEXTO DO LINK
+              const matchDataTexto = textoLinkInteiro.match(/\b(\d{2})[\/\.](\d{2})[\/\.](\d{4})\b/);
+
+              if (matchDataTexto) {
+                dataFormatada = `${matchDataTexto[1]}/${matchDataTexto[2]}/${matchDataTexto[3]}`;
+                dataTimestamp = new Date(`${matchDataTexto[3]}-${matchDataTexto[2]}-${matchDataTexto[1]}T00:00:00`).getTime();
+                dataAchadaNoHtml = true;
+              }
+
+              // LIMPEZA DO TÍTULO
+              tituloLimpo = tituloLimpo
+                .replace(/>>>\s*\(?Publicado em.*?\)?/i, '')
+                .replace(/\b\d{2}[\/\.]\d{2}[\/\.]\d{4}\b/g, '') // remove a data solta do titulo
+                .trim();
+
+              // Remove hífens sobrando no final (se houver)
+              if (tituloLimpo.endsWith('-')) {
+                tituloLimpo = tituloLimpo.slice(0, -1).trim();
+              }
+
+              if (dataAchadaNoHtml) {
+                dataFallback = { formatada: dataFormatada, timestamp: dataTimestamp };
+              } else {
+                const dataDoArquivo = await extrairDataDoArquivo(linkCompleto);
+                if (dataDoArquivo) {
+                  dataFormatada = dataDoArquivo.formatada;
+                  dataTimestamp = dataDoArquivo.timestamp;
+                  dataFallback = dataDoArquivo;
+                } else {
+                  dataFormatada = dataFallback.formatada;
+                  dataTimestamp = dataFallback.timestamp;
+                }
+              }
+
+              resultados.push({
+                cidade: 'São João das Duas Pontes',
+                orgao: 'Prefeitura',
+                titulo: tituloLimpo,
+                link: linkCompleto,
+                metadados: metadado || undefined,
+                dataPublicacao: dataFormatada,
+                dataTimestamp: dataTimestamp,
+                ordemOriginal: ordemGlobal
+              });
             }
-
-            resultados.push({
-              cidade: 'São João das Duas Pontes',
-              orgao: 'Prefeitura',
-              titulo: tituloLimpo,
-              link: linkCompleto,
-              dataPublicacao: dataDoArquivo ? dataDoArquivo.formatada : dataFallback.formatada,
-              dataTimestamp: dataDoArquivo ? dataDoArquivo.timestamp : dataFallback.timestamp,
-              ordemOriginal: ordemGlobal
-            });
           }
         } catch (e) {
           console.error(`Erro ao raspar ano ${itemAno.ano} de São João das Duas Pontes`, e);
@@ -92,6 +122,5 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
       console.error(`Erro ao buscar São João das Duas Pontes na url: ${endpoint.url}`, e);
     }
   }
-
   return resultados;
 }
