@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
+import { ehSujeira } from '../filtrosGlobais';
 
 export async function buscarVotuporanga(): Promise<Edital[]> {
   const resultados: Edital[] = [];
@@ -21,10 +22,13 @@ export async function buscarVotuporanga(): Promise<Edital[]> {
       const $ = cheerio.load(html);
 
       $('div.ed_edital').each((_, elemento) => {
-        ordemGlobal++;
-
         const titulo = $(elemento).find('.ed_titulo_edital').text().trim();
         const descricao = $(elemento).find('.ed_descricao_edital').text().trim();
+
+        // 🛡️ ESCUDO EM VOTUPORANGA: Analisa o Título e a Descrição!
+        if (ehSujeira(`${titulo} ${descricao}`)) return;
+
+        ordemGlobal++;
         const href = $(elemento).find('a').first().attr('href') || '';
         const linkCompleto = href.startsWith('http') ? href : `https://www.votuporanga.sp.gov.br${href}`;
 
@@ -47,7 +51,7 @@ export async function buscarVotuporanga(): Promise<Edital[]> {
           titulo: titulo,
           descricao: descricao || undefined,
           link: linkCompleto,
-          metadados: processoInfo || undefined, // Removeu o fallback "Edital", se vier vazio não renderiza
+          metadados: processoInfo ? [processoInfo] : undefined, // ARRAY INJETADO!
           statusGeral: item.status,
           dataPublicacao: dataFormatada,
           dataTimestamp: dataTimestamp,

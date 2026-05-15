@@ -1,5 +1,7 @@
 import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
+import { extrairDataDoArquivo } from '../docParser';
+import { ehSujeira } from '../filtrosGlobais';
 
 export async function buscarMacedonia(): Promise<Edital[]> {
   const resultados: Edital[] = [];
@@ -28,9 +30,14 @@ export async function buscarMacedonia(): Promise<Edital[]> {
       const links = $('h3 a').toArray();
 
       for (const elemento of links) {
+        const titulo = $(elemento).text().trim();
+
+        // 🛡️ O ESCUDO AQUI: Pula o item se o título indicar que é licitação!
+        // Como Macedônia baixa os PDFs, colocar essa linha aqui economiza MUITO tempo!
+        if (ehSujeira(titulo)) continue;
+
         ordemGlobal++;
 
-        const titulo = $(elemento).text().trim();
         const href = $(elemento).attr('href') || '';
         const linkCompleto = href.startsWith('http') ? href : `https://www.macedonia.sp.gov.br${href}`;
 
@@ -86,7 +93,6 @@ export async function buscarMacedonia(): Promise<Edital[]> {
           }
         }
 
-        // Objecto enxuto: TypeScript sabe que 'descricao' e 'metadados' são undefined
         resultados.push({
           cidade: 'Macedônia',
           orgao: 'Prefeitura',

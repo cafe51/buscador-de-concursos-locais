@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
 import { extrairDataDoArquivo } from '../docParser';
+import { ehSujeira } from '../filtrosGlobais';
 
 export async function buscarPedranopolis(): Promise<Edital[]> {
   const resultados: Edital[] = [];
@@ -42,16 +43,21 @@ export async function buscarPedranopolis(): Promise<Edital[]> {
 
           for (const headerEl of headersCards) {
             const metadado = $ano(headerEl).find('h4.card-title a').text().replace(/\s+/g, ' ').trim();
+
+            // 🛡️ ESCUDO: Protege contra baixar dezenas de anexos se a pasta for de licitação
+            if (ehSujeira(metadado)) continue;
+
             const linksPdfs = $ano(headerEl).parent().find('div.card-body ul.list.list-icons.list-primary.list-side-borders li a').toArray();
 
-            // -------------------------------------------------------------
-            // FASE 1: Extração inicial do DOM e identificação dos links
-            // -------------------------------------------------------------
             const itensBrutos: any[] = [];
             for (const el of linksPdfs) {
-              ordemGlobal++;
               const textoLinkInteiro = $ano(el).text().replace(/\s+/g, ' ').trim();
               let tituloLimpo = $ano(el).find('strong').text().replace(/\s+/g, ' ').trim();
+
+              // 🛡️ ESCUDO DO ARQUIVO: Protege contra arquivos soltos de sujeira
+              if (ehSujeira(tituloLimpo)) continue;
+
+              ordemGlobal++;
               const href = $ano(el).attr('href') || '';
               const linkCompleto = href.startsWith('http') ? href : `https://www.pedranopolis.sp.gov.br${href}`;
 
@@ -75,13 +81,9 @@ export async function buscarPedranopolis(): Promise<Edital[]> {
               });
             }
 
-            // -------------------------------------------------------------
-            // FASE 2: Processamento em Lotes (Baixar PDFs em blocos de 8)
-            // -------------------------------------------------------------
             const TAMANHO_LOTE = 8;
             for (let i = 0; i < itensBrutos.length; i += TAMANHO_LOTE) {
               const lote = itensBrutos.slice(i, i + TAMANHO_LOTE);
-              // O Promise.all dispara os 8 downloads ao mesmo tempo
               await Promise.all(lote.map(async (item) => {
                 if (!item.dataAchadaNoHtml) {
                   item.dataPdf = await extrairDataDoArquivo(item.linkCompleto);
@@ -89,9 +91,6 @@ export async function buscarPedranopolis(): Promise<Edital[]> {
               }));
             }
 
-            // -------------------------------------------------------------
-            // FASE 3: Aplicação Sequencial do Fallback (O pulo do gato)
-            // -------------------------------------------------------------
             let dataFallback = {
               formatada: `01/01/${itemAno.ano}`,
               timestamp: new Date(`${itemAno.ano}-01-01T00:00:00`).getTime()
@@ -110,7 +109,6 @@ export async function buscarPedranopolis(): Promise<Edital[]> {
                 timestampFinal = item.dataPdf.timestamp;
                 dataFallback = item.dataPdf;
               } else {
-                // Caiu aqui? É imagem! Usa o fallback instantaneamente da memória.
                 dataFinal = dataFallback.formatada;
                 timestampFinal = dataFallback.timestamp;
               }
@@ -120,7 +118,7 @@ export async function buscarPedranopolis(): Promise<Edital[]> {
                 orgao: 'Prefeitura',
                 titulo: item.tituloLimpo,
                 link: item.linkCompleto,
-                metadados: item.metadado || undefined,
+                metadados: item.metadado ? [item.metadado] : undefined, // ARRAY INJETADO
                 dataPublicacao: dataFinal,
                 dataTimestamp: timestampFinal,
                 ordemOriginal: item.ordemGlobal

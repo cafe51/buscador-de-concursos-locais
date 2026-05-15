@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
 import { extrairDataDoArquivo } from '../docParser';
+import { ehSujeira } from '../filtrosGlobais';
 
 export async function buscarSaoJoao(): Promise<Edital[]> {
   const resultados: Edital[] = [];
@@ -43,14 +44,21 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
 
           for (const headerEl of headersCards) {
             const metadado = $ano(headerEl).find('h4.card-title a').text().replace(/\s+/g, ' ').trim();
+
+            // 🛡️ ESCUDO APLICADO NO CABEÇALHO
+            if (ehSujeira(metadado)) continue;
+
             const linksPdfs = $ano(headerEl).parent().find('div.card-body ul.list.list-icons.list-primary.list-side-borders li a').toArray();
 
-            // FASE 1: Extração Bruta
             const itensBrutos: any[] = [];
             for (const el of linksPdfs) {
-              ordemGlobal++;
               const textoLinkInteiro = $ano(el).text().replace(/\s+/g, ' ').trim();
               let tituloLimpo = $ano(el).find('strong').text().replace(/\s+/g, ' ').trim();
+
+              // 🛡️ ESCUDO APLICADO NO ARQUIVO
+              if (ehSujeira(tituloLimpo)) continue;
+
+              ordemGlobal++;
               const href = $ano(el).attr('href') || '';
               const linkCompleto = href.startsWith('http') ? href : `https://sjduaspontes.sp.gov.br${href}`;
 
@@ -74,7 +82,6 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
               });
             }
 
-            // FASE 2: Processamento Paralelo Limitado (Lotes de 8)
             const TAMANHO_LOTE = 8;
             for (let i = 0; i < itensBrutos.length; i += TAMANHO_LOTE) {
               const lote = itensBrutos.slice(i, i + TAMANHO_LOTE);
@@ -85,7 +92,6 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
               }));
             }
 
-            // FASE 3: Fallback Cronológico
             let dataFallback = {
               formatada: `01/01/${itemAno.ano}`,
               timestamp: new Date(`${itemAno.ano}-01-01T00:00:00`).getTime()
@@ -113,7 +119,7 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
                 orgao: 'Prefeitura',
                 titulo: item.tituloLimpo,
                 link: item.linkCompleto,
-                metadados: item.metadado || undefined,
+                metadados: item.metadado ? [item.metadado] : undefined, // ARRAY INJETADO
                 dataPublicacao: dataFinal,
                 dataTimestamp: timestampFinal,
                 ordemOriginal: item.ordemGlobal

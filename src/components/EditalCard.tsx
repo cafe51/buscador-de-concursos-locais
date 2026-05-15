@@ -22,18 +22,20 @@ export default function EditalCard({ edital }: { edital: Edital }) {
 
           {edital.statusGeral && (
             <span className={`text-xs font-bold px-2 py-1 rounded border ${edital.statusGeral === 'Aberto' ? 'bg-green-100 text-green-800 border-green-200' :
-                edital.statusGeral === 'Em Andamento' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                  edital.statusGeral === 'Em Julgamento' ? 'bg-orange-100 text-orange-800 border-orange-200' :
-                    'bg-purple-100 text-purple-800 border-purple-200'
+              edital.statusGeral === 'Em Andamento' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                edital.statusGeral === 'Em Julgamento' ? 'bg-orange-100 text-orange-800 border-orange-200' :
+                  'bg-purple-100 text-purple-800 border-purple-200'
               }`}>
               📌 {edital.statusGeral}
             </span>
           )}
 
-          {edital.metadados && (
-            <span className="bg-gray-100 text-gray-600 text-xs font-semibold px-2 py-1 rounded border border-gray-200">
-              📄 {edital.metadados}
-            </span>
+          {edital.metadados && edital.metadados.length > 0 && (
+            edital.metadados.map((meta, idx) => (
+              <span key={idx} className="bg-gray-100 text-gray-600 text-xs font-semibold px-2 py-1 rounded border border-gray-200">
+                📄 {meta}
+              </span>
+            ))
           )}
         </div>
 

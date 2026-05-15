@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
+import { ehSujeira } from '../filtrosGlobais';
 
 export async function buscarMeridiano(): Promise<Edital[]> {
   const resultados: Edital[] = [];
@@ -41,6 +42,10 @@ export async function buscarMeridiano(): Promise<Edital[]> {
 
         $ano('.ces-card-item').each((_, el) => {
           const metadado = $ano(el).find('h3.ces-item-title').text().replace(/\s+/g, ' ').trim();
+
+          // 🛡️ ESCUDO: Se o bloco inteiro for licitação, pula na hora!
+          if (ehSujeira(metadado)) return;
+
           const href = $ano(el).find('a.ces-btn-primary').attr('href') || '';
 
           if (href && metadado) {
@@ -58,43 +63,32 @@ export async function buscarMeridiano(): Promise<Edital[]> {
             const $det = cheerio.load(htmlDet);
 
             $det('#ces-arquivos .ces-timeline-item').each((_, el) => {
-              ordemGlobal++;
-
               const dataRaw = $det(el).find('.ces-timeline-date').text().trim();
               const tituloOriginal = $det(el).find('.ces-timeline-title').text().replace(/\s+/g, ' ').trim();
-              const href = $det(el).find('a.ces-timeline-link').attr('href') || '';
 
+              // 🛡️ ESCUDO PARA O ARQUIVO:
+              if (ehSujeira(tituloOriginal)) return;
+
+              const href = $det(el).find('a.ces-timeline-link').attr('href') || '';
               if (!href) return;
 
               const linkCompleto = href.startsWith('http') ? href : `https://meridiano.sp.gov.br${href}`;
 
-              // VARIÁVEIS DO CARD
               let dataFormatada = 'sem data';
               let dataTimestamp = 0;
-              let tituloFinal = tituloOriginal; // Por padrão, usa o título do HTML
+              let tituloFinal = tituloOriginal;
 
-              // --- MUDANÇA: REGRAS ESPECÍFICAS PARA O ANO 2022 ---
               if (itemAno.ano === 2022) {
-                // 1. Força a data para 01/03/2022
                 dataFormatada = '01/03/2022';
                 dataTimestamp = new Date('2022-03-01T00:00:00').getTime();
 
-                // 2. Extrai o título direto do nome do arquivo (URL)
-                // Pega a última parte da URL após a barra "/"
                 let nomeArquivo = href.split('/').pop() || '';
-
-                // Descodifica (ex: %20 vira espaço), tira a extensão e troca os hifens
                 nomeArquivo = decodeURIComponent(nomeArquivo);
                 nomeArquivo = nomeArquivo.replace(/\.pdf$/i, '').replace(/\.docx?$/i, '');
                 nomeArquivo = nomeArquivo.replace(/-/g, ' ').trim();
 
-                // Substitui o título original falho por esse novo
-                if (nomeArquivo) {
-                  tituloFinal = nomeArquivo;
-                }
-
+                if (nomeArquivo) tituloFinal = nomeArquivo;
               } else {
-                // Comportamento normal para os outros anos
                 const matchData = dataRaw.match(/(\d{2})\/(\d{2})\/(\d{4})/);
                 if (matchData) {
                   dataFormatada = matchData[0];
@@ -102,12 +96,15 @@ export async function buscarMeridiano(): Promise<Edital[]> {
                 }
               }
 
+              ordemGlobal++;
+
               resultados.push({
                 cidade: 'Meridiano',
                 orgao: 'Prefeitura',
-                titulo: tituloFinal, // Recebe o título tratado
+                titulo: tituloFinal,
                 link: linkCompleto,
-                metadados: concurso.metadado,
+                // ARRAY INJETADO!
+                metadados: concurso.metadado ? [concurso.metadado] : undefined,
                 dataPublicacao: dataFormatada,
                 dataTimestamp: dataTimestamp,
                 ordemOriginal: ordemGlobal
@@ -115,18 +112,15 @@ export async function buscarMeridiano(): Promise<Edital[]> {
             });
 
           } catch (e) {
-            console.error(`Erro ao acessar detalhes do concurso: ${concurso.metadado}`, e);
+            console.error(`Erro ao acessar detalhes: ${concurso.metadado}`, e);
           }
         }
-
       } catch (e) {
         console.error(`Erro ao acessar página de ano: ${itemAno.url}`, e);
       }
     }
-
   } catch (e) {
     console.error('Erro geral ao buscar Meridiano', e);
   }
-
   return resultados;
 }
