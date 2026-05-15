@@ -1,8 +1,7 @@
 import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
-import { ehSujeira } from '../filtrosGlobais'; // <-- 1. IMPORTA O GUARDA COSTAS
+import { ehSujeira, ehRelevante } from '../filtrosGlobais'; // <-- IMPORTAMOS A NOVA FUNÇÃO
 
-// Dicionário de Secretarias para Fernandópolis
 const SIGLAS_SECRETARIAS: Record<string, string> = {
   'SME': 'Educação',
   'SMRH': 'Recursos Humanos',
@@ -12,6 +11,22 @@ const SIGLAS_SECRETARIAS: Record<string, string> = {
   'SMAS': 'Assistência Social',
   'SMO': 'Obras'
 };
+
+
+// Tudo que for de RH e Concurso tem que ter, OBRIGATORIAMENTE, pelo menos um desses termos:
+// Garante que fases de concurso como "Gabarito" ou "Prorrogação" não sejam descartadas.
+const TERMOS_OBRIGATORIOS_FERNANDOPOLIS = [
+  // O Core
+  'concurso', 'processo seletivo', 'processo de selecao', 'selecao de', 'estagiario', 'estagio',
+
+  // Ações exclusivas de RH
+  'atribuicao', 'contratacao', 'chamada publica', 'admissao', 'posse',
+
+  // Fases e Atualizações (Seguras agora graças à Super Lista Negra)
+  'convocacao', 'convoca ', 'gabarito', 'resultado', 'classificacao', 'homologacao',
+  'retificacao', 'rerratificacao', 'prorrogacao', 'recurso', 'respostas', 'comunicado',
+  'provas', 'entrevista', 'inscricao', 'inscricoes', 'aviso', 'extrato'
+];
 
 async function buscarDataFernandopolis(url: string): Promise<string | null> {
   try {
@@ -32,9 +47,6 @@ export async function buscarFernandopolis(): Promise<Edital[]> {
   const resultados: Edital[] = [];
   let ordemGlobal = 0;
 
-  // Palavras que só Fernandópolis ignora (Exemplo da regra local que você pediu)
-  const sujeirasLocais = ['filhos da terra'];
-
   for (let pagina = 1; pagina <= 20; pagina++) {
     try {
       const response = await fetch(`https://fernandopolis.sp.gov.br/publicacoes/?categoria=edital&pagina=${pagina}`, {
@@ -52,9 +64,16 @@ export async function buscarFernandopolis(): Promise<Edital[]> {
         const href = $(elemento).attr('href') || '';
         const textoAoRedor = $(elemento).parent().parent().text().replace(titulo, '').replace(/\s+/g, ' ').trim();
 
-        // 2. O ESCUDO GLOBAL E LOCAL EM AÇÃO
-        if (ehSujeira(`${titulo} ${textoAoRedor}`, sujeirasLocais)) {
-          return; // Pula essa licitação/sujeira na hora!
+        const textoParaAnalise = `${titulo} ${textoAoRedor}`;
+
+        // 1. ESCUDO GLOBAL (Lista Negra): Tem alguma das nossas palavras proibidas gerais?
+        if (ehSujeira(textoParaAnalise)) {
+          return;
+        }
+
+        // 2. A PENEIRA FINA (Lista Branca LOCAL): Tem pelo menos uma palavra de Concurso/RH?
+        if (!ehRelevante(textoParaAnalise, TERMOS_OBRIGATORIOS_FERNANDOPOLIS)) {
+          return; // Se não tiver a palavra mágica, PULA o card! A prefeitura postou lixo.
         }
 
         ordemGlobal++;
@@ -71,12 +90,11 @@ export async function buscarFernandopolis(): Promise<Edital[]> {
           timestamp = new Date(`${partes[2]}-${partes[1]}-${partes[0]}T00:00:00`).getTime();
         }
 
-        // 3. PESCANDO AS SIGLAS NO TÍTULO
         const tagsMetadados: string[] = [];
         const matchSigla = item.titulo.match(/\b(SME|SMRH|SMEL|SMCT|SMS|SMAS|SMO)\b/i);
         if (matchSigla) {
           const sigla = matchSigla[1].toUpperCase();
-          tagsMetadados.push(SIGLAS_SECRETARIAS[sigla]); // Injeta "Educação", etc.
+          tagsMetadados.push(SIGLAS_SECRETARIAS[sigla]);
         }
 
         resultados.push({
@@ -85,7 +103,7 @@ export async function buscarFernandopolis(): Promise<Edital[]> {
           titulo: item.titulo,
           link: linkCompleto,
           descricao: item.textoAoRedor || undefined,
-          metadados: tagsMetadados.length > 0 ? tagsMetadados : undefined, // ARRAY INJETADO!
+          metadados: tagsMetadados.length > 0 ? tagsMetadados : undefined,
           dataPublicacao: dataEncontrada || 'sem data',
           dataTimestamp: timestamp,
           ordemOriginal: item.ordem
