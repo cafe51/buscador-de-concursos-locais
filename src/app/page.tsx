@@ -5,8 +5,8 @@ import { buscarTodosEditais } from './actions';
 import { Edital } from '../types';
 import EditalCard from '../components/EditalCard';
 import FilterPanel from '../components/FilterPanel';
+import { exportarParaJSON } from '../utils/exportJson'; // <-- MÓDULO IMPORTADO AQUI
 
-// A MÁGICA DA VERCEL ENTRA AQUI! (Permite até 60 segundos no plano Hobby)
 export const maxDuration = 60;
 
 function removerAcentos(texto: string) {
@@ -17,8 +17,6 @@ export default function Home() {
   const [editais, setEditais] = useState<Edital[]>([]);
   const [loading, setLoading] = useState(true);
   const [erroFatal, setErroFatal] = useState('');
-
-  // NOVO: Estado para guardar o nome dos órgãos que falharam
   const [alertas, setAlertas] = useState<string[]>([]);
 
   const [palavrasDesejadas, setPalavrasDesejadas] = useState<string[]>([]);
@@ -34,7 +32,7 @@ export default function Home() {
     try {
       const resultado = await buscarTodosEditais();
       setEditais(resultado.editais);
-      setAlertas(resultado.falhas); // Guarda quem falhou!
+      setAlertas(resultado.falhas);
       setPaginaAtual(1);
     } catch (e) {
       setErroFatal('Ocorreu um erro fatal de conexão. Tente novamente mais tarde.');
@@ -45,6 +43,7 @@ export default function Home() {
   useEffect(() => { carregarDados() }, []);
   useEffect(() => { setPaginaAtual(1) }, [palavrasDesejadas, palavrasIgnoradas]);
 
+  // Aplicação dos Filtros
   const editaisFiltrados = editais.filter((edital) => {
     const valoresTextuais = [
       edital.cidade,
@@ -58,11 +57,8 @@ export default function Home() {
 
     const textoNormalizado = removerAcentos(valoresTextuais);
 
-    const passaDesejadas = palavrasDesejadas.length === 0 ||
-      palavrasDesejadas.some(p => textoNormalizado.includes(p));
-
-    const passaIgnoradas = palavrasIgnoradas.length === 0 ||
-      !palavrasIgnoradas.some(p => textoNormalizado.includes(p));
+    const passaDesejadas = palavrasDesejadas.length === 0 || palavrasDesejadas.some(p => textoNormalizado.includes(p));
+    const passaIgnoradas = palavrasIgnoradas.length === 0 || !palavrasIgnoradas.some(p => textoNormalizado.includes(p));
 
     return passaDesejadas && passaIgnoradas;
   });
@@ -80,24 +76,32 @@ export default function Home() {
             <h1 className="text-3xl font-bold text-blue-900">Radar de Concursos 🎯</h1>
             <p className="text-gray-500 mt-1">Monitorando Órgãos Locais e Região</p>
           </div>
-          <button
-            onClick={carregarDados}
-            disabled={loading}
-            className={`px-6 py-3 rounded font-bold text-white transition-colors ${loading ? 'bg-blue-300 cursor-wait' : 'bg-blue-600 hover:bg-blue-700'}`}
-          >
-            {loading ? 'Extraindo dados...' : '🔄 Buscar Novidades'}
-          </button>
+
+          <div className="flex gap-4">
+            <button
+              // AQUI CHAMAMOS O MÓDULO PASSANDO O ARRAY FILTRADO
+              onClick={() => exportarParaJSON(editaisFiltrados, 'meus-editais')}
+              disabled={loading || editaisFiltrados.length === 0}
+              className={`px-4 py-3 rounded font-bold transition-colors border ${loading || editaisFiltrados.length === 0 ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50'}`}
+              title="Baixar a lista que você está vendo na tela em JSON"
+            >
+              📥 Exportar JSON
+            </button>
+
+            <button
+              onClick={carregarDados}
+              disabled={loading}
+              className={`px-6 py-3 rounded font-bold text-white transition-colors ${loading ? 'bg-blue-300 cursor-wait' : 'bg-blue-600 hover:bg-blue-700'}`}
+            >
+              {loading ? 'Extraindo dados...' : '🔄 Buscar Novidades'}
+            </button>
+          </div>
         </header>
 
-        {/* ALERTA DE FALHAS ISOLADAS */}
         {alertas.length > 0 && !loading && (
           <div className="bg-orange-100 border-l-4 border-orange-500 text-orange-800 p-4 rounded mb-6 shadow-sm">
-            <p className="font-bold flex items-center gap-2">
-              ⚠️ Atenção: Problemas de conexão com alguns órgãos
-            </p>
-            <p className="text-sm mt-1">
-              Mostrando os dados dos outros municípios, mas não foi possível atualizar: <strong>{alertas.join(', ')}</strong>.
-            </p>
+            <p className="font-bold flex items-center gap-2">⚠️ Atenção: Problemas de conexão com alguns órgãos</p>
+            <p className="text-sm mt-1">Mostrando os dados dos outros municípios, mas não foi possível atualizar: <strong>{alertas.join(', ')}</strong>.</p>
           </div>
         )}
 

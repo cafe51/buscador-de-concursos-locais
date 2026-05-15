@@ -6,9 +6,9 @@ import { buscarVotuporanga } from '../lib/scrapers/votuporanga';
 import { buscarMacedonia } from '../lib/scrapers/macedonia';
 import { buscarPedranopolis } from '../lib/scrapers/pedranopolis';
 import { buscarEstrela } from '../lib/scrapers/estrela';
-import { buscarJales } from '../lib/scrapers/jales';
 import { buscarMeridiano } from '../lib/scrapers/meridiano';
 import { buscarSaoJoao } from '../lib/scrapers/saojoao';
+import { urlsParaBlacklist } from '../lib/docParser'; // <-- IMPORTAÇÃO DA LISTA NEGRA
 
 export type ResultadoBusca = {
   editais: Edital[];
@@ -29,18 +29,19 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
   let todosOsEditais: Edital[] = [];
   const cidadesComFalha: string[] = [];
 
+  // Limpa a lista negra em tempo de execução antes de começar a rodada
+  urlsParaBlacklist.clear();
+
   console.log("⏳ Iniciando raspagem de dados...");
   const tempoInicioTotal = performance.now();
 
   try {
-    // 2. ADICIONE NA LISTA DE TAREFAS PARALELAS!
     const promessas = await Promise.all([
       rodarComProtecao('Fernandópolis', buscarFernandopolis),
       rodarComProtecao('Votuporanga', buscarVotuporanga),
       rodarComProtecao('Macedônia', buscarMacedonia),
       rodarComProtecao('Pedranópolis', buscarPedranopolis),
       rodarComProtecao("Estrela d'Oeste", buscarEstrela),
-      rodarComProtecao('Jales', buscarJales),
       rodarComProtecao('Meridiano', buscarMeridiano),
       rodarComProtecao('São João das Duas Pontes', buscarSaoJoao)
     ]);
@@ -68,7 +69,15 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
     if (cidadesComFalha.length > 0) {
       console.log(`⚠️ Falhas detectadas em: ${cidadesComFalha.join(', ')}`);
     }
-    console.log("---------------------------------------------------\n");
+
+    // A MÁGICA ACONTECE AQUI! IMPRIME O ARRAY DA LISTA NEGRA
+    if (urlsParaBlacklist.size > 0) {
+      console.log(`\n🛑 ENCONTRAMOS ${urlsParaBlacklist.size} ARQUIVOS SEM DATA (IMAGENS/QUEBRADOS).`);
+      console.log(`Copie o bloco abaixo e cole no array PDFs_IGNORADOS em docParser.ts:\n`);
+      console.log(JSON.stringify(Array.from(urlsParaBlacklist), null, 2));
+    }
+
+    console.log("\n---------------------------------------------------\n");
 
     return {
       editais: todosOsEditais,
