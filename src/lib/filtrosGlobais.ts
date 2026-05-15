@@ -22,7 +22,13 @@ export const PALAVRAS_IGNORADAS_GLOBAIS = [
   'decreto', 'copa do mundo', 'conferencia municipal', 'ponto facultativo', 'reuniao ordinaria',
   'reuniao plenaria', 'sessao ordinaria', 'sessao extraordinaria', 'audiencia publica',
   'prestacao de contas', 'relatorio de gestao', 'balanco', 'orcamento', 'plano diretor',
-  'lrf', 'audiencia'
+  'lrf', 'audiencia',
+
+  // --- Falsos Positivos de Seleções (Bolsas e Voluntariado) ---
+  'tempo de aprender', 'mais alfabetizacao', 'voluntario', 'assistente de alfabetizacao',
+  'atletas', 'desportivos amadores', 'auxilio financeiro a atletas', 'bom de escola bom de esporte',
+  'atribuicao de classes', 'atribuicao de aulas', 'atribuicao online'
+
 ];
 
 export function removerAcentos(texto: string) {

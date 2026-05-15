@@ -29,7 +29,6 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
   let todosOsEditais: Edital[] = [];
   const cidadesComFalha: string[] = [];
 
-  // Limpa a lista negra em tempo de execução antes de começar a rodada
   urlsParaBlacklist.clear();
 
   console.log("⏳ Iniciando raspagem de dados...");
@@ -54,7 +53,26 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
       }
     });
 
-    todosOsEditais.sort((a, b) => {
+    // ==============================================================
+    // 🛡️ O DESDUPLICADOR GLOBAL: Remove cards com o mesmo link
+    // ==============================================================
+    const editaisUnicos = new Map<string, Edital>();
+
+    todosOsEditais.forEach((edital) => {
+      // O Set/Map usa o LINK como chave única.
+      // Se um link idêntico já estiver lá, ele não entra de novo!
+      if (!editaisUnicos.has(edital.link)) {
+        editaisUnicos.set(edital.link, edital);
+      }
+    });
+
+    // Transforma o Map de volta num Array limpo
+    let listaLimpa = Array.from(editaisUnicos.values());
+
+    // ==============================================================
+
+    // Ordenação do Maior (mais novo) para o Menor (mais antigo)
+    listaLimpa.sort((a, b) => {
       if (b.dataTimestamp !== a.dataTimestamp) {
         return b.dataTimestamp - a.dataTimestamp;
       }
@@ -65,22 +83,21 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
     const tempoGasto = ((tempoFimTotal - tempoInicioTotal) / 1000).toFixed(2);
 
     console.log(`\n✅ RASPAGEM CONCLUÍDA EM ${tempoGasto} SEGUNDOS!`);
-    console.log(`📊 Total de editais extraídos: ${todosOsEditais.length}`);
+    console.log(`📊 Total de editais extraídos: ${listaLimpa.length} (Duplicados removidos)`);
     if (cidadesComFalha.length > 0) {
       console.log(`⚠️ Falhas detectadas em: ${cidadesComFalha.join(', ')}`);
     }
 
-    // A MÁGICA ACONTECE AQUI! IMPRIME O ARRAY DA LISTA NEGRA
     if (urlsParaBlacklist.size > 0) {
       console.log(`\n🛑 ENCONTRAMOS ${urlsParaBlacklist.size} ARQUIVOS SEM DATA (IMAGENS/QUEBRADOS).`);
-      console.log(`Copie o bloco abaixo e cole no array PDFs_IGNORADOS em docParser.ts:\n`);
+      console.log(`Copie o bloco abaixo e cole no array PDFs_IGNORADOS em blacklist.ts:\n`);
       console.log(JSON.stringify(Array.from(urlsParaBlacklist), null, 2));
     }
 
     console.log("\n---------------------------------------------------\n");
 
     return {
-      editais: todosOsEditais,
+      editais: listaLimpa, // <-- Retorna a lista desduplicada
       falhas: cidadesComFalha
     };
 
