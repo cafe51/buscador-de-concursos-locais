@@ -109,9 +109,9 @@ export async function buscarFernandopolis(): Promise<Edital[]> {
         // ==============================================================
         // 🛑 A CONDIÇÃO DE PARADA (Verifica se é o Edital 01/2023)
         // ==============================================================
-        const ehOLinkAlvo = linkCompleto.includes('/concurso/edital-concurso-publico');
+        const ehOLinkAlvo = linkCompleto.includes('/concurso/edital-normativo-do-concurso-publico-no-012018-7933');
 
-        if (ehSujeira(textoParaAnalise)) {
+        if (ehSujeira(textoParaAnalise, [], linkCompleto)) {
           if (ehOLinkAlvo) { encontrouAlvoDeParada = true; return false; } // Para o .each() do cheerio
           return true; // Funciona como 'continue', pula para o próximo
         }
