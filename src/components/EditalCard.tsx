@@ -37,6 +37,12 @@ export default function EditalCard({ edital }: { edital: Edital }) {
               </span>
             ))
           )}
+
+          {edital.concurso && (
+            <span className="bg-purple-100 text-purple-800 border border-purple-200 text-xs font-bold px-2 py-1 rounded shadow-sm">
+              🗂️ {edital.concurso}
+            </span>
+          )}
         </div>
 
         {edital.dataPublicacao && (

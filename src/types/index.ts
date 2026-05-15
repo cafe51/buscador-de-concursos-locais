@@ -5,8 +5,9 @@ export type Edital = {
   link: string;
   dataTimestamp: number;
 
+  concurso?: string;       // <--- NOVA CHAVE OFICIAL DE AGRUPAMENTO!
   descricao?: string;
-  metadados?: string[];    // <--- MUDOU PARA ARRAY DE STRINGS!
+  metadados?: string[];
   statusGeral?: string;
   dataPublicacao?: string;
   ordemOriginal?: number;
