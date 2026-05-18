@@ -11,6 +11,26 @@ const TERMOS_OBRIGATORIOS_FERNANDOPOLIS = [
   'provas', 'entrevista', 'inscricao', 'inscricoes', 'aviso', 'extrato'
 ];
 
+// ==============================================================
+// 🛑 REGRA DE CORTE DE ANOS
+// ==============================================================
+function deveExcluirPorAno(idConcurso: string | undefined): boolean {
+  if (!idConcurso) return false; // Se não tem certeza, não exclui ainda. Deixa pro PDF resolver.
+
+  const matchAno = idConcurso.match(/\/(\d{4})\b/);
+  if (!matchAno) return false;
+
+  const ano = parseInt(matchAno[1], 10);
+
+  // Regra 1: Excluir Concursos de 2015 ou menos
+  if (idConcurso.startsWith('Concurso') && ano <= 2015) return true;
+
+  // Regra 2: Excluir Processos Seletivos de 2020 ou menos
+  if (idConcurso.startsWith('Processo') && ano <= 2020) return true;
+
+  return false;
+}
+
 async function buscarDetalhesFernandopolis(url: string): Promise<{ dataCorreta: string | null, descricaoExtra: string, urlPrimeiroPdf: string | null }> {
   try {
     const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'force-cache' });
@@ -68,15 +88,12 @@ export async function buscarFernandopolis(): Promise<Edital[]> {
 
   const itensBrutos: { titulo: string, linkCompleto: string, textoAoRedor: string, ordem: number }[] = [];
 
-  // -------------------------------------------------------------
-  // FASE 1: Coleta rápida de Links (Lotes de 5 páginas por vez!)
-  // -------------------------------------------------------------
+  // FASE 1: Coleta em Lotes de 5 páginas
   for (let loteInicio = 1; loteInicio <= 50; loteInicio += 5) {
     if (encontrouAlvoDeParada) break;
 
     const promessasPaginas = [];
 
-    // Pede 5 páginas simultaneamente
     for (let pagina = loteInicio; pagina < loteInicio + 5 && pagina <= 50; pagina++) {
       promessasPaginas.push(
         fetch(`https://fernandopolis.sp.gov.br/publicacoes/?categoria=concurso&pagina=${pagina}`, {
@@ -91,7 +108,6 @@ export async function buscarFernandopolis(): Promise<Edital[]> {
     }
 
     const paginasBaixadas = await Promise.all(promessasPaginas);
-    // Ordena as páginas para não perder a linha do tempo!
     paginasBaixadas.sort((a, b) => a.pagina - b.pagina);
 
     for (const pag of paginasBaixadas) {
@@ -106,6 +122,7 @@ export async function buscarFernandopolis(): Promise<Edital[]> {
         const textoAoRedor = $(elemento).parent().parent().text().replace(titulo, '').replace(/\s+/g, ' ').trim();
         const textoParaAnalise = `${titulo} ${textoAoRedor}`;
 
+        // O LINK ALVO ATUALIZADO
         const ehOLinkAlvo = linkCompleto.includes('/concurso/edital-normativo-do-concurso-publico-no-012018-7933');
 
         if (ehSujeira(textoParaAnalise, [], linkCompleto)) {
@@ -118,20 +135,28 @@ export async function buscarFernandopolis(): Promise<Edital[]> {
           return true;
         }
 
+        // 🚑 O PULO DO GATO: Tenta descobrir a chave de concurso pela "capa".
+        const idConcursoPreliminar = extrairIdConcurso(titulo, textoAoRedor);
+
+        // Se já descobriu a chave e ela for um concurso/seletivo velho demais, PULA!
+        // Não vai nem para a fila do Fase 2. Economiza tempo precioso de requisição.
+        if (deveExcluirPorAno(idConcursoPreliminar)) {
+          if (ehOLinkAlvo) { encontrouAlvoDeParada = true; return false; }
+          return true;
+        }
+
         ordemGlobal++;
         itensBrutos.push({ titulo, linkCompleto, textoAoRedor, ordem: ordemGlobal });
 
         if (ehOLinkAlvo) {
           encontrouAlvoDeParada = true;
-          return false; // Break do loop Cheerio
+          return false;
         }
       });
     }
   }
 
-  // -------------------------------------------------------------
-  // FASE 2: Processamento Controlado em Lotes Aumentados (15)
-  // -------------------------------------------------------------
+  // FASE 2: Lotes de 15 requisições de detalhes
   const TAMANHO_LOTE = 15;
 
   for (let i = 0; i < itensBrutos.length; i += TAMANHO_LOTE) {
@@ -156,6 +181,13 @@ export async function buscarFernandopolis(): Promise<Edital[]> {
           const textoCorrigido = corrigirErrosDigitacao(textoDoPdf);
           idConcurso = extrairIdConcurso(textoCorrigido, '');
         }
+      }
+
+      // 🚑 2º VERIFICAÇÃO DE IDADE: 
+      // Se a Fase 1 não achou o ID do concurso, mas o resgate de PDF aqui da Fase 2 achou 
+      // e é um concurso velho, NÓS ABORTAMOS O CARD (não enviamos pro 'resultados')!
+      if (deveExcluirPorAno(idConcurso)) {
+        return; // Pula o resto da execução do .map para esse item
       }
 
       let anoConcurso: number | undefined = undefined;
