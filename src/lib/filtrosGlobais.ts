@@ -74,25 +74,21 @@ export function ehRelevante(texto: string, palavrasChave: string[]): boolean {
 export function extrairIdConcurso(titulo: string, descricao: string, aceitarBuscaInvertida: boolean = false, strict: boolean = false): string | undefined {
   let texto = `${titulo} ${descricao}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 
-  const regexSujeiraNumerica = /(CONVOCACAO|RETIFICACAO|HOMOLOGACAO|ATRIBUICAO|CLASSIFICACAO|RESULTADO|PORTARIA|DECRETO|ERRATA|GABARITO|CHAMADA|RECOMENDACAO ADMINISTRATIVA)(?:(?!CONCUR|SELETIV|\bPS\b)[^\d]){0,25}?\d{1,3}[\s\/\-_]+\d{2,4}/g;
+  // ADICIONADO O PONTO \. COMO SEPARADOR VÁLIDO NAS 3 REGEX ABAIXO:
+  const regexSujeiraNumerica = /(CONVOCACAO|RETIFICACAO|HOMOLOGACAO|ATRIBUICAO|CLASSIFICACAO|RESULTADO|PORTARIA|DECRETO|ERRATA|GABARITO|CHAMADA|RECOMENDACAO ADMINISTRATIVA)(?:(?!CONCUR|SELETIV|\bPS\b)[^\d]){0,25}?\d{1,3}[\s\/\-_\.]+\d{2,4}/g;
   texto = texto.replace(regexSujeiraNumerica, '');
 
   let match = null;
 
   if (strict) {
-    // MODO ESTRITO: Usado para ler o HTML gigante da página.
-    // Exige que a palavra esteja perfeitamente colada ao número, ignorando apenas preposições.
-    // O final (?!\s*[\/\-_]\s*\d{2,4}) garante que ele NUNCA pegue um pedaço de uma data.
-    const regexEstrita = /\b(CONCUR[A-Z]*|SELETIVO|SELECAO|\bPS\b)\s*(?:P[UÚ]L?[B]?[IÍ]?[C]?O?S?\s*)?(?:SIMPLIFICADO\s*)?(?:DE\s*)?(?:N[Oº°.]*\s*)?(\d{1,3})[\s\/\-_]+(\d{2}|\d{4})\b(?!\s*[\/\-_]\s*\d{2,4})/i;
+    const regexEstrita = /\b(CONCUR[A-Z]*|SELETIVO|SELECAO|\bPS\b)\s*(?:P[UÚ]L?[B]?[IÍ]?[C]?O?S?\s*)?(?:SIMPLIFICADO\s*)?(?:DE\s*)?(?:N[Oº°.]*\s*)?(\d{1,3})[\s\/\-_\.]+(\d{2}|\d{4})\b(?!\s*[\/\-_\.]\s*\d{2,4})/i;
     match = texto.match(regexEstrita);
   } else {
-    // MODO PADRÃO: Usado para títulos curtos.
-    const regexConcurso = /\b(CONCUR[A-Z]*|SELETIVO|SELECAO|\bPS\b)[^\d]{0,40}?(\d{1,3})[\s\/\-_]+(\d{2}|\d{4})\b(?!\s*[\/\-_]\s*\d{2,4})/;
+    const regexConcurso = /\b(CONCUR[A-Z]*|SELETIVO|SELECAO|\bPS\b)[^\d]{0,40}?(\d{1,3})[\s\/\-_\.]+(\d{2}|\d{4})\b(?!\s*[\/\-_\.]\s*\d{2,4})/;
     match = texto.match(regexConcurso);
 
-    // MODO INVERTIDO: Usado para títulos onde o número vem antes (Ex: 01/2019 Processo Seletivo)
     if (!match && aceitarBuscaInvertida) {
-      const regexConcursoInvertido = /(\d{1,3})[\s\/\-_]+(\d{2}|\d{4})\b(?!\s*[\/\-_]\s*\d{2,4})(?:(?!CONCUR|SELETIV|\bPS\b).){0,40}?\b(CONCUR[A-Z]*|SELETIVO|SELECAO|\bPS\b)\b/;
+      const regexConcursoInvertido = /(\d{1,3})[\s\/\-_\.]+(\d{2}|\d{4})\b(?!\s*[\/\-_\.]\s*\d{2,4})(?:(?!CONCUR|SELETIV|\bPS\b).){0,40}?\b(CONCUR[A-Z]*|SELETIVO|SELECAO|\bPS\b)\b/;
       const matchInvertido = texto.match(regexConcursoInvertido);
       if (matchInvertido) {
         match = [matchInvertido[0], matchInvertido[3], matchInvertido[1], matchInvertido[2]];
@@ -114,6 +110,7 @@ export function extrairIdConcurso(titulo: string, descricao: string, aceitarBusc
 
   return undefined;
 }
+
 
 
 
