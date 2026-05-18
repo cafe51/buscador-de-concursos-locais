@@ -8,19 +8,61 @@ import { buscarPedranopolis } from '../lib/scrapers/pedranopolis';
 import { buscarEstrela } from '../lib/scrapers/estrela';
 import { buscarMeridiano } from '../lib/scrapers/meridiano';
 import { buscarSaoJoao } from '../lib/scrapers/saojoao';
-import { urlsParaBlacklist } from '../lib/docParser'; // <-- IMPORTAÇÃO DA LISTA NEGRA
+import { urlsParaBlacklist } from '../lib/docParser';
 
 export type ResultadoBusca = {
   editais: Edital[];
   falhas: string[];
 };
 
+// ==============================================================
+// ⏱️ LIMITE MÁXIMO DE TEMPO POR CIDADE (55 Segundos)
+// ==============================================================
+const TIMEOUT_POR_CIDADE_MS = 55000;
+
 async function rodarComProtecao(nomeCidade: string, funcaoScraper: () => Promise<Edital[]>) {
+  const tempoInicio = performance.now();
+
   try {
-    const dados = await funcaoScraper();
+    // Cria a promessa-bomba relógio
+    const cronometro = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('TIMEOUT')), TIMEOUT_POR_CIDADE_MS);
+    });
+
+    // O Promise.race faz o scraper apostar corrida com o cronômetro
+    const dados = await Promise.race([
+      funcaoScraper(),
+      cronometro
+    ]);
+
+    const tempoFim = performance.now();
+    const tempoGasto = ((tempoFim - tempoInicio) / 1000).toFixed(2);
+
+    // Log de Sucesso (Com o tempo exato e quantidade de itens daquela cidade)
+    // Define um tamanho máximo fixo para a coluna da cidade (ex: 30 caracteres)
+    const tamanhoFixoNome = 30;
+    const tamanhoFixoTempo = 5;
+
+    // O padEnd vai adicionar espaços à direita do nome da cidade até que a string tenha 30 caracteres
+    const nomeFormatado = `[${nomeCidade}]`.padEnd(tamanhoFixoNome, ' ');
+
+    const tempoFormatado = tempoGasto.padEnd(tamanhoFixoTempo, ' ');
+
+    console.log(`🟢 ${nomeFormatado} OK \t| Tempo: ${tempoFormatado}s \t| Itens extraídos: ${dados.length}`);
+
     return { sucesso: true, cidade: nomeCidade, dados };
   } catch (e: any) {
-    console.error(`Falha isolada em ${nomeCidade}:`, e.message);
+    const tempoFim = performance.now();
+    const tempoGasto = ((tempoFim - tempoInicio) / 1000).toFixed(2);
+
+    // Log de Falha
+    let motivo = e.message;
+    if (motivo === 'TIMEOUT') {
+      motivo = `Tempo limite de ${TIMEOUT_POR_CIDADE_MS / 1000}s excedido`;
+    }
+
+    console.error(`🔴 [${nomeCidade}] FALHOU \t| Tempo: ${tempoGasto}s \t| Motivo: ${motivo}`);
+
     return { sucesso: false, cidade: nomeCidade, dados: [] };
   }
 }
@@ -31,7 +73,10 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
 
   urlsParaBlacklist.clear();
 
-  console.log("⏳ Iniciando raspagem de dados...");
+  console.log("\n===================================================");
+  console.log("⏳ INICIANDO RASPAGEM DE DADOS...");
+  console.log("===================================================");
+
   const tempoInicioTotal = performance.now();
 
   try {
@@ -59,19 +104,14 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
     const editaisUnicos = new Map<string, Edital>();
 
     todosOsEditais.forEach((edital) => {
-      // O Set/Map usa o LINK como chave única.
-      // Se um link idêntico já estiver lá, ele não entra de novo!
       if (!editaisUnicos.has(edital.link)) {
         editaisUnicos.set(edital.link, edital);
       }
     });
 
-    // Transforma o Map de volta num Array limpo
     let listaLimpa = Array.from(editaisUnicos.values());
 
-    // ==============================================================
-
-    // Ordenação do Maior (mais novo) para o Menor (mais antigo)
+    // Ordenação Cronológica
     listaLimpa.sort((a, b) => {
       if (b.dataTimestamp !== a.dataTimestamp) {
         return b.dataTimestamp - a.dataTimestamp;
@@ -82,22 +122,21 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
     const tempoFimTotal = performance.now();
     const tempoGasto = ((tempoFimTotal - tempoInicioTotal) / 1000).toFixed(2);
 
-    console.log(`\n✅ RASPAGEM CONCLUÍDA EM ${tempoGasto} SEGUNDOS!`);
-    console.log(`📊 Total de editais extraídos: ${listaLimpa.length} (Duplicados removidos)`);
+    console.log("===================================================");
+    console.log(`✅ RASPAGEM TOTAL CONCLUÍDA EM ${tempoGasto} SEGUNDOS!`);
+    console.log(`📊 Total de editais extraídos: ${listaLimpa.length}`);
     if (cidadesComFalha.length > 0) {
       console.log(`⚠️ Falhas detectadas em: ${cidadesComFalha.join(', ')}`);
     }
 
     if (urlsParaBlacklist.size > 0) {
-      console.log(`\n🛑 ENCONTRAMOS ${urlsParaBlacklist.size} ARQUIVOS SEM DATA (IMAGENS/QUEBRADOS).`);
-      console.log(`Copie o bloco abaixo e cole no array PDFs_IGNORADOS em blacklist.ts:\n`);
+      console.log(`\n🛑 ARQUIVOS SEM DATA OU IMAGENS ENCONTRADOS (${urlsParaBlacklist.size}):`);
       console.log(JSON.stringify(Array.from(urlsParaBlacklist), null, 2));
     }
-
-    console.log("\n---------------------------------------------------\n");
+    console.log("===================================================\n");
 
     return {
-      editais: listaLimpa, // <-- Retorna a lista desduplicada
+      editais: listaLimpa,
       falhas: cidadesComFalha
     };
 
