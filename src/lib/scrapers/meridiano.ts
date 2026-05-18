@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
-import { ehSujeira } from '../filtrosGlobais';
+import { ehSujeira, extrairIdConcurso } from '../filtrosGlobais';
 
 export async function buscarMeridiano(): Promise<Edital[]> {
   const resultados: Edital[] = [];
@@ -30,97 +30,128 @@ export async function buscarMeridiano(): Promise<Edital[]> {
       }
     });
 
-    for (const itemAno of linksAnos) {
+    // ==============================================================
+    // 🚀 FASE 1: BAIXA TODAS AS PÁGINAS DE "ANOS" AO MESMO TEMPO
+    // ==============================================================
+    const paginasAnos = await Promise.all(linksAnos.map(async (item) => {
       try {
-        const resAno = await fetch(itemAno.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
-        if (!resAno.ok) continue;
+        const res = await fetch(item.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
+        if (!res.ok) return { ...item, html: '' };
+        return { ...item, html: await res.text() };
+      } catch {
+        return { ...item, html: '' };
+      }
+    }));
 
-        const htmlAno = await resAno.text();
-        const $ano = cheerio.load(htmlAno);
+    const todosOsConcursos: { metadado: string, urlDetalhes: string, anoOriginal: number }[] = [];
 
-        const concursosDesteAno: { metadado: string, urlDetalhes: string }[] = [];
+    // Lê os links dos concursos de dentro dos HTMLs que baixamos
+    for (const pagAno of paginasAnos) {
+      if (!pagAno.html) continue;
+      const $ano = cheerio.load(pagAno.html);
 
-        $ano('.ces-card-item').each((_, el) => {
-          const metadado = $ano(el).find('h3.ces-item-title').text().replace(/\s+/g, ' ').trim();
+      $ano('.ces-card-item').each((_, el) => {
+        const metadado = $ano(el).find('h3.ces-item-title').text().replace(/\s+/g, ' ').trim();
+        if (ehSujeira(metadado)) return;
 
-          // 🛡️ ESCUDO: Se o bloco inteiro for licitação, pula na hora!
-          if (ehSujeira(metadado)) return;
-
-          const href = $ano(el).find('a.ces-btn-primary').attr('href') || '';
-
-          if (href && metadado) {
-            const urlDetalhes = href.startsWith('http') ? href : `https://meridiano.sp.gov.br${href}`;
-            concursosDesteAno.push({ metadado, urlDetalhes });
-          }
-        });
-
-        for (const concurso of concursosDesteAno) {
-          try {
-            const resDet = await fetch(concurso.urlDetalhes, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
-            if (!resDet.ok) continue;
-
-            const htmlDet = await resDet.text();
-            const $det = cheerio.load(htmlDet);
-
-            $det('#ces-arquivos .ces-timeline-item').each((_, el) => {
-              const dataRaw = $det(el).find('.ces-timeline-date').text().trim();
-              const tituloOriginal = $det(el).find('.ces-timeline-title').text().replace(/\s+/g, ' ').trim();
-
-              // 🛡️ ESCUDO PARA O ARQUIVO:
-              if (ehSujeira(tituloOriginal)) return;
-
-              const href = $det(el).find('a.ces-timeline-link').attr('href') || '';
-              if (!href) return;
-
-              const linkCompleto = href.startsWith('http') ? href : `https://meridiano.sp.gov.br${href}`;
-
-              let dataFormatada = 'sem data';
-              let dataTimestamp = 0;
-              let tituloFinal = tituloOriginal;
-
-              if (itemAno.ano === 2022) {
-                dataFormatada = '01/03/2022';
-                dataTimestamp = new Date('2022-03-01T00:00:00').getTime();
-
-                let nomeArquivo = href.split('/').pop() || '';
-                nomeArquivo = decodeURIComponent(nomeArquivo);
-                nomeArquivo = nomeArquivo.replace(/\.pdf$/i, '').replace(/\.docx?$/i, '');
-                nomeArquivo = nomeArquivo.replace(/-/g, ' ').trim();
-
-                if (nomeArquivo) tituloFinal = nomeArquivo;
-              } else {
-                const matchData = dataRaw.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-                if (matchData) {
-                  dataFormatada = matchData[0];
-                  dataTimestamp = new Date(`${matchData[3]}-${matchData[2]}-${matchData[1]}T00:00:00`).getTime();
-                }
-              }
-
-              ordemGlobal++;
-
-              resultados.push({
-                cidade: 'Meridiano',
-                orgao: 'Prefeitura',
-                titulo: tituloFinal,
-                link: linkCompleto,
-                // ARRAY INJETADO!
-                metadados: concurso.metadado ? [concurso.metadado] : undefined,
-                dataPublicacao: dataFormatada,
-                dataTimestamp: dataTimestamp,
-                ordemOriginal: ordemGlobal
-              });
-            });
-
-          } catch (e) {
-            console.error(`Erro ao acessar detalhes: ${concurso.metadado}`, e);
-          }
+        const href = $ano(el).find('a.ces-btn-primary').attr('href') || '';
+        if (href && metadado) {
+          const urlDetalhes = href.startsWith('http') ? href : `https://meridiano.sp.gov.br${href}`;
+          todosOsConcursos.push({ metadado, urlDetalhes, anoOriginal: pagAno.ano });
         }
-      } catch (e) {
-        console.error(`Erro ao acessar página de ano: ${itemAno.url}`, e);
+      });
+    }
+
+    // ==============================================================
+    // 🚀 FASE 2: BAIXA OS DETALHES DOS CONCURSOS EM LOTES (Batches)
+    // ==============================================================
+    const TAMANHO_LOTE = 10;
+
+    for (let i = 0; i < todosOsConcursos.length; i += TAMANHO_LOTE) {
+      const lote = todosOsConcursos.slice(i, i + TAMANHO_LOTE);
+
+      // Dispara 10 downloads de páginas de detalhes ao mesmo tempo!
+      const detalhesHtml = await Promise.all(lote.map(async (concurso) => {
+        try {
+          const res = await fetch(concurso.urlDetalhes, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
+          if (!res.ok) return { ...concurso, html: '' };
+          return { ...concurso, html: await res.text() };
+        } catch {
+          return { ...concurso, html: '' };
+        }
+      }));
+
+      // ==============================================================
+      // 🧩 FASE 3: LÊ O HTML SEQUENCIALMENTE PARA MANTER A ORDEM GLOBAL
+      // ==============================================================
+      for (const detalhe of detalhesHtml) {
+        if (!detalhe.html) continue;
+
+        const $det = cheerio.load(detalhe.html);
+
+        // Extrai a Chave do Concurso (Ex: "Concurso 01/2022")
+        const idConcurso = extrairIdConcurso(detalhe.metadado, '');
+        let anoConcurso: number | undefined = undefined;
+        if (idConcurso) {
+          const matchAno = idConcurso.match(/\/(\d{4})\b/);
+          if (matchAno) anoConcurso = parseInt(matchAno[1], 10);
+        }
+
+        $det('#ces-arquivos .ces-timeline-item').each((_, el) => {
+          const dataRaw = $det(el).find('.ces-timeline-date').text().trim();
+          const tituloOriginal = $det(el).find('.ces-timeline-title').text().replace(/\s+/g, ' ').trim();
+
+          if (ehSujeira(tituloOriginal)) return;
+
+          const href = $det(el).find('a.ces-timeline-link').attr('href') || '';
+          if (!href) return;
+
+          const linkCompleto = href.startsWith('http') ? href : `https://meridiano.sp.gov.br${href}`;
+
+          let dataFormatada = 'sem data';
+          let dataTimestamp = 0;
+          let tituloFinal = tituloOriginal;
+
+          // REGRA DE EXCEÇÃO PARA O ANO DE 2022
+          if (detalhe.anoOriginal === 2022) {
+            dataFormatada = '01/03/2022';
+            dataTimestamp = new Date('2022-03-01T00:00:00').getTime();
+
+            let nomeArquivo = href.split('/').pop() || '';
+            nomeArquivo = decodeURIComponent(nomeArquivo);
+            nomeArquivo = nomeArquivo.replace(/\.pdf$/i, '').replace(/\.docx?$/i, '');
+            nomeArquivo = nomeArquivo.replace(/-/g, ' ').trim();
+
+            if (nomeArquivo) tituloFinal = nomeArquivo;
+          } else {
+            const matchData = dataRaw.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+            if (matchData) {
+              dataFormatada = matchData[0];
+              dataTimestamp = new Date(`${matchData[3]}-${matchData[2]}-${matchData[1]}T00:00:00`).getTime();
+            }
+          }
+
+          ordemGlobal++;
+
+          resultados.push({
+            cidade: 'Meridiano',
+            orgao: 'Prefeitura',
+            titulo: tituloFinal,
+            link: linkCompleto,
+            concurso: idConcurso,
+            ano: anoConcurso,
+            metadados: undefined,
+            dataPublicacao: dataFormatada,
+            dataTimestamp: dataTimestamp,
+            ordemOriginal: ordemGlobal
+          });
+        });
       }
     }
+
   } catch (e) {
     console.error('Erro geral ao buscar Meridiano', e);
   }
+
   return resultados;
 }
