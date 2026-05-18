@@ -67,6 +67,7 @@ export async function buscarVotuporanga(): Promise<Edital[]> {
         });
       });
 
+
       // FASE 2: Entra na página de cada Concurso e varre os Arquivos Reais
       for (const concurso of concursosParaBaixar) {
         try {
@@ -96,6 +97,12 @@ export async function buscarVotuporanga(): Promise<Edital[]> {
             let categoriaTitulo = $inner(el).find('.ed_descricao_tipo_arquivo').text().replace(/\s+/g, ' ').trim();
             if (!categoriaTitulo) categoriaTitulo = 'Atualização / Documento';
 
+            let anoConcurso: number | undefined = undefined;
+            if (concurso.idConcurso) {
+              const matchAno = concurso.idConcurso.match(/\/(\d{4})\b/);
+              if (matchAno) anoConcurso = parseInt(matchAno[1], 10);
+            }
+
             // O antigo Título (nome + KB) agora é a nossa Descrição!
             const descricaoArquivo = tamanhoTexto ? `${nomeTexto} (${tamanhoTexto})` : nomeTexto;
 
@@ -115,6 +122,7 @@ export async function buscarVotuporanga(): Promise<Edital[]> {
 
             ordemGlobal++;
 
+
             // GERA O CARD!
             resultados.push({
               cidade: 'Votuporanga',
@@ -122,6 +130,7 @@ export async function buscarVotuporanga(): Promise<Edital[]> {
               titulo: categoriaTitulo,       // Título = "Convocações", "Gabaritos", etc
               descricao: descricaoArquivo,   // Descrição = "Convocação nº 22 (PDF - 116 KB)"
               concurso: concurso.idConcurso, // Chave 🗂️ "Processo Seletivo 01/2025"
+              ano: anoConcurso,
               link: linkDoc,
               metadados: undefined,          // 1. Metadado ("Processo nº 3/2023") removido!
               statusGeral: concurso.status,  // Pílula 📌 Aberto / Homologado

@@ -13,10 +13,13 @@ function removerAcentos(texto: string) {
   return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
-// Formata o nome para arquivo (evita que a barra "/" quebre o download)
 function formatarNomeArquivo(nome: string) {
   return nome.replace(/[\/\s]/g, '-').toLowerCase();
 }
+
+// 1. DINÂMICO: Gera a lista de anos (Do ano atual até 2010)
+const anoAtual = new Date().getFullYear();
+const anosDisponiveis = Array.from({ length: anoAtual - 2010 + 1 }, (_, i) => anoAtual - i);
 
 export default function Home() {
   const [editais, setEditais] = useState<Edital[]>([]);
@@ -27,12 +30,12 @@ export default function Home() {
   const [palavrasDesejadas, setPalavrasDesejadas] = useState<string[]>([]);
   const [palavrasIgnoradas, setPalavrasIgnoradas] = useState<string[]>([]);
 
-  // ESTADOS DE NAVEGAÇÃO E VISUALIZAÇÃO
   const [modoVisualizacao, setModoVisualizacao] = useState<'lista' | 'agrupado'>('lista');
   const [concursoSelecionado, setConcursoSelecionado] = useState<string | null>(null);
-
-  // 2. O NOVO ESTADO: Filtro Triplo para as Pastas
   const [filtroTipoGrupo, setFiltroTipoGrupo] = useState<'todos' | 'concurso' | 'seletivo'>('todos');
+
+  // 2. NOVO ESTADO: Filtro de Ano
+  const [filtroAno, setFiltroAno] = useState<number | 'todos'>('todos');
 
   const [paginaAtual, setPaginaAtual] = useState(1);
   const ITENS_POR_PAGINA = 10;
@@ -57,9 +60,9 @@ export default function Home() {
   useEffect(() => {
     setPaginaAtual(1);
     if (modoVisualizacao === 'agrupado') setConcursoSelecionado(null);
-  }, [palavrasDesejadas, palavrasIgnoradas]);
+  }, [palavrasDesejadas, palavrasIgnoradas, filtroAno]);
 
-  // APLICAÇÃO DOS FILTROS GERAIS (Palavras chave)
+  // APLICAÇÃO DOS FILTROS GERAIS E DO ANO
   const editaisFiltrados = useMemo(() => {
     return editais.filter((edital) => {
       const valoresTextuais = [
@@ -72,11 +75,13 @@ export default function Home() {
       const passaDesejadas = palavrasDesejadas.length === 0 || palavrasDesejadas.some(p => textoNormalizado.includes(p));
       const passaIgnoradas = palavrasIgnoradas.length === 0 || !palavrasIgnoradas.some(p => textoNormalizado.includes(p));
 
-      return passaDesejadas && passaIgnoradas;
-    });
-  }, [editais, palavrasDesejadas, palavrasIgnoradas]);
+      // 3. APLICA A REGRA DO ANO
+      const passaFiltroAno = filtroAno === 'todos' || edital.ano === filtroAno;
 
-  // AGRUPAMENTO DE CONCURSOS
+      return passaDesejadas && passaIgnoradas && passaFiltroAno;
+    });
+  }, [editais, palavrasDesejadas, palavrasIgnoradas, filtroAno]);
+
   const concursosAgrupados = useMemo(() => {
     const mapa = new Map<string, Edital[]>();
 
@@ -98,9 +103,7 @@ export default function Home() {
       itens: listaEditais
     }));
 
-    // 3. A NOVA ORDENAÇÃO: Lendo o número e o ano no nome da pasta
     gruposArray.sort((a, b) => {
-      // Usa regex para extrair o ano e o número do formato "01/2023"
       const extrairAnoNumero = (nome: string) => {
         const match = nome.match(/(\d{2})\/(\d{4})/);
         if (!match) return { ano: 0, numero: 0 };
@@ -110,15 +113,10 @@ export default function Home() {
       const valA = extrairAnoNumero(a.nome);
       const valB = extrairAnoNumero(b.nome);
 
-      // Desempate: Se o ano for diferente, o maior ano (mais novo) fica em cima
-      if (valB.ano !== valA.ano) {
-        return valB.ano - valA.ano;
-      }
-      // Se for o mesmo ano, o maior número do edital fica em cima
+      if (valB.ano !== valA.ano) return valB.ano - valA.ano;
       return valB.numero - valA.numero;
     });
 
-    // 2. APLICA O FILTRO TRIPLO
     if (filtroTipoGrupo === 'concurso') {
       gruposArray = gruposArray.filter(g => g.nome.toUpperCase().includes('CONCURSO'));
     } else if (filtroTipoGrupo === 'seletivo') {
@@ -129,7 +127,6 @@ export default function Home() {
   }, [editaisFiltrados, filtroTipoGrupo]);
 
   const grupoAtual = concursosAgrupados.find(c => c.nome === concursoSelecionado);
-
   const totalPaginas = Math.ceil(editaisFiltrados.length / ITENS_POR_PAGINA);
   const indexInicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
   const editaisDaPaginaLista = editaisFiltrados.slice(indexInicio, indexInicio + ITENS_POR_PAGINA);
@@ -149,11 +146,9 @@ export default function Home() {
               onClick={() => exportarParaJSON(editaisFiltrados, 'meus-editais')}
               disabled={loading || editaisFiltrados.length === 0}
               className={`px-4 py-3 rounded font-bold transition-colors border ${loading || editaisFiltrados.length === 0 ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50'}`}
-              title="Baixar a lista de TODOS os editais filtrados"
             >
               📥 Exportar Tudo
             </button>
-
             <button
               onClick={carregarDados}
               disabled={loading}
@@ -177,7 +172,8 @@ export default function Home() {
 
         {erroFatal && <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-6 text-center">{erroFatal}</div>}
 
-        <div className="flex justify-center mb-8">
+        {/* CONTROLES DE VISÃO E ANO */}
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
           <div className="bg-gray-200 p-1 rounded-lg inline-flex">
             <button
               onClick={() => { setModoVisualizacao('lista'); setConcursoSelecionado(null); }}
@@ -191,6 +187,22 @@ export default function Home() {
             >
               🗂️ Agrupado por Concurso
             </button>
+          </div>
+
+          {/* O NOVO DROPDOWN DE ANO */}
+          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-gray-200 shadow-sm">
+            <label htmlFor="anoFiltro" className="text-sm font-bold text-gray-700">Ano do Certame:</label>
+            <select
+              id="anoFiltro"
+              value={filtroAno}
+              onChange={(e) => setFiltroAno(e.target.value === 'todos' ? 'todos' : parseInt(e.target.value, 10))}
+              className="bg-transparent text-sm font-semibold text-blue-700 outline-none cursor-pointer"
+            >
+              <option value="todos">Todos os Anos</option>
+              {anosDisponiveis.map(ano => (
+                <option key={ano} value={ano}>{ano}</option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -214,7 +226,6 @@ export default function Home() {
         ) : concursoSelecionado && grupoAtual ? (
 
           <div className="animate-fade-in">
-            {/* CABEÇALHO DO GRUPO (Com Botão de Voltar e Exportar) */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <button
                 onClick={() => setConcursoSelecionado(null)}
@@ -223,11 +234,9 @@ export default function Home() {
                 <span>←</span> Voltar para as Pastas
               </button>
 
-              {/* 1. O NOVO BOTÃO DE EXPORTAR O GRUPO ESPECÍFICO */}
               <button
                 onClick={() => exportarParaJSON(grupoAtual.itens, formatarNomeArquivo(grupoAtual.nome))}
                 className="bg-white text-purple-700 border border-purple-300 hover:bg-purple-50 px-4 py-2 rounded text-sm font-bold shadow-sm transition-colors"
-                title={`Baixar o JSON apenas com os itens do ${grupoAtual.nome}`}
               >
                 📥 Baixar Arquivos Deste Concurso
               </button>
@@ -248,7 +257,6 @@ export default function Home() {
         ) : (
 
           <div className="animate-fade-in">
-            {/* 2. O NOVO FILTRO TRIPLO DE PASTAS */}
             <div className="flex justify-between items-end mb-4">
               <p className="text-sm text-gray-500">
                 {concursosAgrupados.length} pastas encontradas

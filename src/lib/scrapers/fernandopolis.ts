@@ -155,6 +155,14 @@ export async function buscarFernandopolis(): Promise<Edital[]> {
           }
         }
 
+        let anoConcurso: number | undefined = undefined;
+        if (idConcurso) {
+          // Pega exatamente os 4 dígitos que vêm depois da barra (ex: /2023)
+          const matchAno = idConcurso.match(/\/(\d{4})\b/);
+          if (matchAno) anoConcurso = parseInt(matchAno[1], 10);
+        }
+        // --
+
         const tagsMetadados: string[] = [];
         const textoCompletoPesquisa = `${item.titulo} ${descricaoFinal}`.toUpperCase();
 
@@ -173,6 +181,7 @@ export async function buscarFernandopolis(): Promise<Edital[]> {
           link: item.linkCompleto,
           descricao: descricaoFinal || undefined,
           concurso: idConcurso,
+          ano: anoConcurso,
           metadados: tagsMetadados.length > 0 ? tagsMetadados : undefined,
           dataPublicacao: detalhes.dataCorreta || 'sem data',
           dataTimestamp: timestamp,
