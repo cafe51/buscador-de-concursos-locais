@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
-import { ehSujeira } from '../filtrosGlobais';
+import { ehSujeira, extrairIdConcurso } from '../filtrosGlobais';
 
 export async function buscarEstrela(): Promise<Edital[]> {
   const resultados: Edital[] = [];
@@ -12,19 +12,47 @@ export async function buscarEstrela(): Promise<Edital[]> {
   ];
 
   for (const urlBase of urlsBase) {
-    for (let pagina = 1; pagina <= 10; pagina++) {
-      try {
-        const response = await fetch(`${urlBase}&pg=${pagina}`, {
-          headers: { 'User-Agent': 'Mozilla/5.0' },
-          cache: 'no-store'
-        });
+    let chegouNoFim = false; // O nosso Freio Automático
 
-        if (!response.ok) continue;
+    // Processa em LOTES de 10 páginas por vez
+    for (let loteInicio = 1; loteInicio <= 40; loteInicio += 10) {
+      if (chegouNoFim) break;
 
-        const html = await response.text();
-        const $ = cheerio.load(html);
+      const promessas = [];
 
-        $('td[id^="col_titulo_noticia_"]').each((_, elemento) => {
+      // Dispara 10 downloads simultâneos
+      for (let pagina = loteInicio; pagina < loteInicio + 10 && pagina <= 40; pagina++) {
+        promessas.push(
+          fetch(`${urlBase}&pg=${pagina}`, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' })
+            .then(async (res) => {
+              if (!res.ok) return { pagina, html: '' };
+              return { pagina, html: await res.text() };
+            })
+            .catch(() => ({ pagina, html: '' }))
+        );
+      }
+
+      // Espera todas as 10 páginas do lote atual baixarem
+      const paginasBaixadas = await Promise.all(promessas);
+
+      // ORDENAÇÃO: Como a página 5 pode baixar antes da 2, precisamos reordenar o array 
+      // pelo número da página antes de raspar. Assim a nossa ordemGlobal não embaralha os cards!
+      paginasBaixadas.sort((a, b) => a.pagina - b.pagina);
+
+      for (const pag of paginasBaixadas) {
+        if (!pag.html) continue;
+
+        const $ = cheerio.load(pag.html);
+        const itensTabela = $('td[id^="col_titulo_noticia_"]');
+
+        // Se a tabela vier vazia, significa que a paginação da prefeitura acabou!
+        // Aciona o freio e quebra o loop
+        if (itensTabela.length === 0) {
+          chegouNoFim = true;
+          break;
+        }
+
+        itensTabela.each((_, elemento) => {
           const dataRaw = $(elemento).find('span.sub-data').text().trim();
           let dataFormatada = 'sem data';
           let dataTimestamp = 0;
@@ -40,23 +68,36 @@ export async function buscarEstrela(): Promise<Edital[]> {
           cloneTd.find('br').replaceWith(' ');
           const tituloLimpo = cloneTd.text().replace(/\s+/g, ' ').trim();
 
-          // 🛡️ O ESCUDO AQUI: Ignora licitações
+          // 🛡️ O ESCUDO
           if (ehSujeira(tituloLimpo)) return;
 
-          let href = $(elemento).find('a').attr('href') || $(elemento).closest('tr').find('a').attr('href') || '';
+          const linkData = $(elemento).closest('tr').attr('data-linknoticia');
           let linkCompleto = '';
-          if (href) {
-            linkCompleto = href.startsWith('http') ? href : `https://www.pmestrela.sp.gov.br/${href.replace(/^\//, '')}`;
+
+          if (linkData) {
+            const urlLimpa = linkData.startsWith('/') ? linkData.substring(1) : linkData;
+            linkCompleto = `https://www.pmestrela.sp.gov.br/${urlLimpa}`;
           } else {
-            linkCompleto = `${urlBase}&pg=${pagina}`;
+            linkCompleto = `${urlBase}&pg=${pag.pagina}`;
           }
 
           if (tituloLimpo) {
             ordemGlobal++;
+
+            const idConcurso = extrairIdConcurso(tituloLimpo, '');
+            let anoConcurso: number | undefined = undefined;
+
+            if (idConcurso) {
+              const matchAno = idConcurso.match(/\/(\d{4})\b/);
+              if (matchAno) anoConcurso = parseInt(matchAno[1], 10);
+            }
+
             resultados.push({
               cidade: "Estrela d'Oeste",
               orgao: 'Prefeitura',
               titulo: tituloLimpo,
+              concurso: idConcurso,
+              ano: anoConcurso,
               link: linkCompleto,
               dataPublicacao: dataFormatada,
               dataTimestamp: dataTimestamp,
@@ -64,11 +105,9 @@ export async function buscarEstrela(): Promise<Edital[]> {
             });
           }
         });
-
-      } catch (e) {
-        console.error(`Erro ao raspar Estrela d'Oeste na URL base, página ${pagina}`, e);
       }
     }
   }
+
   return resultados;
 }
