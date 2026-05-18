@@ -11,23 +11,6 @@ const TERMOS_OBRIGATORIOS_FERNANDOPOLIS = [
   'provas', 'entrevista', 'inscricao', 'inscricoes', 'aviso', 'extrato'
 ];
 
-async function buscarDataFernandopolis(url: string): Promise<string | null> {
-  try {
-    const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'force-cache' });
-    if (!response.ok) return null;
-    const html = await response.text();
-    const $ = cheerio.load(html);
-    let dataCorreta: string | null = null;
-    $('time').each((_, elemento) => {
-      const match = $(elemento).text().trim().match(/\b(\d{2}\/\d{2}\/\d{4})\b/);
-      if (match && !dataCorreta) dataCorreta = match[1];
-    });
-    return dataCorreta;
-  } catch {
-    return null;
-  }
-}
-
 async function buscarDetalhesFernandopolis(url: string): Promise<{ dataCorreta: string | null, descricaoExtra: string, urlPrimeiroPdf: string | null }> {
   try {
     const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'force-cache' });
@@ -73,7 +56,6 @@ async function buscarDetalhesFernandopolis(url: string): Promise<{ dataCorreta: 
       descricaoExtra: nomesDosLinks.join(' | '),
       urlPrimeiroPdf
     };
-
   } catch {
     return { dataCorreta: null, descricaoExtra: '', urlPrimeiroPdf: null };
   }
@@ -82,22 +64,40 @@ async function buscarDetalhesFernandopolis(url: string): Promise<{ dataCorreta: 
 export async function buscarFernandopolis(): Promise<Edital[]> {
   const resultados: Edital[] = [];
   let ordemGlobal = 0;
-
-  // Flag global para avisar o loop quando parar
   let encontrouAlvoDeParada = false;
 
-  // Aumentamos o limite para 50 para garantir folga no futuro, mas o código vai parar sozinho bem antes.
-  for (let pagina = 1; pagina <= 50; pagina++) {
-    try {
-      const response = await fetch(`https://fernandopolis.sp.gov.br/publicacoes/?categoria=concurso&pagina=${pagina}`, {
-        headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store'
-      });
+  const itensBrutos: { titulo: string, linkCompleto: string, textoAoRedor: string, ordem: number }[] = [];
 
-      if (!response.ok) continue;
+  // -------------------------------------------------------------
+  // FASE 1: Coleta rápida de Links (Lotes de 5 páginas por vez!)
+  // -------------------------------------------------------------
+  for (let loteInicio = 1; loteInicio <= 50; loteInicio += 5) {
+    if (encontrouAlvoDeParada) break;
 
-      const html = await response.text();
-      const $ = cheerio.load(html);
-      const itensDestaPagina: { titulo: string, linkCompleto: string, textoAoRedor: string, ordem: number }[] = [];
+    const promessasPaginas = [];
+
+    // Pede 5 páginas simultaneamente
+    for (let pagina = loteInicio; pagina < loteInicio + 5 && pagina <= 50; pagina++) {
+      promessasPaginas.push(
+        fetch(`https://fernandopolis.sp.gov.br/publicacoes/?categoria=concurso&pagina=${pagina}`, {
+          headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store'
+        })
+          .then(async (res) => {
+            if (!res.ok) return { pagina, html: '' };
+            return { pagina, html: await res.text() };
+          })
+          .catch(() => ({ pagina, html: '' }))
+      );
+    }
+
+    const paginasBaixadas = await Promise.all(promessasPaginas);
+    // Ordena as páginas para não perder a linha do tempo!
+    paginasBaixadas.sort((a, b) => a.pagina - b.pagina);
+
+    for (const pag of paginasBaixadas) {
+      if (!pag.html || encontrouAlvoDeParada) continue;
+
+      const $ = cheerio.load(pag.html);
 
       $('h3 a').each((_, elemento) => {
         const titulo = $(elemento).text().trim();
@@ -106,14 +106,11 @@ export async function buscarFernandopolis(): Promise<Edital[]> {
         const textoAoRedor = $(elemento).parent().parent().text().replace(titulo, '').replace(/\s+/g, ' ').trim();
         const textoParaAnalise = `${titulo} ${textoAoRedor}`;
 
-        // ==============================================================
-        // 🛑 A CONDIÇÃO DE PARADA (Verifica se é o Edital 01/2023)
-        // ==============================================================
         const ehOLinkAlvo = linkCompleto.includes('/concurso/edital-normativo-do-concurso-publico-no-012018-7933');
 
         if (ehSujeira(textoParaAnalise, [], linkCompleto)) {
-          if (ehOLinkAlvo) { encontrouAlvoDeParada = true; return false; } // Para o .each() do cheerio
-          return true; // Funciona como 'continue', pula para o próximo
+          if (ehOLinkAlvo) { encontrouAlvoDeParada = true; return false; }
+          return true;
         }
 
         if (!ehRelevante(textoParaAnalise, TERMOS_OBRIGATORIOS_FERNANDOPOLIS)) {
@@ -122,81 +119,77 @@ export async function buscarFernandopolis(): Promise<Edital[]> {
         }
 
         ordemGlobal++;
-        itensDestaPagina.push({ titulo, linkCompleto, textoAoRedor, ordem: ordemGlobal });
+        itensBrutos.push({ titulo, linkCompleto, textoAoRedor, ordem: ordemGlobal });
 
-        // Se este item aprovado nos filtros era o nosso alvo, a gente aciona o freio
-        // e o 'return false' garante que os cards que estão ABAIXO dele não sejam lidos.
         if (ehOLinkAlvo) {
           encontrouAlvoDeParada = true;
-          return false;
+          return false; // Break do loop Cheerio
         }
-        // ==============================================================
       });
-
-      // Baixa apenas os itens coletados até a batida do freio
-      await Promise.all(itensDestaPagina.map(async (item) => {
-        const detalhes = await buscarDetalhesFernandopolis(item.linkCompleto);
-
-        let timestamp = 0;
-        if (detalhes.dataCorreta) {
-          const partes = detalhes.dataCorreta.split('/');
-          timestamp = new Date(`${partes[2]}-${partes[1]}-${partes[0]}T00:00:00`).getTime();
-        }
-
-        const descricaoFinal = [item.textoAoRedor, detalhes.descricaoExtra].filter(Boolean).join(' - ');
-
-        let idConcurso = extrairIdConcurso(item.titulo, descricaoFinal);
-
-        if (!idConcurso && detalhes.urlPrimeiroPdf) {
-          const textoDoPdf = await extrairTextoBruto(detalhes.urlPrimeiroPdf);
-          if (textoDoPdf) {
-            const textoCorrigido = corrigirErrosDigitacao(textoDoPdf);
-            idConcurso = extrairIdConcurso(textoCorrigido, '');
-          }
-        }
-
-        let anoConcurso: number | undefined = undefined;
-        if (idConcurso) {
-          // Pega exatamente os 4 dígitos que vêm depois da barra (ex: /2023)
-          const matchAno = idConcurso.match(/\/(\d{4})\b/);
-          if (matchAno) anoConcurso = parseInt(matchAno[1], 10);
-        }
-        // --
-
-        const tagsMetadados: string[] = [];
-        const textoCompletoPesquisa = `${item.titulo} ${descricaoFinal}`.toUpperCase();
-
-        if (textoCompletoPesquisa.includes('SME') || textoCompletoPesquisa.includes('SECRETARIA MUNICIPAL DA EDUCAÇÃO') || textoCompletoPesquisa.includes('SECRETARIA MUNICIPAL DE EDUCACAO')) tagsMetadados.push('Educação');
-        if (textoCompletoPesquisa.includes('SMRH') || textoCompletoPesquisa.includes('RECURSOS HUMANOS')) tagsMetadados.push('Recursos Humanos');
-        if (textoCompletoPesquisa.includes('SMEL') || textoCompletoPesquisa.includes('ESPORTES E LAZER')) tagsMetadados.push('Esportes e Lazer');
-        if (textoCompletoPesquisa.includes('SMCT') || textoCompletoPesquisa.includes('CULTURA E TURISMO')) tagsMetadados.push('Cultura e Turismo');
-        if (textoCompletoPesquisa.includes('SMS ') || textoCompletoPesquisa.includes('SECRETARIA MUNICIPAL DE SAUDE') || textoCompletoPesquisa.includes('SECRETARIA MUNICIPAL DE SAÚDE')) tagsMetadados.push('Saúde');
-        if (textoCompletoPesquisa.includes('SMAS') || textoCompletoPesquisa.includes('ASSISTENCIA SOCIAL') || textoCompletoPesquisa.includes('ASSISTÊNCIA SOCIAL')) tagsMetadados.push('Assistência Social');
-        if (textoCompletoPesquisa.includes('CISARF')) tagsMetadados.push('Consórcio CISARF');
-
-        resultados.push({
-          cidade: 'Fernandópolis',
-          orgao: 'Prefeitura',
-          titulo: item.titulo,
-          link: item.linkCompleto,
-          descricao: descricaoFinal || undefined,
-          concurso: idConcurso,
-          ano: anoConcurso,
-          metadados: tagsMetadados.length > 0 ? tagsMetadados : undefined,
-          dataPublicacao: detalhes.dataCorreta || 'sem data',
-          dataTimestamp: timestamp,
-          ordemOriginal: item.ordem
-        });
-      }));
-
-      // Se a bandeira de parada foi levantada, nós damos o BREAK no loop principal de páginas
-      if (encontrouAlvoDeParada) {
-        break;
-      }
-
-    } catch (e) {
-      console.error(`Erro ao buscar Fernandópolis na página ${pagina}`, e);
     }
   }
+
+  // -------------------------------------------------------------
+  // FASE 2: Processamento Controlado em Lotes Aumentados (15)
+  // -------------------------------------------------------------
+  const TAMANHO_LOTE = 15;
+
+  for (let i = 0; i < itensBrutos.length; i += TAMANHO_LOTE) {
+    const lote = itensBrutos.slice(i, i + TAMANHO_LOTE);
+
+    await Promise.all(lote.map(async (item) => {
+      const detalhes = await buscarDetalhesFernandopolis(item.linkCompleto);
+
+      let timestamp = 0;
+      if (detalhes.dataCorreta) {
+        const partes = detalhes.dataCorreta.split('/');
+        timestamp = new Date(`${partes[2]}-${partes[1]}-${partes[0]}T00:00:00`).getTime();
+      }
+
+      const descricaoFinal = [item.textoAoRedor, detalhes.descricaoExtra].filter(Boolean).join(' - ');
+
+      let idConcurso = extrairIdConcurso(item.titulo, descricaoFinal);
+
+      if (!idConcurso && detalhes.urlPrimeiroPdf) {
+        const textoDoPdf = await extrairTextoBruto(detalhes.urlPrimeiroPdf);
+        if (textoDoPdf) {
+          const textoCorrigido = corrigirErrosDigitacao(textoDoPdf);
+          idConcurso = extrairIdConcurso(textoCorrigido, '');
+        }
+      }
+
+      let anoConcurso: number | undefined = undefined;
+      if (idConcurso) {
+        const matchAno = idConcurso.match(/\/(\d{4})\b/);
+        if (matchAno) anoConcurso = parseInt(matchAno[1], 10);
+      }
+
+      const tagsMetadados: string[] = [];
+      const textoCompletoPesquisa = `${item.titulo} ${descricaoFinal}`.toUpperCase();
+
+      if (textoCompletoPesquisa.includes('SME') || textoCompletoPesquisa.includes('SECRETARIA MUNICIPAL DA EDUCAÇÃO') || textoCompletoPesquisa.includes('SECRETARIA MUNICIPAL DE EDUCACAO')) tagsMetadados.push('Educação');
+      if (textoCompletoPesquisa.includes('SMRH') || textoCompletoPesquisa.includes('RECURSOS HUMANOS')) tagsMetadados.push('Recursos Humanos');
+      if (textoCompletoPesquisa.includes('SMEL') || textoCompletoPesquisa.includes('ESPORTES E LAZER')) tagsMetadados.push('Esportes e Lazer');
+      if (textoCompletoPesquisa.includes('SMCT') || textoCompletoPesquisa.includes('CULTURA E TURISMO')) tagsMetadados.push('Cultura e Turismo');
+      if (textoCompletoPesquisa.includes('SMS ') || textoCompletoPesquisa.includes('SECRETARIA MUNICIPAL DE SAUDE') || textoCompletoPesquisa.includes('SECRETARIA MUNICIPAL DE SAÚDE')) tagsMetadados.push('Saúde');
+      if (textoCompletoPesquisa.includes('SMAS') || textoCompletoPesquisa.includes('ASSISTENCIA SOCIAL') || textoCompletoPesquisa.includes('ASSISTÊNCIA SOCIAL')) tagsMetadados.push('Assistência Social');
+      if (textoCompletoPesquisa.includes('CISARF')) tagsMetadados.push('Consórcio CISARF');
+
+      resultados.push({
+        cidade: 'Fernandópolis',
+        orgao: 'Prefeitura',
+        titulo: item.titulo,
+        link: item.linkCompleto,
+        descricao: descricaoFinal || undefined,
+        concurso: idConcurso,
+        ano: anoConcurso,
+        metadados: tagsMetadados.length > 0 ? tagsMetadados : undefined,
+        dataPublicacao: detalhes.dataCorreta || 'sem data',
+        dataTimestamp: timestamp,
+        ordemOriginal: item.ordem
+      });
+    }));
+  }
+
   return resultados;
 }
