@@ -17,32 +17,49 @@ export async function buscarMacedonia(): Promise<Edital[]> {
   let ordemGlobal = 0;
   let encontrouAlvoDeParada = false;
 
-  // Aumentamos o limite de páginas para garantir folga (o loop vai abortar sozinho bem antes)
-  for (let pagina = 1; pagina <= 30; pagina++) {
+  const itensBrutos: { titulo: string, linkCompleto: string, ordemOriginal: number }[] = [];
+
+  // ==============================================================
+  // 🚀 FASE 1: PAGINAÇÃO EM LOTES (Busca as páginas de 5 em 5)
+  // ==============================================================
+  for (let loteInicio = 1; loteInicio <= 30; loteInicio += 5) {
     if (encontrouAlvoDeParada) break;
 
-    try {
-      const response = await fetch(`https://www.macedonia.sp.gov.br/servicos/concursos?&pagina=${pagina}`, {
-        headers: { 'User-Agent': 'Mozilla/5.0' },
-        cache: 'no-store'
-      });
+    const promessasPaginas = [];
 
-      if (!response.ok) continue;
+    // Dispara 5 downloads simultâneos
+    for (let pagina = loteInicio; pagina < loteInicio + 5 && pagina <= 30; pagina++) {
+      promessasPaginas.push(
+        fetch(`https://www.macedonia.sp.gov.br/servicos/concursos?&pagina=${pagina}`, {
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+          cache: 'no-store'
+        })
+          .then(async (res) => ({ pagina, html: res.ok ? await res.text() : '' }))
+          .catch(() => ({ pagina, html: '' }))
+      );
+    }
 
-      const html = await response.text();
-      const $ = cheerio.load(html);
+    const paginasBaixadas = await Promise.all(promessasPaginas);
+
+    // Reordena para garantir que a ordem global dos itens não se perca!
+    paginasBaixadas.sort((a, b) => a.pagina - b.pagina);
+
+    for (const pag of paginasBaixadas) {
+      if (!pag.html || encontrouAlvoDeParada) continue;
+
+      const $ = cheerio.load(pag.html);
       const links = $('h3 a').toArray();
 
       if (links.length === 0) {
-        break; // Se a página vier vazia, a paginação da prefeitura acabou.
+        encontrouAlvoDeParada = true;
+        break;
       }
 
       for (const elemento of links) {
-        let titulo = $(elemento).text().trim();
+        const titulo = $(elemento).text().trim();
         const href = $(elemento).attr('href') || '';
         const linkCompleto = href.startsWith('http') ? href : `https://www.macedonia.sp.gov.br${href}`;
 
-        // 🛑 A CONDIÇÃO DE PARADA (Alvo estabelecido por você)
         const ehOLinkAlvo = linkCompleto.includes('/edital-de-abertura-concurso-publico-n0012022--fiscal-municipal-de-tributos6');
 
         if (ehSujeira(titulo, [], linkCompleto)) {
@@ -52,36 +69,61 @@ export async function buscarMacedonia(): Promise<Edital[]> {
 
         ordemGlobal++;
 
-        let dataFormatada = 'sem data';
-        let dataTimestamp = 0;
-        let dataEncontrada = false;
+        // Em vez de processar agora, guardamos no array para fazer em lote!
+        itensBrutos.push({ titulo, linkCompleto, ordemOriginal: ordemGlobal });
 
-        // Tenta achar a data no título (Ex: 09.08.2023 ou 09/08/2023)
-        const matchTitle = titulo.match(/\b(\d{2})[\.\/](\d{2})[\.\/](\d{4}|\d{2})\b/);
-
-        if (matchTitle) {
-          const dia = matchTitle[1];
-          const mes = matchTitle[2];
-          const anoStr = matchTitle[3];
-          const anoData = anoStr.length === 2 ? `20${anoStr}` : anoStr;
-
-          dataFormatada = `${dia}/${mes}/${anoData}`;
-          dataTimestamp = new Date(`${anoData}-${mes}-${dia}T00:00:00`).getTime();
-          dataEncontrada = true;
-
-          // Limpeza do Título: Retira a data do nome para ficar mais elegante no Card
-          titulo = titulo.replace(/\b\d{2}[\.\/]\d{2}[\.\/](?:\d{4}|\d{2})\b/g, '').trim();
+        if (ehOLinkAlvo) {
+          encontrouAlvoDeParada = true;
+          break;
         }
+      }
+    }
+  }
 
-        // Se não achou a data no título, baixa o PDF e extrai de dentro dele!
-        if (!dataEncontrada) {
-          try {
-            const resPage = await fetch(linkCompleto, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'force-cache' });
-            if (resPage.ok) {
-              const htmlPage = await resPage.text();
-              const $page = cheerio.load(htmlPage);
+  // ==============================================================
+  // 🚀 FASE 2: PROCESSAMENTO PARALELO DE DADOS FALTANTES
+  // ==============================================================
+  const TAMANHO_LOTE = 15;
+
+  for (let i = 0; i < itensBrutos.length; i += TAMANHO_LOTE) {
+    const lote = itensBrutos.slice(i, i + TAMANHO_LOTE);
+
+    await Promise.all(lote.map(async (item) => {
+      let titulo = item.titulo;
+      let dataFormatada = 'sem data';
+      let dataTimestamp = 0;
+      let dataEncontrada = false;
+
+      // 1. Tentativa de Data no Título
+      const matchTitle = titulo.match(/\b(\d{2})[\.\/](\d{2})[\.\/](\d{4}|\d{2})\b/);
+      if (matchTitle) {
+        const dia = matchTitle[1];
+        const mes = matchTitle[2];
+        const anoStr = matchTitle[3];
+        const anoData = anoStr.length === 2 ? `20${anoStr}` : anoStr;
+
+        dataFormatada = `${dia}/${mes}/${anoData}`;
+        dataTimestamp = new Date(`${anoData}-${mes}-${dia}T00:00:00`).getTime();
+        dataEncontrada = true;
+
+        titulo = titulo.replace(/\b\d{2}[\.\/]\d{2}[\.\/](?:\d{4}|\d{2})\b/g, '').trim();
+      }
+
+      // 2. Tentativa de Chave de Concurso
+      let idConcurso = extrairIdConcurso(titulo, '', true, false);
+
+      // 3. 🚑 MISSÃO DE RESGATE (Se a data falhou OU o IdConcurso falhou)
+      // Fazemos UM único fetch para buscar as duas coisas ao mesmo tempo!
+      if (!dataEncontrada || !idConcurso) {
+        try {
+          const resPage = await fetch(item.linkCompleto, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'force-cache' });
+          if (resPage.ok) {
+            const htmlPage = await resPage.text();
+            const $page = cheerio.load(htmlPage);
+
+            // Resgate da Data
+            if (!dataEncontrada) {
               const pdfLinks = $page('a[href$=".pdf"]').toArray();
-
               for (const pdfEl of pdfLinks) {
                 const pdfHref = $page(pdfEl).attr('href') || '';
                 const matchPdf = pdfHref.match(regexDataPdf);
@@ -94,7 +136,6 @@ export async function buscarMacedonia(): Promise<Edital[]> {
                   if (dia >= 1 && dia <= 31 && mes >= 1 && mes <= 12) {
                     const diaF = dia.toString().padStart(2, '0');
                     const mesF = mes.toString().padStart(2, '0');
-
                     dataFormatada = `${diaF}/${mesF}/${anoData}`;
                     dataTimestamp = new Date(`${anoData}-${mesF}-${diaF}T00:00:00`).getTime();
                     dataEncontrada = true;
@@ -103,62 +144,38 @@ export async function buscarMacedonia(): Promise<Edital[]> {
                 }
               }
             }
-          } catch (e) {
-            // Ignora erro de rede no PDF e segue
-          }
-        }
 
-        // ==============================================================
-        // 🗂️ O AGRUPAMENTO: Extração da Chave do Concurso
-        // ==============================================================
-        let idConcurso = extrairIdConcurso(titulo, '', true, false);
-
-        // 🚑 MISSÃO DE RESGATE HTML: Se o título for só "Convocação 03", acessa a página e lê o texto
-        if (!idConcurso) {
-          try {
-            const resNoticia = await fetch(linkCompleto, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'force-cache' });
-            if (resNoticia.ok) {
-              const htmlNoticia = await resNoticia.text();
-              const $noticia = cheerio.load(htmlNoticia);
-
-              $noticia('script, style, nav, header, footer').remove();
-              $noticia('p, div, br, li, span, strong, b').append(' ');
-
-              const textoDaNoticia = $noticia('body').text().replace(/\s+/g, ' ').trim();
-
-              // No resgate, aplicamos o Strict Mode para garantir a exatidão
+            // Resgate do ID Concurso
+            if (!idConcurso) {
+              $page('script, style, nav, header, footer').remove();
+              $page('p, div, br, li, span, strong, b').append(' ');
+              const textoDaNoticia = $page('body').text().replace(/\s+/g, ' ').trim();
               idConcurso = extrairIdConcurso(textoDaNoticia, '', false, true);
             }
-          } catch (e) { }
-        }
-
-        let anoConcurso: number | undefined = undefined;
-        if (idConcurso) {
-          const matchAno = idConcurso.match(/\/(\d{4})\b/);
-          if (matchAno) anoConcurso = parseInt(matchAno[1], 10);
-        }
-
-        resultados.push({
-          cidade: 'Macedônia',
-          orgao: 'Prefeitura',
-          titulo: titulo,
-          concurso: idConcurso, // <--- INJETADO
-          ano: anoConcurso,     // <--- INJETADO
-          link: linkCompleto,
-          dataPublicacao: dataFormatada,
-          dataTimestamp: dataTimestamp,
-          ordemOriginal: ordemGlobal
-        });
-
-        // 🛑 Ativa o break se for o alvo! (Ele para a execução de todos os links que vierem abaixo deste)
-        if (ehOLinkAlvo) {
-          encontrouAlvoDeParada = true;
-          break;
+          }
+        } catch (e) {
+          // Ignora erro de rede no PDF e segue
         }
       }
-    } catch (e) {
-      console.error(`Erro ao buscar Macedônia na página ${pagina}`, e);
-    }
+
+      let anoConcurso: number | undefined = undefined;
+      if (idConcurso) {
+        const matchAno = idConcurso.match(/\/(\d{4})\b/);
+        if (matchAno) anoConcurso = parseInt(matchAno[1], 10);
+      }
+
+      resultados.push({
+        cidade: 'Macedônia',
+        orgao: 'Prefeitura',
+        titulo: titulo,
+        concurso: idConcurso,
+        ano: anoConcurso,
+        link: item.linkCompleto,
+        dataPublicacao: dataFormatada,
+        dataTimestamp: dataTimestamp,
+        ordemOriginal: item.ordemOriginal
+      });
+    }));
   }
 
   return resultados;
