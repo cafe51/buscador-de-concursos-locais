@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
 import { extrairDataDoArquivo } from '../docParser';
-import { ehSujeira } from '../filtrosGlobais';
+import { ehSujeira, extrairIdConcurso } from '../filtrosGlobais';
 
 export async function buscarSaoJoao(): Promise<Edital[]> {
   const resultados: Edital[] = [];
@@ -14,15 +14,20 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
     { url: 'https://sjduaspontes.sp.gov.br/paginas/portal/concursos/exercicio?id=4' }
   ];
 
-  for (const endpoint of endpoints) {
-    try {
-      const response = await fetch(endpoint.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
-      if (!response.ok) continue;
+  try {
+    // 🚀 FASE 1: Baixa as 4 categorias ao mesmo tempo
+    const htmlsCategorias = await Promise.all(endpoints.map(async (ep) => {
+      try {
+        const res = await fetch(ep.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
+        return res.ok ? await res.text() : '';
+      } catch { return ''; }
+    }));
 
-      const html = await response.text();
+    const linksAnos: { ano: string; url: string }[] = [];
+
+    for (const html of htmlsCategorias) {
+      if (!html) continue;
       const $ = cheerio.load(html);
-      const linksAnos: { ano: string; url: string }[] = [];
-
       $('a').each((_, el) => {
         const textoLink = $(el).text().trim();
         if (/^\d{4}$/.test(textoLink)) {
@@ -32,107 +37,122 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
           }
         }
       });
+    }
 
-      for (const itemAno of linksAnos) {
-        try {
-          const resAno = await fetch(itemAno.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
-          if (!resAno.ok) continue;
+    // Remove links duplicados caso o mesmo ano apareça em duas categorias diferentes
+    const linksAnosUnicos = Array.from(new Map(linksAnos.map(item => [item.url, item])).values());
 
-          const htmlAno = await resAno.text();
-          const $ano = cheerio.load(htmlAno);
-          const headersCards = $ano('.card-header').toArray();
+    // 🚀 FASE 2: Baixa as páginas de TODOS os anos ao mesmo tempo
+    const paginasAnosBaixadas = await Promise.all(linksAnosUnicos.map(async (item) => {
+      try {
+        const res = await fetch(item.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
+        return { ...item, html: res.ok ? await res.text() : '' };
+      } catch { return { ...item, html: '' }; }
+    }));
 
-          for (const headerEl of headersCards) {
-            const metadado = $ano(headerEl).find('h4.card-title a').text().replace(/\s+/g, ' ').trim();
+    // FASE 3: Lógica Sequencial do HTML e Processamento em Lote dos PDFs
+    for (const itemAno of paginasAnosBaixadas) {
+      if (!itemAno.html) continue;
 
-            // 🛡️ ESCUDO APLICADO NO CABEÇALHO
-            if (ehSujeira(metadado)) continue;
+      const $ano = cheerio.load(itemAno.html);
+      const headersCards = $ano('.card-header').toArray();
 
-            const linksPdfs = $ano(headerEl).parent().find('div.card-body ul.list.list-icons.list-primary.list-side-borders li a').toArray();
+      for (const headerEl of headersCards) {
+        const metadadoRaw = $ano(headerEl).find('h4.card-title a').text().replace(/\s+/g, ' ').trim();
+        if (ehSujeira(metadadoRaw)) continue;
 
-            const itensBrutos: any[] = [];
-            for (const el of linksPdfs) {
-              const textoLinkInteiro = $ano(el).text().replace(/\s+/g, ' ').trim();
-              let tituloLimpo = $ano(el).find('strong').text().replace(/\s+/g, ' ').trim();
+        const linksPdfs = $ano(headerEl).parent().find('div.card-body ul.list.list-icons.list-primary.list-side-borders li a').toArray();
+        const itensBrutos: any[] = [];
 
-              // 🛡️ ESCUDO APLICADO NO ARQUIVO
-              if (ehSujeira(tituloLimpo)) continue;
+        for (const el of linksPdfs) {
+          const textoLinkInteiro = $ano(el).text().replace(/\s+/g, ' ').trim();
+          let tituloLimpo = $ano(el).find('strong').text().replace(/\s+/g, ' ').trim();
 
-              ordemGlobal++;
-              const href = $ano(el).attr('href') || '';
-              const linkCompleto = href.startsWith('http') ? href : `https://sjduaspontes.sp.gov.br${href}`;
+          if (ehSujeira(tituloLimpo)) continue;
 
-              let dataAchadaNoHtml = false;
-              let dataFormatadaHtml = '';
-              let dataTimestampHtml = 0;
+          ordemGlobal++;
+          const href = $ano(el).attr('href') || '';
+          const linkCompleto = href.startsWith('http') ? href : `https://sjduaspontes.sp.gov.br${href}`;
 
-              const matchDataTexto = textoLinkInteiro.match(/\b(\d{2})[\/\.](\d{2})[\/\.](\d{4})\b/);
-              if (matchDataTexto) {
-                dataFormatadaHtml = `${matchDataTexto[1]}/${matchDataTexto[2]}/${matchDataTexto[3]}`;
-                dataTimestampHtml = new Date(`${matchDataTexto[3]}-${matchDataTexto[2]}-${matchDataTexto[1]}T00:00:00`).getTime();
-                dataAchadaNoHtml = true;
-              }
+          let dataAchadaNoHtml = false;
+          let dataFormatadaHtml = '';
+          let dataTimestampHtml = 0;
 
-              tituloLimpo = tituloLimpo.replace(/>>>\s*\(?Publicado em.*?\)?/i, '').replace(/\b\d{2}[\/\.]\d{2}[\/\.]\d{4}\b/g, '').trim();
-              if (tituloLimpo.endsWith('-')) tituloLimpo = tituloLimpo.slice(0, -1).trim();
-
-              itensBrutos.push({
-                ordemGlobal, tituloLimpo, linkCompleto, metadado,
-                dataAchadaNoHtml, dataFormatadaHtml, dataTimestampHtml, dataPdf: null
-              });
-            }
-
-            const TAMANHO_LOTE = 8;
-            for (let i = 0; i < itensBrutos.length; i += TAMANHO_LOTE) {
-              const lote = itensBrutos.slice(i, i + TAMANHO_LOTE);
-              await Promise.all(lote.map(async (item) => {
-                if (!item.dataAchadaNoHtml) {
-                  item.dataPdf = await extrairDataDoArquivo(item.linkCompleto);
-                }
-              }));
-            }
-
-            let dataFallback = {
-              formatada: `01/01/${itemAno.ano}`,
-              timestamp: new Date(`${itemAno.ano}-01-01T00:00:00`).getTime()
-            };
-
-            for (const item of itensBrutos) {
-              let dataFinal = 'sem data';
-              let timestampFinal = 0;
-
-              if (item.dataAchadaNoHtml) {
-                dataFinal = item.dataFormatadaHtml;
-                timestampFinal = item.dataTimestampHtml;
-                dataFallback = { formatada: dataFinal, timestamp: timestampFinal };
-              } else if (item.dataPdf) {
-                dataFinal = item.dataPdf.formatada;
-                timestampFinal = item.dataPdf.timestamp;
-                dataFallback = item.dataPdf;
-              } else {
-                dataFinal = dataFallback.formatada;
-                timestampFinal = dataFallback.timestamp;
-              }
-
-              resultados.push({
-                cidade: 'São João das Duas Pontes',
-                orgao: 'Prefeitura',
-                titulo: item.tituloLimpo,
-                link: item.linkCompleto,
-                metadados: item.metadado ? [item.metadado] : undefined, // ARRAY INJETADO
-                dataPublicacao: dataFinal,
-                dataTimestamp: timestampFinal,
-                ordemOriginal: item.ordemGlobal
-              });
-            }
+          const matchDataTexto = textoLinkInteiro.match(/\b(\d{2})[\/\.](\d{2})[\/\.](\d{4})\b/);
+          if (matchDataTexto) {
+            dataFormatadaHtml = `${matchDataTexto[1]}/${matchDataTexto[2]}/${matchDataTexto[3]}`;
+            dataTimestampHtml = new Date(`${matchDataTexto[3]}-${matchDataTexto[2]}-${matchDataTexto[1]}T00:00:00`).getTime();
+            dataAchadaNoHtml = true;
           }
-        } catch (e) {
-          console.error(`Erro ao raspar ano ${itemAno.ano} de São João das Duas Pontes`, e);
+
+          tituloLimpo = tituloLimpo.replace(/>>>\s*\(?Publicado em.*?\)?/i, '').replace(/\b\d{2}[\/\.]\d{2}[\/\.]\d{4}\b/g, '').trim();
+          if (tituloLimpo.endsWith('-')) tituloLimpo = tituloLimpo.slice(0, -1).trim();
+
+          itensBrutos.push({
+            ordemGlobal, tituloLimpo, linkCompleto, metadadoRaw,
+            dataAchadaNoHtml, dataFormatadaHtml, dataTimestampHtml, dataPdf: null
+          });
+        }
+
+        // 🚀 FASE 4: OS PDFS JÁ ESTAVAM OTIMIZADOS AQUI!
+        const TAMANHO_LOTE = 8;
+        for (let i = 0; i < itensBrutos.length; i += TAMANHO_LOTE) {
+          const lote = itensBrutos.slice(i, i + TAMANHO_LOTE);
+          await Promise.all(lote.map(async (item) => {
+            if (!item.dataAchadaNoHtml) {
+              item.dataPdf = await extrairDataDoArquivo(item.linkCompleto);
+            }
+          }));
+        }
+
+        let dataFallback = {
+          formatada: `01/01/${itemAno.ano}`,
+          timestamp: new Date(`${itemAno.ano}-01-01T00:00:00`).getTime()
+        };
+
+        for (const item of itensBrutos) {
+          let dataFinal = 'sem data';
+          let timestampFinal = 0;
+
+          if (item.dataAchadaNoHtml) {
+            dataFinal = item.dataFormatadaHtml;
+            timestampFinal = item.dataTimestampHtml;
+            dataFallback = { formatada: dataFinal, timestamp: timestampFinal };
+          } else if (item.dataPdf) {
+            dataFinal = item.dataPdf.formatada;
+            timestampFinal = item.dataPdf.timestamp;
+            dataFallback = item.dataPdf;
+          } else {
+            dataFinal = dataFallback.formatada;
+            timestampFinal = dataFallback.timestamp;
+          }
+
+          const idConcurso = extrairIdConcurso(item.metadadoRaw, '', true, false);
+          let anoConcurso: number | undefined = undefined;
+
+          if (idConcurso) {
+            const matchAno = idConcurso.match(/\/(\d{4})\b/);
+            if (matchAno) anoConcurso = parseInt(matchAno[1], 10);
+          }
+
+          resultados.push({
+            cidade: 'São João das Duas Pontes',
+            orgao: 'Prefeitura',
+            titulo: item.tituloLimpo,
+            link: item.linkCompleto,
+            concurso: idConcurso,
+            ano: anoConcurso,
+            metadados: undefined,
+            dataPublicacao: dataFinal,
+            dataTimestamp: timestampFinal,
+            ordemOriginal: item.ordemGlobal
+          });
         }
       }
-    } catch (e) {
-      console.error(`Erro ao buscar São João na url: ${endpoint.url}`, e);
     }
+  } catch (e) {
+    console.error(`Erro geral ao buscar São João das Duas Pontes`, e);
   }
+
   return resultados;
 }
