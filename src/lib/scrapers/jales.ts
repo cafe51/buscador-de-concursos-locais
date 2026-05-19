@@ -1,116 +1,225 @@
 import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
-import { ehSujeira } from '../filtrosGlobais';
+import { ehSujeira, extrairIdConcurso } from '../filtrosGlobais';
 
 export async function buscarJales(): Promise<Edital[]> {
   const resultados: Edital[] = [];
   let ordemGlobal = 0;
 
   const linksProcessados = new Set<string>();
+  const todosOsConcursos: { tituloConcurso: string, urlInterna: string }[] = [];
 
-  for (let pagina = 1; pagina <= 2; pagina++) {
-    try {
-      const urlLista = `https://www.jales.sp.gov.br/cidadao/concursos-e-processos-seletivos?&pagina=${pagina}`;
-      const res = await fetch(urlLista, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
+  let chegouNoFim = false;
 
-      if (!res.ok) continue;
+  try {
+    // ==============================================================
+    // 🚀 FASE 1: PAGINAÇÃO INFINITA (Lotes de 5)
+    // ==============================================================
+    for (let loteInicio = 1; ; loteInicio += 5) {
+      if (chegouNoFim) break;
 
-      const html = await res.text();
-      const $ = cheerio.load(html);
+      const promessasPaginas = [];
 
-      const concursosPage: { tituloConcurso: string, urlInterna: string }[] = [];
+      for (let pagina = loteInicio; pagina < loteInicio + 5; pagina++) {
+        const urlLista = `https://www.jales.sp.gov.br/cidadao/concursos-e-processos-seletivos?&pagina=${pagina}`;
+        promessasPaginas.push(
+          fetch(urlLista, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' })
+            .then(async (res) => ({ pagina, html: res.ok ? await res.text() : '' }))
+            .catch(() => ({ pagina, html: '' }))
+        );
+      }
 
-      $('a.list-item__link').each((_, el) => {
-        const tituloConcurso = $(el).text().replace(/\s+/g, ' ').trim();
-        const href = $(el).attr('href') || '';
+      const paginasBaixadas = await Promise.all(promessasPaginas);
+      paginasBaixadas.sort((a, b) => a.pagina - b.pagina);
 
-        if (href) {
-          const urlInterna = href.startsWith('http') ? href : `https://www.jales.sp.gov.br${href}`;
-          concursosPage.push({ tituloConcurso, urlInterna });
+      for (const pag of paginasBaixadas) {
+        if (!pag.html || chegouNoFim) continue;
+
+        const $ = cheerio.load(pag.html);
+        const links = $('a.list-item__link').toArray();
+
+        if (links.length === 0) {
+          chegouNoFim = true;
+          break;
         }
-      });
 
-      for (const concurso of concursosPage) {
-        // 🛡️ O ESCUDO AQUI: Se o concurso principal for "Pregão 01/2024", pula ele todo!
-        if (ehSujeira(concurso.tituloConcurso)) continue;
+        for (const el of links) {
+          const tituloConcurso = $(el).text().replace(/\s+/g, ' ').trim();
+          const href = $(el).attr('href') || '';
 
+          if (ehSujeira(tituloConcurso)) continue;
+
+          if (href) {
+            const urlInterna = href.startsWith('http') ? href : `https://www.jales.sp.gov.br${href}`;
+            todosOsConcursos.push({ tituloConcurso, urlInterna });
+          }
+        }
+      }
+    }
+
+    // ==============================================================
+    // 🚀 FASE 2: PROCESSAMENTO PARALELO (Lotes de 15)
+    // ==============================================================
+    const TAMANHO_LOTE = 15;
+
+    for (let i = 0; i < todosOsConcursos.length; i += TAMANHO_LOTE) {
+      const lote = todosOsConcursos.slice(i, i + TAMANHO_LOTE);
+
+      const detalhesHtml = await Promise.all(lote.map(async (concurso) => {
         try {
-          const resInner = await fetch(concurso.urlInterna, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
-          if (!resInner.ok) continue;
+          const res = await fetch(concurso.urlInterna, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
+          return { ...concurso, html: res.ok ? await res.text() : '' };
+        } catch {
+          return { ...concurso, html: '' };
+        }
+      }));
 
-          const htmlInner = await resInner.text();
-          const $inner = cheerio.load(htmlInner);
+      // ==============================================================
+      // 🧩 FASE 3: LEITURA ESTRUTURADA E EXTRAÇÃO COM CORREÇÃO DE DIAS
+      // ==============================================================
+      for (const detalhe of detalhesHtml) {
+        if (!detalhe.html) continue;
 
-          const $areaConteudo = $inner('main, article, .content, .container').first();
-          const $escopo = $areaConteudo.length ? $areaConteudo : $inner('body');
+        const $inner = cheerio.load(detalhe.html);
 
-          $escopo.find('a').each((_, el) => {
-            const fileHref = $inner(el).attr('href') || '';
+        let $main = $inner('main');
+        if ($main.length === 0) $main = $inner('article');
+        if ($main.length === 0) $main = $inner('body');
+
+        const idConcurso = extrairIdConcurso(detalhe.tituloConcurso, '', true, false);
+        let anoConcurso: number | undefined = undefined;
+
+        if (idConcurso) {
+          const matchAno = idConcurso.match(/\/(\d{4})\b/);
+          if (matchAno) anoConcurso = parseInt(matchAno[1], 10);
+        }
+
+        const arquivosDesteConcurso: any[] = [];
+
+        $main.find('p').each((_, pEl) => {
+          let textoDoParagrafo = $inner(pEl).text().replace(/\s+/g, ' ').trim();
+
+          // 🌟 A CORREÇÃO DE "PRIMEIRO": Troca "1º/", "1°/" ou "1o/" por "01/"
+          textoDoParagrafo = textoDoParagrafo.replace(/1[º°o]\s*[\/\.]/gi, '01/');
+
+          $inner(pEl).find('a').each((_, aEl) => {
+            const fileHref = $inner(aEl).attr('href') || '';
             if (!fileHref || fileHref.startsWith('#') || fileHref.includes('javascript:')) return;
 
-            let textoLink = $inner(el).text().replace(/\s+/g, ' ').trim();
-            textoLink = textoLink.replace(/^[\d\/\.\-\s]+/, '').trim();
+            const linkCompleto = fileHref.startsWith('http') ? fileHref : `https://www.jales.sp.gov.br${fileHref}`;
 
-            let tituloArquivo = textoLink;
+            if (linksProcessados.has(linkCompleto)) return;
+            linksProcessados.add(linkCompleto);
+
+            let tituloArquivo = $inner(aEl).text().replace(/\s+/g, ' ').trim();
+
+            // 🌟 APLICA A CORREÇÃO NO TÍTULO TAMBÉM (Para o limpador funcionar)
+            tituloArquivo = tituloArquivo.replace(/1[º°o]\s*[\/\.]/gi, '01/');
+
             const palavrasGenericas = ['download', 'ver', 'anexo', 'clique aqui', 'acessar'];
 
             if (!tituloArquivo || palavrasGenericas.includes(tituloArquivo.toLowerCase())) {
-              let textoPai = $inner(el).parent().text().replace(/\s+/g, ' ').trim();
-              tituloArquivo = textoPai.replace(/^[\d\/\.\-\s]+/, '').trim();
+              tituloArquivo = $inner(aEl).attr('title') || textoDoParagrafo;
+            }
+            if (/^[\d\/\.\-\s]+$/.test(tituloArquivo)) {
+              tituloArquivo = $inner(aEl).attr('title') || textoDoParagrafo;
             }
 
-            if (!tituloArquivo || palavrasGenericas.includes(tituloArquivo.toLowerCase())) {
-              const attrTitle = $inner(el).attr('title') || '';
-              if (attrTitle.includes(' ') && attrTitle.length > 5) {
-                tituloArquivo = attrTitle;
-              }
-            }
+            // LIMPEZA CIRÚRGICA DO TÍTULO
+            tituloArquivo = tituloArquivo.replace(/(Concurso P[úu]blico|Processo Seletivo).*?[\-\|]/i, '').trim();
+            // 🌟 AGORA ACEITA 1 DÍGITO NO DIA TAMBÉM (\d{1,2})
+            tituloArquivo = tituloArquivo.replace(/\b\d{1,2}[\/\.]\d{2}[\/\.]\d{4}\b/g, '').trim();
 
-            tituloArquivo = tituloArquivo.replace(/^[\d\/\.\-\s]+/, '').trim();
-            if (tituloArquivo.startsWith('-')) {
+            tituloArquivo = tituloArquivo.replace(/^[\d\/\.\-\s\|]+/, '').trim();
+            if (tituloArquivo.startsWith('-') || tituloArquivo.startsWith('|')) {
               tituloArquivo = tituloArquivo.substring(1).trim();
             }
-            if (tituloArquivo.length < 3) return;
 
-            // 🛡️ O ESCUDO AQUI TAMBÉM: Para anexos individuais que fujam à regra
+            if (tituloArquivo.length < 3) return;
             if (ehSujeira(tituloArquivo)) return;
 
-            const textoPaiData = $inner(el).parent().text().replace(/\s+/g, ' ').trim();
-            const matchData = textoPaiData.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+            // EXTRAÇÃO DA DATA
+            let dataFormatada = '';
+            let dataTimestamp = 0;
+
+            // 🌟 AGORA ACEITA DIA COM 1 OU 2 DÍGITOS (\d{1,2})
+            const matchData = textoDoParagrafo.match(/(\d{1,2})[\/\.](\d{2})[\/\.](\d{4})/);
 
             if (matchData) {
-              const linkCompleto = fileHref.startsWith('http') ? fileHref : `https://www.jales.sp.gov.br${fileHref}`;
-
-              if (linksProcessados.has(linkCompleto)) return;
-              linksProcessados.add(linkCompleto);
-
-              const dataFormatada = matchData[0];
-              const dataTimestamp = new Date(`${matchData[3]}-${matchData[2]}-${matchData[1]}T00:00:00`).getTime();
-
-              ordemGlobal++;
-
-              resultados.push({
-                cidade: 'Jales',
-                orgao: 'Prefeitura',
-                titulo: tituloArquivo,
-                // 💡 ATUALIZADO: Usando Colchetes [] para adequar ao Array de Metadados
-                metadados: concurso.tituloConcurso ? [concurso.tituloConcurso] : undefined,
-                link: linkCompleto,
-                dataPublicacao: dataFormatada,
-                dataTimestamp: dataTimestamp,
-                ordemOriginal: ordemGlobal
-              });
+              const dia = matchData[1].padStart(2, '0'); // Se vier "5", transforma em "05"
+              const mes = matchData[2];
+              const ano = matchData[3];
+              dataFormatada = `${dia}/${mes}/${ano}`;
+              dataTimestamp = new Date(`${ano}-${mes}-${dia}T00:00:00`).getTime();
             }
-          });
 
-        } catch (e) {
-          console.error(`Erro ao raspar a página interna: ${concurso.tituloConcurso}`, e);
+            arquivosDesteConcurso.push({
+              titulo: tituloArquivo,
+              link: linkCompleto,
+              dataFormatada,
+              dataTimestamp
+            });
+          });
+        });
+
+        // ==============================================================
+        // 🚑 LÓGICA DE RESGATE DE DATAS FALTANTES
+        // ==============================================================
+        let dataMaisAntiga = Infinity;
+
+        for (const arq of arquivosDesteConcurso) {
+          if (arq.dataTimestamp > 0 && arq.dataTimestamp < dataMaisAntiga) {
+            dataMaisAntiga = arq.dataTimestamp;
+          }
+        }
+
+        if (dataMaisAntiga === Infinity) {
+          dataMaisAntiga = new Date(`${anoConcurso || new Date().getFullYear()}-01-01T00:00:00`).getTime();
+        }
+
+        for (const arq of arquivosDesteConcurso) {
+          let timestampFinal = arq.dataTimestamp;
+
+          if (timestampFinal === 0) {
+            const tituloUpper = arq.titulo.toUpperCase();
+            const UM_DIA_MS = 86400000;
+
+            if (tituloUpper.includes('EDITAL')) {
+              timestampFinal = dataMaisAntiga - (2 * UM_DIA_MS);
+            } else if (tituloUpper.includes('INSCRI')) {
+              timestampFinal = dataMaisAntiga - (1 * UM_DIA_MS);
+            } else {
+              timestampFinal = dataMaisAntiga;
+            }
+
+            const d = new Date(timestampFinal);
+            const dia = d.getDate().toString().padStart(2, '0');
+            const mes = (d.getMonth() + 1).toString().padStart(2, '0');
+            const ano = d.getFullYear();
+            arq.dataFormatada = `${dia}/${mes}/${ano}`;
+            arq.dataTimestamp = timestampFinal;
+          }
+
+          ordemGlobal++;
+
+          resultados.push({
+            cidade: 'Jales',
+            orgao: 'Prefeitura',
+            titulo: arq.titulo,
+            concurso: idConcurso,
+            ano: anoConcurso,
+            link: arq.link,
+            dataPublicacao: arq.dataFormatada,
+            dataTimestamp: arq.dataTimestamp,
+            ordemOriginal: ordemGlobal
+          });
         }
       }
-
-    } catch (e) {
-      console.error(`Erro ao buscar Jales na página ${pagina}`, e);
     }
+
+  } catch (e) {
+    console.error(`Erro geral ao buscar Jales`, e);
   }
+
   return resultados;
 }
