@@ -15,7 +15,6 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
   ];
 
   try {
-    // 🚀 FASE 1: Baixa as 4 categorias ao mesmo tempo
     const htmlsCategorias = await Promise.all(endpoints.map(async (ep) => {
       try {
         const res = await fetch(ep.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
@@ -39,10 +38,8 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
       });
     }
 
-    // Remove links duplicados caso o mesmo ano apareça em duas categorias diferentes
     const linksAnosUnicos = Array.from(new Map(linksAnos.map(item => [item.url, item])).values());
 
-    // 🚀 FASE 2: Baixa as páginas de TODOS os anos ao mesmo tempo
     const paginasAnosBaixadas = await Promise.all(linksAnosUnicos.map(async (item) => {
       try {
         const res = await fetch(item.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
@@ -50,7 +47,6 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
       } catch { return { ...item, html: '' }; }
     }));
 
-    // FASE 3: Lógica Sequencial do HTML e Processamento em Lote dos PDFs
     for (const itemAno of paginasAnosBaixadas) {
       if (!itemAno.html) continue;
 
@@ -94,7 +90,6 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
           });
         }
 
-        // 🚀 FASE 4: OS PDFS JÁ ESTAVAM OTIMIZADOS AQUI!
         const TAMANHO_LOTE = 8;
         for (let i = 0; i < itensBrutos.length; i += TAMANHO_LOTE) {
           const lote = itensBrutos.slice(i, i + TAMANHO_LOTE);
@@ -126,6 +121,26 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
             dataFinal = dataFallback.formatada;
             timestampFinal = dataFallback.timestamp;
           }
+
+          // ==============================================================
+          // ⏱️ LÓGICA DE ORDENAÇÃO INTUITIVA (Horário Sintético)
+          // ==============================================================
+          let offsetMinutos = 30; // Padrão fica no meio do dia
+          const tituloUpper = item.tituloLimpo.toUpperCase();
+
+          if (tituloUpper.includes('CONVOCA')) {
+            offsetMinutos = 50;
+          } else if (tituloUpper.includes('HOMOLOGA')) {
+            offsetMinutos = 40;
+          } else if (tituloUpper.includes('GABARITO') || tituloUpper.includes('RESULTADO')) {
+            offsetMinutos = 20;
+          } else if (tituloUpper.includes('INSCRI')) {
+            offsetMinutos = 10;
+          } else if (tituloUpper.includes('EDITAL') || tituloUpper.includes('NORMATIVO') || tituloUpper.includes('ABERTURA')) {
+            offsetMinutos = 0;
+          }
+
+          timestampFinal += (offsetMinutos * 60000);
 
           const idConcurso = extrairIdConcurso(item.metadadoRaw, '', true, false);
           let anoConcurso: number | undefined = undefined;
