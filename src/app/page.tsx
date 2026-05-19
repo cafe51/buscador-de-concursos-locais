@@ -17,7 +17,6 @@ function formatarNomeArquivo(nome: string) {
   return nome.replace(/[\/\s]/g, '-').toLowerCase();
 }
 
-// 1. DINÂMICO: Gera a lista de anos (Do ano atual até 2010)
 const anoAtual = new Date().getFullYear();
 const anosDisponiveis = Array.from({ length: anoAtual - 2010 + 1 }, (_, i) => anoAtual - i);
 
@@ -34,7 +33,6 @@ export default function Home() {
   const [concursoSelecionado, setConcursoSelecionado] = useState<string | null>(null);
   const [filtroTipoGrupo, setFiltroTipoGrupo] = useState<'todos' | 'concurso' | 'seletivo'>('todos');
 
-  // 2. NOVO ESTADO: Filtro de Ano
   const [filtroAno, setFiltroAno] = useState<number | 'todos'>('todos');
 
   const [paginaAtual, setPaginaAtual] = useState(1);
@@ -62,7 +60,6 @@ export default function Home() {
     if (modoVisualizacao === 'agrupado') setConcursoSelecionado(null);
   }, [palavrasDesejadas, palavrasIgnoradas, filtroAno]);
 
-  // APLICAÇÃO DOS FILTROS GERAIS E DO ANO
   const editaisFiltrados = useMemo(() => {
     return editais.filter((edital) => {
       const valoresTextuais = [
@@ -75,7 +72,6 @@ export default function Home() {
       const passaDesejadas = palavrasDesejadas.length === 0 || palavrasDesejadas.some(p => textoNormalizado.includes(p));
       const passaIgnoradas = palavrasIgnoradas.length === 0 || !palavrasIgnoradas.some(p => textoNormalizado.includes(p));
 
-      // 3. APLICA A REGRA DO ANO
       const passaFiltroAno = filtroAno === 'todos' || edital.ano === filtroAno;
 
       return passaDesejadas && passaIgnoradas && passaFiltroAno;
@@ -87,15 +83,21 @@ export default function Home() {
 
     editaisFiltrados.forEach((edital) => {
       if (edital.concurso) {
-        if (!mapa.has(edital.concurso)) {
-          mapa.set(edital.concurso, []);
+        // ==============================================================
+        // 💡 A SOLUÇÃO: Chave composta por Cidade + Nome do Concurso
+        // ==============================================================
+        const chaveUnica = `${edital.cidade}_${edital.concurso}`;
+
+        if (!mapa.has(chaveUnica)) {
+          mapa.set(chaveUnica, []);
         }
-        mapa.get(edital.concurso)!.push(edital);
+        mapa.get(chaveUnica)!.push(edital);
       }
     });
 
-    let gruposArray = Array.from(mapa.entries()).map(([nomeConcurso, listaEditais]) => ({
-      nome: nomeConcurso,
+    let gruposArray = Array.from(mapa.entries()).map(([chaveUnica, listaEditais]) => ({
+      chaveUnica: chaveUnica, // Guardamos a chave única para o navegador interno não se perder
+      nome: listaEditais[0].concurso as string, // O nome visual (ex: "Concurso 01/2023")
       cidade: listaEditais[0].cidade,
       orgao: listaEditais[0].orgao,
       ultimaAtualizacao: listaEditais[0].dataPublicacao,
@@ -126,7 +128,9 @@ export default function Home() {
     return gruposArray;
   }, [editaisFiltrados, filtroTipoGrupo]);
 
-  const grupoAtual = concursosAgrupados.find(c => c.nome === concursoSelecionado);
+  // Busca o grupo pela Chave Única que criamos
+  const grupoAtual = concursosAgrupados.find(c => c.chaveUnica === concursoSelecionado);
+
   const totalPaginas = Math.ceil(editaisFiltrados.length / ITENS_POR_PAGINA);
   const indexInicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
   const editaisDaPaginaLista = editaisFiltrados.slice(indexInicio, indexInicio + ITENS_POR_PAGINA);
@@ -172,7 +176,6 @@ export default function Home() {
 
         {erroFatal && <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-6 text-center">{erroFatal}</div>}
 
-        {/* CONTROLES DE VISÃO E ANO */}
         <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
           <div className="bg-gray-200 p-1 rounded-lg inline-flex">
             <button
@@ -189,7 +192,6 @@ export default function Home() {
             </button>
           </div>
 
-          {/* O NOVO DROPDOWN DE ANO */}
           <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-gray-200 shadow-sm">
             <label htmlFor="anoFiltro" className="text-sm font-bold text-gray-700">Ano do Certame:</label>
             <select
@@ -235,7 +237,7 @@ export default function Home() {
               </button>
 
               <button
-                onClick={() => exportarParaJSON(grupoAtual.itens, formatarNomeArquivo(grupoAtual.nome))}
+                onClick={() => exportarParaJSON(grupoAtual.itens, formatarNomeArquivo(`${grupoAtual.cidade}-${grupoAtual.nome}`))}
                 className="bg-white text-purple-700 border border-purple-300 hover:bg-purple-50 px-4 py-2 rounded text-sm font-bold shadow-sm transition-colors"
               >
                 📥 Baixar Arquivos Deste Concurso
@@ -244,7 +246,7 @@ export default function Home() {
 
             <div className="bg-purple-50 border-l-4 border-purple-600 p-6 rounded-lg mb-6 shadow-sm">
               <h2 className="text-2xl font-bold text-purple-900">{grupoAtual.nome}</h2>
-              <p className="text-purple-700 mt-1">Todos os {grupoAtual.totalItens} andamentos encontrados para este certame.</p>
+              <p className="text-purple-700 mt-1">Todos os {grupoAtual.totalItens} andamentos encontrados para {grupoAtual.cidade}.</p>
             </div>
 
             <div className="space-y-4">
@@ -292,7 +294,8 @@ export default function Home() {
                 concursosAgrupados.map((grupo, idx) => (
                   <div
                     key={idx}
-                    onClick={() => setConcursoSelecionado(grupo.nome)}
+                    // AQUI O ONCLICK USA A CHAVE ÚNICA EM VEZ SÓ DO NOME
+                    onClick={() => setConcursoSelecionado(grupo.chaveUnica)}
                     className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:border-purple-400 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
                   >
                     <div>
