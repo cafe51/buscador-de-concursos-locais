@@ -17,8 +17,9 @@ function formatarNomeArquivo(nome: string) {
   return nome.replace(/[\/\s]/g, '-').toLowerCase();
 }
 
+// 1. LIMITE DO ANO AJUSTADO PARA 2017
 const anoAtual = new Date().getFullYear();
-const anosDisponiveis = Array.from({ length: anoAtual - 2010 + 1 }, (_, i) => anoAtual - i);
+const anosDisponiveis = Array.from({ length: anoAtual - 2017 + 1 }, (_, i) => anoAtual - i);
 
 export default function Home() {
   const [editais, setEditais] = useState<Edital[]>([]);
@@ -33,7 +34,9 @@ export default function Home() {
   const [concursoSelecionado, setConcursoSelecionado] = useState<string | null>(null);
   const [filtroTipoGrupo, setFiltroTipoGrupo] = useState<'todos' | 'concurso' | 'seletivo'>('todos');
 
+  // 2. NOVOS ESTADOS FIXOS: Ano e Cidade
   const [filtroAno, setFiltroAno] = useState<number | 'todos'>('todos');
+  const [filtroCidade, setFiltroCidade] = useState<string | 'todas'>('todas');
 
   const [paginaAtual, setPaginaAtual] = useState(1);
   const ITENS_POR_PAGINA = 10;
@@ -58,10 +61,28 @@ export default function Home() {
   useEffect(() => {
     setPaginaAtual(1);
     if (modoVisualizacao === 'agrupado') setConcursoSelecionado(null);
-  }, [palavrasDesejadas, palavrasIgnoradas, filtroAno]);
+  }, [palavrasDesejadas, palavrasIgnoradas, filtroAno, filtroCidade]);
 
+  // 3. GERA A LISTA DE CIDADES DINAMICAMENTE (Sem repetir nomes e em ordem alfabética)
+  const cidadesDisponiveis = useMemo(() => {
+    const cidades = new Set(editais.map(e => e.cidade));
+    return Array.from(cidades).sort();
+  }, [editais]);
+
+  // ==============================================================
+  // 4. LÓGICA DE FILTROS COM PRIORIDADE (Short-circuit Evaluation)
+  // ==============================================================
   const editaisFiltrados = useMemo(() => {
     return editais.filter((edital) => {
+      // Prioridade MÁXIMA: Filtros Fixos (Ano e Cidade)
+      const passaFiltroAno = filtroAno === 'todos' || edital.ano === filtroAno;
+      const passaFiltroCidade = filtroCidade === 'todas' || edital.cidade === filtroCidade;
+
+      // Se falhar nos filtros fixos, nós retornamos FALSO instantaneamente!
+      // Isso impede que o computador perca tempo rodando as Regex complexas abaixo.
+      if (!passaFiltroAno || !passaFiltroCidade) return false;
+
+      // Prioridade SECUNDÁRIA: Filtros de Palavras Desejadas e Ignoradas
       const valoresTextuais = [
         edital.cidade, edital.orgao, edital.titulo, edital.descricao,
         edital.metadados, edital.statusGeral, edital.dataPublicacao
@@ -72,22 +93,17 @@ export default function Home() {
       const passaDesejadas = palavrasDesejadas.length === 0 || palavrasDesejadas.some(p => textoNormalizado.includes(p));
       const passaIgnoradas = palavrasIgnoradas.length === 0 || !palavrasIgnoradas.some(p => textoNormalizado.includes(p));
 
-      const passaFiltroAno = filtroAno === 'todos' || edital.ano === filtroAno;
-
-      return passaDesejadas && passaIgnoradas && passaFiltroAno;
+      return passaDesejadas && passaIgnoradas;
     });
-  }, [editais, palavrasDesejadas, palavrasIgnoradas, filtroAno]);
+  }, [editais, palavrasDesejadas, palavrasIgnoradas, filtroAno, filtroCidade]);
 
+  // AGRUPAMENTO DE CONCURSOS
   const concursosAgrupados = useMemo(() => {
     const mapa = new Map<string, Edital[]>();
 
     editaisFiltrados.forEach((edital) => {
       if (edital.concurso) {
-        // ==============================================================
-        // 💡 A SOLUÇÃO: Chave composta por Cidade + Nome do Concurso
-        // ==============================================================
         const chaveUnica = `${edital.cidade}_${edital.concurso}`;
-
         if (!mapa.has(chaveUnica)) {
           mapa.set(chaveUnica, []);
         }
@@ -96,8 +112,8 @@ export default function Home() {
     });
 
     let gruposArray = Array.from(mapa.entries()).map(([chaveUnica, listaEditais]) => ({
-      chaveUnica: chaveUnica, // Guardamos a chave única para o navegador interno não se perder
-      nome: listaEditais[0].concurso as string, // O nome visual (ex: "Concurso 01/2023")
+      chaveUnica: chaveUnica,
+      nome: listaEditais[0].concurso as string,
       cidade: listaEditais[0].cidade,
       orgao: listaEditais[0].orgao,
       ultimaAtualizacao: listaEditais[0].dataPublicacao,
@@ -128,7 +144,6 @@ export default function Home() {
     return gruposArray;
   }, [editaisFiltrados, filtroTipoGrupo]);
 
-  // Busca o grupo pela Chave Única que criamos
   const grupoAtual = concursosAgrupados.find(c => c.chaveUnica === concursoSelecionado);
 
   const totalPaginas = Math.ceil(editaisFiltrados.length / ITENS_POR_PAGINA);
@@ -139,7 +154,7 @@ export default function Home() {
     <main className="min-h-screen bg-gray-50 p-8 text-gray-800">
       <div className="max-w-4xl mx-auto">
 
-        <header className="mb-6 flex justify-between items-center bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+        <header className="mb-6 flex flex-col md:flex-row md:justify-between md:items-center bg-white p-6 rounded-lg shadow-sm border border-gray-100 gap-4">
           <div>
             <h1 className="text-3xl font-bold text-blue-900">Radar de Concursos 🎯</h1>
             <p className="text-gray-500 mt-1">Monitorando Órgãos Locais e Região</p>
@@ -150,6 +165,7 @@ export default function Home() {
               onClick={() => exportarParaJSON(editaisFiltrados, 'meus-editais')}
               disabled={loading || editaisFiltrados.length === 0}
               className={`px-4 py-3 rounded font-bold transition-colors border ${loading || editaisFiltrados.length === 0 ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50'}`}
+              title="Baixar a lista de TODOS os editais filtrados"
             >
               📥 Exportar Tudo
             </button>
@@ -165,7 +181,7 @@ export default function Home() {
 
         {alertas.length > 0 && !loading && (
           <div className="bg-orange-100 border-l-4 border-orange-500 text-orange-800 p-4 rounded mb-6 shadow-sm">
-            <p className="font-bold">⚠️ Atenção: Problemas de conexão em: {alertas.join(', ')}.</p>
+            <p className="font-bold flex items-center gap-2">⚠️ Atenção: Problemas de conexão em: {alertas.join(', ')}.</p>
           </div>
         )}
 
@@ -176,42 +192,62 @@ export default function Home() {
 
         {erroFatal && <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-6 text-center">{erroFatal}</div>}
 
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
-          <div className="bg-gray-200 p-1 rounded-lg inline-flex">
+        {/* CONTROLES DE VISÃO E FILTROS FIXOS */}
+        <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+          <div className="bg-gray-200 p-1 rounded-lg inline-flex w-full md:w-auto overflow-hidden">
             <button
               onClick={() => { setModoVisualizacao('lista'); setConcursoSelecionado(null); }}
-              className={`px-6 py-2 rounded-md font-semibold text-sm transition-all ${modoVisualizacao === 'lista' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`flex-1 md:flex-none px-4 py-2 rounded-md font-semibold text-sm transition-all ${modoVisualizacao === 'lista' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
             >
-              📋 Ver Tudo (Lista)
+              📋 Ver Tudo
             </button>
             <button
               onClick={() => setModoVisualizacao('agrupado')}
-              className={`px-6 py-2 rounded-md font-semibold text-sm transition-all ${modoVisualizacao === 'agrupado' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`flex-1 md:flex-none px-4 py-2 rounded-md font-semibold text-sm transition-all ${modoVisualizacao === 'agrupado' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
             >
-              🗂️ Agrupado por Concurso
+              🗂️ Agrupados
             </button>
           </div>
 
-          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-gray-200 shadow-sm">
-            <label htmlFor="anoFiltro" className="text-sm font-bold text-gray-700">Ano do Certame:</label>
-            <select
-              id="anoFiltro"
-              value={filtroAno}
-              onChange={(e) => setFiltroAno(e.target.value === 'todos' ? 'todos' : parseInt(e.target.value, 10))}
-              className="bg-transparent text-sm font-semibold text-blue-700 outline-none cursor-pointer"
-            >
-              <option value="todos">Todos os Anos</option>
-              {anosDisponiveis.map(ano => (
-                <option key={ano} value={ano}>{ano}</option>
-              ))}
-            </select>
+          <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+            {/* NOVO: DROPDOWN DE CIDADE */}
+            <div className="flex flex-1 md:flex-none items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm">
+              <label htmlFor="cidadeFiltro" className="text-sm font-bold text-gray-700">Cidade:</label>
+              <select
+                id="cidadeFiltro"
+                value={filtroCidade}
+                onChange={(e) => setFiltroCidade(e.target.value)}
+                className="bg-transparent text-sm font-semibold text-blue-700 outline-none cursor-pointer flex-1"
+              >
+                <option value="todas">Todas as Cidades</option>
+                {cidadesDisponiveis.map(cidade => (
+                  <option key={cidade} value={cidade}>{cidade}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* DROPDOWN DE ANO AJUSTADO (2017) */}
+            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm">
+              <label htmlFor="anoFiltro" className="text-sm font-bold text-gray-700">Ano:</label>
+              <select
+                id="anoFiltro"
+                value={filtroAno}
+                onChange={(e) => setFiltroAno(e.target.value === 'todos' ? 'todos' : parseInt(e.target.value, 10))}
+                className="bg-transparent text-sm font-semibold text-blue-700 outline-none cursor-pointer"
+              >
+                <option value="todos">Todos</option>
+                {anosDisponiveis.map(ano => (
+                  <option key={ano} value={ano}>{ano}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
         {loading ? (
           <div className="text-center p-8 text-gray-500 animate-pulse">Lendo páginas e extraindo dados...</div>
         ) : editaisFiltrados.length === 0 ? (
-          <div className="bg-white p-6 rounded-lg shadow text-center text-gray-500">Nenhum edital encontrado com esses filtros.</div>
+          <div className="bg-white p-6 rounded-lg shadow text-center text-gray-500 border border-gray-100">Nenhum edital encontrado com esses filtros.</div>
         ) : modoVisualizacao === 'lista' ? (
 
           <div className="space-y-4">
@@ -259,26 +295,26 @@ export default function Home() {
         ) : (
 
           <div className="animate-fade-in">
-            <div className="flex justify-between items-end mb-4">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-end mb-4 gap-4">
               <p className="text-sm text-gray-500">
                 {concursosAgrupados.length} pastas encontradas
               </p>
-              <div className="bg-white border border-gray-200 p-1 rounded inline-flex shadow-sm">
+              <div className="bg-white border border-gray-200 p-1 rounded inline-flex shadow-sm w-full sm:w-auto overflow-x-auto">
                 <button
                   onClick={() => setFiltroTipoGrupo('todos')}
-                  className={`px-3 py-1 text-xs font-semibold rounded ${filtroTipoGrupo === 'todos' ? 'bg-gray-100 text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+                  className={`flex-1 sm:flex-none px-3 py-1 text-xs font-semibold rounded whitespace-nowrap ${filtroTipoGrupo === 'todos' ? 'bg-gray-100 text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
                 >
                   Todos
                 </button>
                 <button
                   onClick={() => setFiltroTipoGrupo('concurso')}
-                  className={`px-3 py-1 text-xs font-semibold rounded ${filtroTipoGrupo === 'concurso' ? 'bg-gray-100 text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+                  className={`flex-1 sm:flex-none px-3 py-1 text-xs font-semibold rounded whitespace-nowrap ${filtroTipoGrupo === 'concurso' ? 'bg-gray-100 text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
                 >
                   Concursos
                 </button>
                 <button
                   onClick={() => setFiltroTipoGrupo('seletivo')}
-                  className={`px-3 py-1 text-xs font-semibold rounded ${filtroTipoGrupo === 'seletivo' ? 'bg-gray-100 text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+                  className={`flex-1 sm:flex-none px-3 py-1 text-xs font-semibold rounded whitespace-nowrap ${filtroTipoGrupo === 'seletivo' ? 'bg-gray-100 text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
                 >
                   Procs. Seletivos
                 </button>
@@ -287,14 +323,13 @@ export default function Home() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {concursosAgrupados.length === 0 ? (
-                <div className="col-span-full bg-white p-6 rounded-lg shadow text-center text-gray-500">
+                <div className="col-span-full bg-white p-6 rounded-lg shadow text-center text-gray-500 border border-gray-100">
                   Nenhum concurso atende ao filtro atual.
                 </div>
               ) : (
                 concursosAgrupados.map((grupo, idx) => (
                   <div
                     key={idx}
-                    // AQUI O ONCLICK USA A CHAVE ÚNICA EM VEZ SÓ DO NOME
                     onClick={() => setConcursoSelecionado(grupo.chaveUnica)}
                     className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:border-purple-400 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
                   >
