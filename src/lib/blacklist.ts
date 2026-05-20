@@ -1,3 +1,4 @@
+// src/lib/blacklist.ts
 // ============================================================================
 // 🚫 LISTA NEGRA DE PDFs (Imagens e Arquivos sem data)
 // Cole aqui dentro do array as URLs que o terminal exibir no final da raspagem.

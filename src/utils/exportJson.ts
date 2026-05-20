@@ -1,3 +1,4 @@
+// src/utils/exportJson.ts
 import { Edital } from '../types';
 
 export function exportarParaJSON(dados: Edital[], prefixoNome: string = 'editais-filtrados') {

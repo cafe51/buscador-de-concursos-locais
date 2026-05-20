@@ -1,3 +1,4 @@
+// src/types/index.ts
 export type Edital = {
   cidade: string;
   orgao: string;

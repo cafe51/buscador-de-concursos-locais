@@ -1,13 +1,16 @@
+// src/app/actions.ts
 'use server'
 
 import { Edital } from '../types';
 import { buscarFernandopolis } from '../lib/scrapers/fernandopolis';
 import { buscarVotuporanga } from '../lib/scrapers/votuporanga';
+import { buscarOuroeste } from '../lib/scrapers/ouroeste';
 import { buscarMacedonia } from '../lib/scrapers/macedonia';
 import { buscarPedranopolis } from '../lib/scrapers/pedranopolis';
 import { buscarEstrela } from '../lib/scrapers/estrela';
 import { buscarMeridiano } from '../lib/scrapers/meridiano';
 import { buscarSaoJoao } from '../lib/scrapers/saojoao';
+import { buscarJales } from '../lib/scrapers/jales';
 import { urlsParaBlacklist } from '../lib/docParser';
 
 export type ResultadoBusca = {
@@ -81,13 +84,16 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
 
   try {
     const promessas = await Promise.all([
-      rodarComProtecao('Fernandópolis', buscarFernandopolis),
+      // rodarComProtecao('Fernandópolis', buscarFernandopolis),
       rodarComProtecao('Votuporanga', buscarVotuporanga),
-      rodarComProtecao('Macedônia', buscarMacedonia),
-      rodarComProtecao('Pedranópolis', buscarPedranopolis),
-      rodarComProtecao("Estrela d'Oeste", buscarEstrela),
-      rodarComProtecao('Meridiano', buscarMeridiano),
-      rodarComProtecao('São João das Duas Pontes', buscarSaoJoao)
+      rodarComProtecao('Ouroeste', buscarOuroeste),
+
+      // rodarComProtecao('Jales', buscarJales),
+      // rodarComProtecao('Macedônia', buscarMacedonia),
+      // rodarComProtecao("Estrela d'Oeste", buscarEstrela),
+      // rodarComProtecao('Meridiano', buscarMeridiano),
+      // rodarComProtecao('São João das Duas Pontes', buscarSaoJoao),
+      // rodarComProtecao('Pedranópolis', buscarPedranopolis),
     ]);
 
     promessas.forEach((resultado) => {

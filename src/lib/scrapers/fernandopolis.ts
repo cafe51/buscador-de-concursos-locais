@@ -1,3 +1,4 @@
+// src/lib/scrapers/fernandopolis.ts
 import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
 import { ehSujeira, ehRelevante, extrairIdConcurso, corrigirErrosDigitacao } from '../filtrosGlobais';

@@ -1,3 +1,4 @@
+// src/components/EditalCard.tsx
 import { Edital } from '../types';
 
 export default function EditalCard({ edital }: { edital: Edital }) {

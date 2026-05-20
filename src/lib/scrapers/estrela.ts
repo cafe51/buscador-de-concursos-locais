@@ -1,3 +1,4 @@
+// src/lib/scrapers/estrela.ts
 import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
 import { ehSujeira, extrairIdConcurso } from '../filtrosGlobais';

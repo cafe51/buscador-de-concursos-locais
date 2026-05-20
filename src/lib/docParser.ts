@@ -1,3 +1,4 @@
+// src/lib/docParser.ts
 // @ts-ignore
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import * as mammoth from 'mammoth';
