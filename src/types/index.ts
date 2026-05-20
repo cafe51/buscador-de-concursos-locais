@@ -6,11 +6,13 @@ export type Edital = {
   link: string;
   dataTimestamp: number;
 
-  ano?: number;            // <--- NOVA CHAVE! (Número isolado)
+  ano?: number;
   concurso?: string;
   descricao?: string;
   metadados?: string[];
   statusGeral?: string;
   dataPublicacao?: string;
   ordemOriginal?: number;
+
+  linkOrigem?: string; // 🚀 NOVA CHAVE: Guarda a URL da página interna!
 };

@@ -12,6 +12,7 @@ import { buscarMeridiano } from '../lib/scrapers/meridiano';
 import { buscarSaoJoao } from '../lib/scrapers/saojoao';
 import { buscarJales } from '../lib/scrapers/jales';
 import { urlsParaBlacklist } from '../lib/docParser';
+import * as cheerio from 'cheerio';
 
 export type ResultadoBusca = {
   editais: Edital[];
@@ -88,12 +89,13 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
       rodarComProtecao('Votuporanga', buscarVotuporanga),
       rodarComProtecao('Ouroeste', buscarOuroeste),
 
-      // rodarComProtecao('Jales', buscarJales),
-      // rodarComProtecao('Macedônia', buscarMacedonia),
-      // rodarComProtecao("Estrela d'Oeste", buscarEstrela),
-      // rodarComProtecao('Meridiano', buscarMeridiano),
-      // rodarComProtecao('São João das Duas Pontes', buscarSaoJoao),
-      // rodarComProtecao('Pedranópolis', buscarPedranopolis),
+      rodarComProtecao('Jales', buscarJales),
+      rodarComProtecao('Macedônia', buscarMacedonia),
+      rodarComProtecao("Estrela d'Oeste", buscarEstrela),
+      rodarComProtecao('Meridiano', buscarMeridiano),
+
+      rodarComProtecao('São João das Duas Pontes', buscarSaoJoao),
+      rodarComProtecao('Pedranópolis', buscarPedranopolis),
     ]);
 
     promessas.forEach((resultado) => {
@@ -149,4 +151,59 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
   } catch (e: any) {
     throw new Error('Erro grave ao processar as buscas.');
   }
+}
+
+// Cole no final de src/app/actions.ts
+
+export type Discrepancia = {
+  cidade: string;
+  concurso: string;
+  linkOrigem: string;
+  qtdNossa: number;
+  qtdSite: number;
+};
+
+export async function auditarQuantidadesInstar(grupos: { nome: string, cidade: string, linkOrigem: string, qtdNossa: number }[]): Promise<Discrepancia[]> {
+  const discrepancias: Discrepancia[] = [];
+  const TAMANHO_LOTE = 10;
+
+  console.log(`\n===================================================`);
+  console.log(`🕵️ INICIANDO AUDITORIA EM ${grupos.length} PASTAS INSTAR...`);
+  console.log(`===================================================`);
+
+  for (let i = 0; i < grupos.length; i += TAMANHO_LOTE) {
+    const lote = grupos.slice(i, i + TAMANHO_LOTE);
+
+    await Promise.all(lote.map(async (grupo) => {
+      // Audita apenas cidades que usam Instar
+      if (!grupo.linkOrigem || !grupo.linkOrigem.includes('/portal/editais/')) return;
+
+      try {
+        const res = await fetch(grupo.linkOrigem, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
+        if (!res.ok) return;
+
+        const html = await res.text();
+        const $ = cheerio.load(html);
+
+        // Busca o número na Badge
+        const textoBadge = $('#btn_arquivos_edital .ed_info_qtde_itens').text().trim();
+        if (!textoBadge) return;
+
+        const qtdSite = parseInt(textoBadge, 10);
+
+        if (!isNaN(qtdSite) && qtdSite !== grupo.qtdNossa) {
+          discrepancias.push({
+            cidade: grupo.cidade,
+            concurso: grupo.nome,
+            linkOrigem: grupo.linkOrigem,
+            qtdNossa: grupo.qtdNossa,
+            qtdSite: qtdSite
+          });
+        }
+      } catch (e) { }
+    }));
+  }
+
+  console.log(`✅ AUDITORIA CONCLUÍDA! ${discrepancias.length} discrepâncias encontradas.\n`);
+  return discrepancias;
 }

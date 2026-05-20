@@ -2,7 +2,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react';
-import { buscarTodosEditais } from './actions';
+import { buscarTodosEditais, auditarQuantidadesInstar, Discrepancia } from './actions';
 import { Edital } from '../types';
 import EditalCard from '../components/EditalCard';
 import FilterPanel from '../components/FilterPanel';
@@ -35,12 +35,16 @@ export default function Home() {
   const [concursoSelecionado, setConcursoSelecionado] = useState<string | null>(null);
   const [filtroTipoGrupo, setFiltroTipoGrupo] = useState<'todos' | 'concurso' | 'seletivo'>('todos');
 
-  // 2. NOVOS ESTADOS FIXOS: Ano e Cidade
+  // NOVOS ESTADOS FIXOS: Ano e Cidade
   const [filtroAno, setFiltroAno] = useState<number | 'todos'>('todos');
   const [filtroCidade, setFiltroCidade] = useState<string | 'todas'>('todas');
 
   const [paginaAtual, setPaginaAtual] = useState(1);
   const ITENS_POR_PAGINA = 10;
+
+  // ESTADOS DO AUDITOR (MODO DEV)
+  const [auditando, setAuditando] = useState(false);
+  const [resultadoAuditoria, setResultadoAuditoria] = useState<Discrepancia[] | null>(null);
 
   async function carregarDados() {
     setLoading(true);
@@ -64,26 +68,22 @@ export default function Home() {
     if (modoVisualizacao === 'agrupado') setConcursoSelecionado(null);
   }, [palavrasDesejadas, palavrasIgnoradas, filtroAno, filtroCidade]);
 
-  // 3. GERA A LISTA DE CIDADES DINAMICAMENTE (Sem repetir nomes e em ordem alfabética)
+  // GERA A LISTA DE CIDADES DINAMICAMENTE
   const cidadesDisponiveis = useMemo(() => {
     const cidades = new Set(editais.map(e => e.cidade));
     return Array.from(cidades).sort();
   }, [editais]);
 
   // ==============================================================
-  // 4. LÓGICA DE FILTROS COM PRIORIDADE (Short-circuit Evaluation)
+  // LÓGICA DE FILTROS COM PRIORIDADE (Short-circuit Evaluation)
   // ==============================================================
   const editaisFiltrados = useMemo(() => {
     return editais.filter((edital) => {
-      // Prioridade MÁXIMA: Filtros Fixos (Ano e Cidade)
       const passaFiltroAno = filtroAno === 'todos' || edital.ano === filtroAno;
       const passaFiltroCidade = filtroCidade === 'todas' || edital.cidade === filtroCidade;
 
-      // Se falhar nos filtros fixos, nós retornamos FALSO instantaneamente!
-      // Isso impede que o computador perca tempo rodando as Regex complexas abaixo.
       if (!passaFiltroAno || !passaFiltroCidade) return false;
 
-      // Prioridade SECUNDÁRIA: Filtros de Palavras Desejadas e Ignoradas
       const valoresTextuais = [
         edital.cidade, edital.orgao, edital.titulo, edital.descricao,
         edital.metadados, edital.statusGeral, edital.dataPublicacao
@@ -119,7 +119,8 @@ export default function Home() {
       orgao: listaEditais[0].orgao,
       ultimaAtualizacao: listaEditais[0].dataPublicacao,
       totalItens: listaEditais.length,
-      itens: listaEditais
+      itens: listaEditais,
+      linkOrigem: listaEditais[0].linkOrigem // 🚀 Adicionado para a Auditoria
     }));
 
     gruposArray.sort((a, b) => {
@@ -151,8 +152,28 @@ export default function Home() {
   const indexInicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
   const editaisDaPaginaLista = editaisFiltrados.slice(indexInicio, indexInicio + ITENS_POR_PAGINA);
 
+  // FUNÇÃO PARA RODAR A AUDITORIA NO MODO DEV
+  async function rodarAuditoria() {
+    setAuditando(true);
+    setResultadoAuditoria(null);
+
+    // Pega só os agrupamentos do Instar que tem linkOrigem
+    const payload = concursosAgrupados
+      .filter(g => g.linkOrigem)
+      .map(g => ({
+        nome: g.nome,
+        cidade: g.cidade,
+        linkOrigem: g.linkOrigem!,
+        qtdNossa: g.totalItens
+      }));
+
+    const discrepancias = await auditarQuantidadesInstar(payload);
+    setResultadoAuditoria(discrepancias);
+    setAuditando(false);
+  }
+
   return (
-    <main className="min-h-screen bg-gray-50 p-8 text-gray-800">
+    <main className="min-h-screen bg-gray-50 p-8 text-gray-800 relative">
       <div className="max-w-4xl mx-auto">
 
         <header className="mb-6 flex flex-col md:flex-row md:justify-between md:items-center bg-white p-6 rounded-lg shadow-sm border border-gray-100 gap-4">
@@ -211,7 +232,6 @@ export default function Home() {
           </div>
 
           <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
-            {/* NOVO: DROPDOWN DE CIDADE */}
             <div className="flex flex-1 md:flex-none items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm">
               <label htmlFor="cidadeFiltro" className="text-sm font-bold text-gray-700">Cidade:</label>
               <select
@@ -227,7 +247,6 @@ export default function Home() {
               </select>
             </div>
 
-            {/* DROPDOWN DE ANO AJUSTADO (2017) */}
             <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm">
               <label htmlFor="anoFiltro" className="text-sm font-bold text-gray-700">Ano:</label>
               <select
@@ -364,6 +383,49 @@ export default function Home() {
         )}
 
       </div>
+
+      {/* ========================================== */}
+      {/* 🕵️ BOTÃO DO AUDITOR (Só aparece no DEV)  */}
+      {/* ========================================== */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed bottom-6 right-6 flex flex-col items-end z-50">
+
+          {resultadoAuditoria && (
+            <div className="bg-white border-2 border-red-500 p-4 rounded-lg shadow-xl mb-4 w-96 max-h-[70vh] overflow-y-auto animate-fade-in">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-bold text-red-700">🕵️ Relatório de Auditoria</h3>
+                <button onClick={() => setResultadoAuditoria(null)} className="text-gray-400 hover:text-black">✖</button>
+              </div>
+
+              {resultadoAuditoria.length === 0 ? (
+                <p className="text-sm text-green-600 font-bold">Tudo perfeito! O sistema extraiu 100% dos arquivos.</p>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600">Atenção, estas pastas estão faltando arquivos (foram barrados pelo filtro ou houve falha):</p>
+                  {resultadoAuditoria.map((disc, idx) => (
+                    <div key={idx} className="bg-red-50 p-3 rounded border border-red-100 text-sm">
+                      <p className="font-bold text-red-900">{disc.cidade} - {disc.concurso}</p>
+                      <div className="flex justify-between mt-2 font-medium">
+                        <span className="text-green-700">Temos: {disc.qtdNossa}</span>
+                        <span className="text-blue-700">Site diz: {disc.qtdSite}</span>
+                      </div>
+                      <a href={disc.linkOrigem} target="_blank" rel="noopener noreferrer" className="text-xs text-red-600 underline mt-2 block">Abrir pasta no site</a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <button
+            onClick={rodarAuditoria}
+            disabled={auditando || concursosAgrupados.length === 0}
+            className={`px-4 py-3 rounded-full font-bold shadow-lg flex items-center gap-2 transition-all ${auditando ? 'bg-gray-300 text-gray-600' : 'bg-black text-white hover:bg-gray-800 hover:-translate-y-1'}`}
+          >
+            {auditando ? '⏳ Auditando...' : '🕵️ Auditar Instar'}
+          </button>
+        </div>
+      )}
     </main>
   );
 }

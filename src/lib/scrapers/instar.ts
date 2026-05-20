@@ -246,7 +246,8 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
               statusGeral: undefined,
               dataPublicacao: doc.dataFormatada,
               dataTimestamp: doc.dataTimestamp,
-              ordemOriginal: ordemGlobal
+              ordemOriginal: ordemGlobal,
+              linkOrigem: concurso.linkCompleto // 🚀 Guardamos a referência! (Opcional)
             });
           });
 
