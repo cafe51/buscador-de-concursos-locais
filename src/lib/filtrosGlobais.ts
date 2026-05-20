@@ -1,25 +1,19 @@
 // src/lib/filtrosGlobais.ts
 
 export const PALAVRAS_IGNORADAS_GLOBAIS = [
-  // --- Licitações, Contratos, Compras e Obras ---
-  'licitacao', 'pregao', 'tomada de precos', 'aquisicao', 'adjudicacao', 'contratacao de empresa',
-  'ata de registro', 'registro de precos', 'concorrencia publica', 'inexigibilidade', 'dispensa de licitacao',
-  'leilao', 'alienacao', 'contrato n', 'termo aditivo', 'obras e servicos',
+  // 🧹 AVISO: Filtros antigos de Licitações, Compras e Estrutura foram removidos 
+  // para evitar falsos positivos com nomes de cargos (Ex: "Analista de Licitações").
 
-  // --- Avisos e Chamamentos Administrativos ---
-  'chamamento', 'credenciamento', 'notificacao', 'inventario', 'permissao', 'bens patrimoniais',
-  'multas', 'combustivel', 'cemiterio', 'igreja', 'veiculos', 'frota', 'desfazimento',
-
-  // --- Habitação, Cultura e Social ---
+  // --- Editais de Cultura, Fomento e Habitação (Não são empregos) ---
   'agricultura familiar', 'aldir blanc', 'cdhu', 'moradias', 'minha casa minha vida',
   'empreendimento habitacional', 'lei paulo gustavo', 'fomento',
 
-  // --- Conselhos Municipais e Eleições Civis ---
+  // --- Conselhos Municipais e Eleições Civis (Eleições, não concursos) ---
   'conselho tutelar', 'cmj', 'cmdr', 'eleicao de representacao', 'sociedade civil',
   'membros do conselho', 'processo de escolha', 'conselho municipal', 'direitos da crianca',
   'conselheiro',
 
-  // --- Decretos, Reuniões, Leis e Finanças ---
+  // --- Reuniões, Audiências e Finanças (Lixo institucional) ---
   'copa do mundo', 'conferencia municipal', 'ponto facultativo', 'reuniao ordinaria',
   'reuniao plenaria', 'sessao ordinaria', 'sessao extraordinaria', 'audiencia publica',
   'prestacao de contas', 'relatorio de gestao', 'balanco', 'orcamento', 'plano diretor',
@@ -30,9 +24,6 @@ export const PALAVRAS_IGNORADAS_GLOBAIS = [
   'atletas', 'desportivos amadores', 'auxilio financeiro a atletas', 'bom de escola bom de esporte',
   'atribuicao online',
   'concurso de remocao',
-
-  // 🛑 A BALA DE PRATA: Contratos de educação por tempo determinado
-  'ano letivo',
 
   // 🛑 NOVA REGRA: Bloqueia seleções sem prova objetiva (Simplificados e Emergenciais)
   'simplificado', 'curriculo', 'analise de curriculo', 'curriculos', 'emergencial'
@@ -60,13 +51,17 @@ export function ehSujeira(texto: string, palavrasLocais: string[] = [], linkDoPd
 export function ehAndamentoOrfao(titulo: string, descricao: string = ''): boolean {
   const textoNormalizado = removerAcentos(`${titulo} ${descricao}`).toUpperCase().trim();
 
-  // 🧠 Ajuste do C/Q na Atribuição para pegar os erros de digitação (ATRIBUI[CQ]AO)
+  // Encontra qualquer menção a uma fase (inclusive no meio de frases como "Edital 11 de Atribuição")
   const regexFase = /\b(CONVOCACAO|CONVOCA|RETIFICACAO|HOMOLOGACAO|RESULTADO|CLASSIFICACAO|GABARITO|PORTARIA|DECRETO|ERRATA|CHAMADA|ATRIBUI[CQ]AO|LOCAIS DE PROVA|ENSALAMENTO)\b/;
   const ehFase = regexFase.test(textoNormalizado);
 
+  // Verifica se o funcionário citou um Concurso ou Processo Seletivo Válido
   const mencionaCertame = /\b(CONCURSO|SELETIV|SELECAO|PS)\b/.test(textoNormalizado);
+
+  // Regra extra: Se começar com "Edital [Numero] de [Fase]", é órfão de erro humano crasso!
   const ehApenasEditalDeFase = /^EDITAL\s+\d+\s+DE\s+/i.test(textoNormalizado);
 
+  // Se é uma fase isolada E não cita nenhum certame -> BLOQUEIA!
   return (ehFase || ehApenasEditalDeFase) && !mencionaCertame;
 }
 
@@ -79,11 +74,8 @@ export function ehRelevante(texto: string, palavrasChave: string[]): boolean {
 
 export function extrairIdConcurso(titulo: string, descricao: string, aceitarBuscaInvertida: boolean = false, strict: boolean = false): string | undefined {
   let texto = `${titulo} ${descricao}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-
-  // 🧠 Ajuste do C/Q na Atribuição aqui também
   const regexSujeiraNumerica = /(CONVOCACAO|RETIFICACAO|HOMOLOGACAO|ATRIBUI[CQ]AO|CLASSIFICACAO|RESULTADO|PORTARIA|DECRETO|ERRATA|GABARITO|CHAMADA|RECOMENDACAO ADMINISTRATIVA)(?:(?!CONCUR|SELETIV|\bPS\b)[^\d]){0,25}?\d{1,3}[\s\/\-_\.]+\d{2,4}/g;
   texto = texto.replace(regexSujeiraNumerica, '');
-
   let match = null;
 
   if (strict) {
