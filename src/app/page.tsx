@@ -120,7 +120,8 @@ export default function Home() {
       ultimaAtualizacao: listaEditais[0].dataPublicacao,
       totalItens: listaEditais.length,
       itens: listaEditais,
-      linkOrigem: listaEditais[0].linkOrigem // 🚀 Adicionado para a Auditoria
+      // 🚀 AGORA SALVAMOS TODOS OS LINKS ÚNICOS DESTE GRUPO
+      linksOrigem: Array.from(new Set(listaEditais.map(e => e.linkOrigem).filter(Boolean))) as string[]
     }));
 
     gruposArray.sort((a, b) => {
@@ -157,15 +158,13 @@ export default function Home() {
     setAuditando(true);
     setResultadoAuditoria(null);
 
-    // Pega só os agrupamentos do Instar que tem linkOrigem
     const payload = concursosAgrupados
-      .filter(g => g.linkOrigem)
+      .filter(g => g.linksOrigem && g.linksOrigem.length > 0)
       .map(g => ({
         nome: g.nome,
         cidade: g.cidade,
-        linkOrigem: g.linkOrigem!,
+        linksOrigem: g.linksOrigem, // 🚀 Envia o array pro backend
         qtdNossa: g.totalItens,
-        // 🚀 Verifica se algum arquivo deste concurso é o Card de Restrição
         temRestricao: g.itens.some(item => item.titulo.includes('Acesso Restrito'))
       }));
 
@@ -411,7 +410,13 @@ export default function Home() {
                         <span className="text-green-700">Temos: {disc.qtdNossa}</span>
                         <span className="text-blue-700">Site diz: {disc.qtdSite}</span>
                       </div>
-                      <a href={disc.linkOrigem} target="_blank" rel="noopener noreferrer" className="text-xs text-red-600 underline mt-2 block">Abrir pasta no site</a>
+                      <div className="mt-2 space-y-1">
+                        {disc.linksOrigem.map((link, lIdx) => (
+                          <a key={lIdx} href={link} target="_blank" rel="noopener noreferrer" className="text-xs text-red-600 underline block">
+                            Abrir pasta {lIdx + 1} no site
+                          </a>
+                        ))}
+                      </div>
                     </div>
                   ))}
                 </div>

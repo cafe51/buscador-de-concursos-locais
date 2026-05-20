@@ -9,19 +9,23 @@ export interface InstarConfig {
   baseUrl: string;
   basePath?: string;
   palavrasLocais?: string[];
-  // 🚀 NOVA CHAVE: Lista de exceções ao filtro global
   excecoesPalavrasGlobais?: string[];
 }
 
+type PastaExtraida = {
+  idConcurso: string;
+  tituloPasta: string;
+  dataTimestamp: number;
+  documentos: Omit<Edital, 'ordemOriginal'>[];
+};
+
 export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> {
   const resultados: Edital[] = [];
-  let ordemGlobal = 0;
+  const pastasExtraidas: PastaExtraida[] = [];
 
   const orgao = config.orgao || 'Prefeitura';
   const basePath = config.basePath || '/portal/editais/1/3/0/0/0/0/0/0/';
   const palavrasLocais = config.palavrasLocais || [];
-
-  // 🚀 Extrai a lista de exceções
   const excecoesGlobais = config.excecoesPalavrasGlobais || [];
 
   const statuses = ['Aberto', 'Em%20Andamento', 'Em%20Julgamento', 'Homologado', 'Encerrado'];
@@ -51,7 +55,6 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
 
     const concursosParaBaixar: any[] = [];
     const linksProcessados = new Set<string>();
-    const mapaIdConcurso = new Set<string>();
 
     for (const html of htmlsCategorias) {
       if (!html) continue;
@@ -90,7 +93,6 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
         const descricaoMain = $(elemento).find('.ed_descricao_edital').text().replace(/\s+/g, ' ').trim();
         const textoParaAvaliar = `${tituloMain} ${descricaoMain}`;
 
-        // 🛡️ PASSANDO A EXCEÇÃO AQUI
         if (ehSujeira(textoParaAvaliar, palavrasLocais, linkCompleto, excecoesGlobais)) return;
         if (ehAndamentoOrfao(tituloMain, descricaoMain)) return;
 
@@ -135,14 +137,10 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
         }
 
         if (idConcurso) {
-          if (mapaIdConcurso.has(idConcurso)) {
-            let contador = 1;
-            while (mapaIdConcurso.has(`${idConcurso} (${contador})`)) {
-              contador++;
-            }
-            idConcurso = `${idConcurso} (${contador})`;
+          const upperTitulo = tituloMain.toUpperCase();
+          if (upperTitulo.includes('ESTAGI') || upperTitulo.includes('ESTÁGI')) {
+            idConcurso += ' (Estagiários)';
           }
-          mapaIdConcurso.add(idConcurso);
         }
 
         concursosParaBaixar.push({
@@ -168,9 +166,10 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
           const htmlInner = await resInner.text();
           const $inner = cheerio.load(htmlInner);
 
-          const textoAbaDetalhes = $inner('#detalhes_edital').text().replace(/\s+/g, ' ').trim();
+          const $abaDetalhesClone = $inner('#detalhes_edital').clone();
+          $abaDetalhesClone.find('.vinc_area_slide_pessoas_vinculadas').remove();
+          const textoAbaDetalhes = $abaDetalhesClone.text().replace(/\s+/g, ' ').trim();
 
-          // 🛡️ PASSANDO A EXCEÇÃO AQUI
           if (ehSujeira(textoAbaDetalhes, palavrasLocais, concurso.linkCompleto, excecoesGlobais)) {
             return;
           }
@@ -220,7 +219,6 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
                 descricaoFinal = tamanhoTexto ? `(${tamanhoTexto})` : '';
               }
 
-              // 🛡️ PASSANDO A EXCEÇÃO AQUI
               if (ehSujeira(`${tituloFinal} ${descricaoFinal}`, palavrasLocais, linkDoc, excecoesGlobais)) {
                 concursoContaminado = true;
                 return false;
@@ -258,29 +256,82 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
             if (matchAno) anoConcurso = parseInt(matchAno[1], 10);
           }
 
-          documentosTemporarios.forEach((doc) => {
-            ordemGlobal++;
-            resultados.push({
-              cidade: config.cidade,
-              orgao: orgao,
-              titulo: doc.titulo,
-              descricao: doc.descricao || undefined,
-              concurso: concurso.idConcurso,
-              ano: anoConcurso,
-              link: doc.link,
-              metadados: undefined,
-              statusGeral: undefined,
-              dataPublicacao: doc.dataFormatada,
-              dataTimestamp: doc.dataTimestamp,
-              ordemOriginal: ordemGlobal,
-              linkOrigem: concurso.linkCompleto
-            });
+          const docsDaPasta = documentosTemporarios.map(doc => ({
+            cidade: config.cidade,
+            orgao: orgao,
+            titulo: doc.titulo,
+            descricao: doc.descricao || undefined,
+            concurso: concurso.idConcurso,
+            ano: anoConcurso,
+            link: doc.link,
+            metadados: undefined,
+            statusGeral: undefined,
+            dataPublicacao: doc.dataFormatada,
+            dataTimestamp: doc.dataTimestamp,
+            linkOrigem: concurso.linkCompleto
+          }));
+
+          pastasExtraidas.push({
+            idConcurso: concurso.idConcurso || concurso.tituloMain,
+            tituloPasta: concurso.tituloMain,
+            dataTimestamp: concurso.dataCertameTimestamp,
+            documentos: docsDaPasta
           });
 
         } catch (e) {
           console.error(`Erro ao raspar a página interna de ${config.cidade}: ${concurso.linkCompleto}`, e);
         }
       }));
+    }
+
+    // ==============================================================
+    // 🚀 LÓGICA DE FUSÃO E ELEIÇÃO DA PASTA PRINCIPAL
+    // ==============================================================
+    const pastasAgrupadas = new Map<string, PastaExtraida[]>();
+
+    for (const pasta of pastasExtraidas) {
+      if (!pastasAgrupadas.has(pasta.idConcurso)) {
+        pastasAgrupadas.set(pasta.idConcurso, []);
+      }
+      pastasAgrupadas.get(pasta.idConcurso)!.push(pasta);
+    }
+
+    let ordemGlobal = 0;
+
+    for (const pastasDoConcurso of pastasAgrupadas.values()) {
+
+      pastasDoConcurso.sort((a, b) => {
+        if (a.dataTimestamp !== b.dataTimestamp) {
+          return a.dataTimestamp - b.dataTimestamp;
+        }
+        return b.documentos.length - a.documentos.length;
+      });
+
+      for (let i = 0; i < pastasDoConcurso.length; i++) {
+        const pastaAtual = pastasDoConcurso[i];
+        const isPrincipal = (i === 0);
+
+        for (const doc of pastaAtual.documentos) {
+
+          // ==========================================================
+          // 🚀 SE O DOCUMENTO FOR ESTRANGEIRO (Veio de uma pasta unida)
+          // ==========================================================
+          if (!isPrincipal) {
+            const marcador = "(*) ";
+            if (doc.descricao) {
+              doc.descricao = `${marcador}${pastaAtual.tituloPasta} - ${doc.descricao}`;
+            } else {
+              doc.descricao = `${marcador}${pastaAtual.tituloPasta}`;
+            }
+          }
+
+          ordemGlobal++;
+          resultados.push({
+            ...doc,
+            ordemOriginal: ordemGlobal
+          });
+        }
+      }
     }
 
   } catch (e) {

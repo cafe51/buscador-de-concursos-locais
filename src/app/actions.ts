@@ -12,10 +12,15 @@ import { buscarEstrela } from '../lib/scrapers/estrela';
 import { buscarMeridiano } from '../lib/scrapers/meridiano';
 import { buscarSaoJoao } from '../lib/scrapers/saojoao';
 import { buscarJales } from '../lib/scrapers/jales';
-// 🔥 NOVAS CIDADES IMPORTADAS AQUI
+
 import { buscarMiraEstrela } from '../lib/scrapers/miraestrela';
 import { buscarIndiapora } from '../lib/scrapers/indiapora';
 import { buscarAlvaresFlorence } from '../lib/scrapers/alvaresflorence';
+
+// 🔥 NOVAS CIDADES IMPORTADAS AQUI
+import { buscarParisi } from '../lib/scrapers/parisi';
+import { buscarValentimGentil } from '../lib/scrapers/valentimgentil';
+import { buscarVitoriaBrasil } from '../lib/scrapers/vitoriabrasil';
 
 import { urlsParaBlacklist } from '../lib/docParser';
 
@@ -27,7 +32,7 @@ export type ResultadoBusca = {
 // ==============================================================
 // ⏱️ LIMITE MÁXIMO DE TEMPO POR CIDADE (55 Segundos)
 // ==============================================================
-const TIMEOUT_POR_CIDADE_MS = 80000;
+const TIMEOUT_POR_CIDADE_MS = 55000;
 
 async function rodarComProtecao(nomeCidade: string, funcaoScraper: () => Promise<Edital[]>) {
   const tempoInicio = performance.now();
@@ -83,7 +88,6 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
 
   try {
     const promessas = await Promise.all([
-      // As que você já tinha:
       // rodarComProtecao('Fernandópolis', buscarFernandopolis),
       rodarComProtecao('Votuporanga', buscarVotuporanga),
       rodarComProtecao('Ouroeste', buscarOuroeste),
@@ -97,6 +101,11 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
       rodarComProtecao('Mira Estrela', buscarMiraEstrela),
       rodarComProtecao('Indiaporã', buscarIndiapora),
       rodarComProtecao('Álvares Florence', buscarAlvaresFlorence),
+
+      // 🔥 AS TRÊS NOVAS CIDADES
+      rodarComProtecao('Parisi', buscarParisi),
+      rodarComProtecao('Valentim Gentil', buscarValentimGentil),
+      rodarComProtecao('Vitória Brasil', buscarVitoriaBrasil),
     ]);
 
     promessas.forEach((resultado) => {
@@ -155,58 +164,61 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
 }
 
 // ==============================================================
-// 🕵️ AUDITORIA DEV DO INSTAR
+// 🕵️ AUDITORIA DEV DO INSTAR (Suporta Pastas Fundidas)
 // ==============================================================
 export type Discrepancia = {
   cidade: string;
   concurso: string;
-  linkOrigem: string;
   qtdNossa: number;
   qtdSite: number;
+  linksOrigem: string[]; // 🚀 Agora é um array de links
 };
 
-// 🚀 Adicionado "temRestricao?" nos parâmetros
-export async function auditarQuantidadesInstar(grupos: { nome: string, cidade: string, linkOrigem: string, qtdNossa: number, temRestricao?: boolean }[]): Promise<Discrepancia[]> {
+export async function auditarQuantidadesInstar(grupos: { nome: string, cidade: string, linksOrigem: string[], qtdNossa: number, temRestricao?: boolean }[]): Promise<Discrepancia[]> {
   const discrepancias: Discrepancia[] = [];
   const TAMANHO_LOTE = 10;
 
   console.log(`\n===================================================`);
-  console.log(`🕵️ INICIANDO AUDITORIA EM ${grupos.length} PASTAS INSTAR...`);
+  console.log(`🕵️ INICIANDO AUDITORIA EM ${grupos.length} PASTAS...`);
   console.log(`===================================================`);
 
   for (let i = 0; i < grupos.length; i += TAMANHO_LOTE) {
     const lote = grupos.slice(i, i + TAMANHO_LOTE);
 
     await Promise.all(lote.map(async (grupo) => {
-      // Audita apenas cidades que usam Instar
-      if (!grupo.linkOrigem || !grupo.linkOrigem.includes('/portal/editais/')) return;
-
-      // 🛡️ Se tivermos detectado que a pasta exige login, o auditor ignora a divergência!
       if (grupo.temRestricao) return;
 
-      try {
-        const res = await fetch(grupo.linkOrigem, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
-        if (!res.ok) return;
+      let qtdSiteTotal = 0;
+      let temInstar = false;
 
-        const html = await res.text();
-        const $ = cheerio.load(html);
-
-        // Busca o número na Badge
-        const textoBadge = $('#btn_arquivos_edital .ed_info_qtde_itens').text().trim();
-        if (!textoBadge) return;
-
-        const qtdSite = parseInt(textoBadge, 10);
-
-        if (!isNaN(qtdSite) && qtdSite !== grupo.qtdNossa) {
-          discrepancias.push({
-            cidade: grupo.cidade,
-            concurso: grupo.nome,
-            linkOrigem: grupo.linkOrigem,
-            qtdNossa: grupo.qtdNossa,
-            qtdSite: qtdSite
-          });
+      // Percorre todos os links que foram fundidos nesta pasta
+      for (const link of grupo.linksOrigem) {
+        if (link && link.includes('/portal/editais/')) {
+          temInstar = true;
+          try {
+            const res = await fetch(link, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
+            if (res.ok) {
+              const html = await res.text();
+              const $ = cheerio.load(html);
+              const textoBadge = $('#btn_arquivos_edital .ed_info_qtde_itens').text().trim();
+              if (textoBadge) {
+                qtdSiteTotal += parseInt(textoBadge, 10);
+              }
+            }
+          } catch (e) { }
         }
-      } catch (e) { }
+      }
+
+      // Se a soma do site for diferente do que temos no Frontend, avisa!
+      if (temInstar && qtdSiteTotal > 0 && qtdSiteTotal !== grupo.qtdNossa) {
+        discrepancias.push({
+          cidade: grupo.cidade,
+          concurso: grupo.nome,
+          qtdNossa: grupo.qtdNossa,
+          qtdSite: qtdSiteTotal,
+          linksOrigem: grupo.linksOrigem
+        });
+      }
     }));
   }
 
