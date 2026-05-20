@@ -4,6 +4,9 @@ import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import * as mammoth from 'mammoth';
 import { PDFs_IGNORADOS } from './blacklist';
 
+// 🛑 CALA A BOCA DO NODE.JS PARA AVISOS DA BIBLIOTECA PDF-PARSE
+process.noDeprecation = true;
+
 const consoleWarnOriginal = console.warn;
 console.warn = function (...args) {
   if (typeof args[0] === 'string' && args[0].includes('Warning: TT: undefined function')) return;
