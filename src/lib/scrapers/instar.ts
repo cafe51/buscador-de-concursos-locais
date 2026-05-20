@@ -9,6 +9,8 @@ export interface InstarConfig {
   baseUrl: string;
   basePath?: string;
   palavrasLocais?: string[];
+  // 🚀 NOVA CHAVE: Lista de exceções ao filtro global
+  excecoesPalavrasGlobais?: string[];
 }
 
 export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> {
@@ -19,13 +21,10 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
   const basePath = config.basePath || '/portal/editais/1/3/0/0/0/0/0/0/';
   const palavrasLocais = config.palavrasLocais || [];
 
-  // ✅ Status 'Encerrado' devidamente adicionado
-  const statuses = ['Aberto', 'Em%20Andamento', 'Em%20Julgamento', 'Homologado', 'Encerrado'];
+  // 🚀 Extrai a lista de exceções
+  const excecoesGlobais = config.excecoesPalavrasGlobais || [];
 
-  // 🚀 O SEGREDO DA PAGINAÇÃO PROFUNDA
-  // Portais Instar ocultam os concursos mais velhos (como os de 2022) nas páginas seguintes.
-  // Como o tamanho da página pode ser 10, 12, ou por ID de página (1, 2), 
-  // geramos os offsets exatos para "varrer" o histórico até ~100 itens por status!
+  const statuses = ['Aberto', 'Em%20Andamento', 'Em%20Julgamento', 'Homologado', 'Encerrado'];
   const offsets = [0, 1, 2, 3, 4, 10, 12, 20, 24, 30, 36, 40, 48, 50, 60, 72, 80, 90, 100];
 
   const endpoints: string[] = [];
@@ -39,7 +38,6 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
     const htmlsCategorias: string[] = [];
     const TAMANHO_LOTE_ENDPOINTS = 20;
 
-    // Dispara as buscas das dezenas de páginas em lotes para não estourar o firewall da Prefeitura
     for (let i = 0; i < endpoints.length; i += TAMANHO_LOTE_ENDPOINTS) {
       const lote = endpoints.slice(i, i + TAMANHO_LOTE_ENDPOINTS);
       const respostas = await Promise.all(lote.map(async (url) => {
@@ -53,8 +51,8 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
 
     const concursosParaBaixar: any[] = [];
     const linksProcessados = new Set<string>();
+    const mapaIdConcurso = new Set<string>();
 
-    // 🛡️ O linksProcessados garante que se lermos o mesmo edital em duas páginas diferentes, ele não duplica!
     for (const html of htmlsCategorias) {
       if (!html) continue;
       const $ = cheerio.load(html);
@@ -85,7 +83,6 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
         const href = $(elemento).find('a').first().attr('href') || '';
         const linkCompleto = href.startsWith('http') ? href : `${config.baseUrl}${href}`;
 
-        // Impede duplicações de sobreposição de páginas
         if (linksProcessados.has(linkCompleto)) return;
         linksProcessados.add(linkCompleto);
 
@@ -93,7 +90,8 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
         const descricaoMain = $(elemento).find('.ed_descricao_edital').text().replace(/\s+/g, ' ').trim();
         const textoParaAvaliar = `${tituloMain} ${descricaoMain}`;
 
-        if (ehSujeira(textoParaAvaliar, palavrasLocais, linkCompleto)) return;
+        // 🛡️ PASSANDO A EXCEÇÃO AQUI
+        if (ehSujeira(textoParaAvaliar, palavrasLocais, linkCompleto, excecoesGlobais)) return;
         if (ehAndamentoOrfao(tituloMain, descricaoMain)) return;
 
         let idConcurso = extrairIdConcurso(tituloMain, descricaoMain, true, false);
@@ -136,6 +134,17 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
           idConcurso = idConcurso.replace('Concurso ', 'Concurso Público ');
         }
 
+        if (idConcurso) {
+          if (mapaIdConcurso.has(idConcurso)) {
+            let contador = 1;
+            while (mapaIdConcurso.has(`${idConcurso} (${contador})`)) {
+              contador++;
+            }
+            idConcurso = `${idConcurso} (${contador})`;
+          }
+          mapaIdConcurso.add(idConcurso);
+        }
+
         concursosParaBaixar.push({
           linkCompleto,
           idConcurso,
@@ -159,70 +168,87 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
           const htmlInner = await resInner.text();
           const $inner = cheerio.load(htmlInner);
 
-          // ==============================================================
-          // 🛡️ O ESCUDO DE FASE 2: Avalia a aba "Detalhes" por completo!
-          // ==============================================================
           const textoAbaDetalhes = $inner('#detalhes_edital').text().replace(/\s+/g, ' ').trim();
 
-          if (ehSujeira(textoAbaDetalhes, palavrasLocais, concurso.linkCompleto)) {
+          // 🛡️ PASSANDO A EXCEÇÃO AQUI
+          if (ehSujeira(textoAbaDetalhes, palavrasLocais, concurso.linkCompleto, excecoesGlobais)) {
             return;
           }
 
           let concursoContaminado = false;
           const documentosTemporarios: any[] = [];
 
-          $inner('.ed_cont_arquivos .ed_arquivo_edital').each((_, el) => {
-            const aTag = $inner(el).find('a');
-            const hrefDoc = aTag.attr('href') || '';
-            if (!hrefDoc) return;
-
-            const linkDoc = hrefDoc.startsWith('http') ? hrefDoc : `${config.baseUrl}${hrefDoc}`;
-
-            const nomeElement = $inner(el).find('.ed_nome_arquivo').clone();
-            const tamanhoTexto = nomeElement.find('.ed_info_tamanho_arquivo').text().replace(/\s+/g, ' ').trim();
-            nomeElement.find('.ed_info_tamanho_arquivo').remove();
-
-            const nomeTexto = nomeElement.text().replace(/\s+/g, ' ').trim();
-            const categoriaTitulo = $inner(el).find('.ed_descricao_tipo_arquivo').text().replace(/\s+/g, ' ').trim();
-
-            let tituloFinal = '';
-            let descricaoFinal = '';
-
-            if (categoriaTitulo) {
-              tituloFinal = categoriaTitulo;
-              descricaoFinal = tamanhoTexto ? `${nomeTexto} (${tamanhoTexto})` : nomeTexto;
-            } else {
-              tituloFinal = nomeTexto || 'Documento Anexo';
-              descricaoFinal = tamanhoTexto ? `(${tamanhoTexto})` : '';
+          let requerLogin = false;
+          $inner('.itn_btn_login').each((_, el) => {
+            const textoAlerta = $inner(el).text().toLowerCase();
+            if (textoAlerta.includes('logado') || textoAlerta.includes('necessário')) {
+              requerLogin = true;
             }
-
-            if (ehSujeira(`${tituloFinal} ${descricaoFinal}`, palavrasLocais, linkDoc)) {
-              concursoContaminado = true;
-              return false;
-            }
-
-            const dataSpan = $inner(el).find('.ed_data_hora_arquivo span').first().text().trim();
-            let dataFormatada = 'sem data';
-            let dataTimestamp = 0;
-
-            const matchData = dataSpan.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-
-            if (matchData) {
-              dataFormatada = matchData[0];
-              dataTimestamp = new Date(`${matchData[3]}-${matchData[2]}-${matchData[1]}T00:00:00`).getTime();
-            } else {
-              dataFormatada = concurso.dataCertameFormatada;
-              dataTimestamp = concurso.dataCertameTimestamp;
-            }
-
-            documentosTemporarios.push({
-              titulo: tituloFinal,
-              descricao: descricaoFinal,
-              link: linkDoc,
-              dataFormatada,
-              dataTimestamp
-            });
           });
+
+          if (requerLogin) {
+            documentosTemporarios.push({
+              titulo: '⚠️ Acesso Restrito (Requer Login)',
+              descricao: 'A prefeitura exige cadastro no portal para visualizar os arquivos. Clique para acessar.',
+              link: concurso.linkCompleto,
+              dataFormatada: concurso.dataCertameFormatada,
+              dataTimestamp: concurso.dataCertameTimestamp
+            });
+          } else {
+            $inner('.ed_cont_arquivos .ed_arquivo_edital').each((_, el) => {
+              const aTag = $inner(el).find('a');
+              const hrefDoc = aTag.attr('href') || '';
+              if (!hrefDoc) return;
+
+              const linkDoc = hrefDoc.startsWith('http') ? hrefDoc : `${config.baseUrl}${hrefDoc}`;
+
+              const nomeElement = $inner(el).find('.ed_nome_arquivo').clone();
+              const tamanhoTexto = nomeElement.find('.ed_info_tamanho_arquivo').text().replace(/\s+/g, ' ').trim();
+              nomeElement.find('.ed_info_tamanho_arquivo').remove();
+
+              const nomeTexto = nomeElement.text().replace(/\s+/g, ' ').trim();
+              const categoriaTitulo = $inner(el).find('.ed_descricao_tipo_arquivo').text().replace(/\s+/g, ' ').trim();
+
+              let tituloFinal = '';
+              let descricaoFinal = '';
+
+              if (categoriaTitulo) {
+                tituloFinal = categoriaTitulo;
+                descricaoFinal = tamanhoTexto ? `${nomeTexto} (${tamanhoTexto})` : nomeTexto;
+              } else {
+                tituloFinal = nomeTexto || 'Documento Anexo';
+                descricaoFinal = tamanhoTexto ? `(${tamanhoTexto})` : '';
+              }
+
+              // 🛡️ PASSANDO A EXCEÇÃO AQUI
+              if (ehSujeira(`${tituloFinal} ${descricaoFinal}`, palavrasLocais, linkDoc, excecoesGlobais)) {
+                concursoContaminado = true;
+                return false;
+              }
+
+              const dataSpan = $inner(el).find('.ed_data_hora_arquivo span').first().text().trim();
+              let dataFormatada = 'sem data';
+              let dataTimestamp = 0;
+
+              const matchData = dataSpan.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+
+              if (matchData) {
+                dataFormatada = matchData[0];
+                dataTimestamp = new Date(`${matchData[3]}-${matchData[2]}-${matchData[1]}T00:00:00`).getTime();
+              } else {
+                dataFormatada = concurso.dataCertameFormatada;
+                dataTimestamp = concurso.dataCertameTimestamp;
+              }
+
+              documentosTemporarios.push({
+                titulo: tituloFinal,
+                descricao: descricaoFinal,
+                link: linkDoc,
+                dataFormatada,
+                dataTimestamp
+              });
+            });
+          }
 
           if (concursoContaminado) return;
 
@@ -247,7 +273,7 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
               dataPublicacao: doc.dataFormatada,
               dataTimestamp: doc.dataTimestamp,
               ordemOriginal: ordemGlobal,
-              linkOrigem: concurso.linkCompleto // 🚀 Guardamos a referência! (Opcional)
+              linkOrigem: concurso.linkCompleto
             });
           });
 

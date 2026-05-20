@@ -1,6 +1,7 @@
 // src/app/actions.ts
 'use server'
 
+import * as cheerio from 'cheerio';
 import { Edital } from '../types';
 import { buscarFernandopolis } from '../lib/scrapers/fernandopolis';
 import { buscarVotuporanga } from '../lib/scrapers/votuporanga';
@@ -11,8 +12,12 @@ import { buscarEstrela } from '../lib/scrapers/estrela';
 import { buscarMeridiano } from '../lib/scrapers/meridiano';
 import { buscarSaoJoao } from '../lib/scrapers/saojoao';
 import { buscarJales } from '../lib/scrapers/jales';
+// 🔥 NOVAS CIDADES IMPORTADAS AQUI
+import { buscarMiraEstrela } from '../lib/scrapers/miraestrela';
+import { buscarIndiapora } from '../lib/scrapers/indiapora';
+import { buscarAlvaresFlorence } from '../lib/scrapers/alvaresflorence';
+
 import { urlsParaBlacklist } from '../lib/docParser';
-import * as cheerio from 'cheerio';
 
 export type ResultadoBusca = {
   editais: Edital[];
@@ -22,18 +27,16 @@ export type ResultadoBusca = {
 // ==============================================================
 // ⏱️ LIMITE MÁXIMO DE TEMPO POR CIDADE (55 Segundos)
 // ==============================================================
-const TIMEOUT_POR_CIDADE_MS = 55000;
+const TIMEOUT_POR_CIDADE_MS = 80000;
 
 async function rodarComProtecao(nomeCidade: string, funcaoScraper: () => Promise<Edital[]>) {
   const tempoInicio = performance.now();
 
   try {
-    // Cria a promessa-bomba relógio
     const cronometro = new Promise<never>((_, reject) => {
       setTimeout(() => reject(new Error('TIMEOUT')), TIMEOUT_POR_CIDADE_MS);
     });
 
-    // O Promise.race faz o scraper apostar corrida com o cronômetro
     const dados = await Promise.race([
       funcaoScraper(),
       cronometro
@@ -42,14 +45,10 @@ async function rodarComProtecao(nomeCidade: string, funcaoScraper: () => Promise
     const tempoFim = performance.now();
     const tempoGasto = ((tempoFim - tempoInicio) / 1000).toFixed(2);
 
-    // Log de Sucesso (Com o tempo exato e quantidade de itens daquela cidade)
-    // Define um tamanho máximo fixo para a coluna da cidade (ex: 30 caracteres)
     const tamanhoFixoNome = 30;
     const tamanhoFixoTempo = 5;
 
-    // O padEnd vai adicionar espaços à direita do nome da cidade até que a string tenha 30 caracteres
     const nomeFormatado = `[${nomeCidade}]`.padEnd(tamanhoFixoNome, ' ');
-
     const tempoFormatado = tempoGasto.padEnd(tamanhoFixoTempo, ' ');
 
     console.log(`🟢 ${nomeFormatado} OK \t| Tempo: ${tempoFormatado}s \t| Itens extraídos: ${dados.length}`);
@@ -59,7 +58,6 @@ async function rodarComProtecao(nomeCidade: string, funcaoScraper: () => Promise
     const tempoFim = performance.now();
     const tempoGasto = ((tempoFim - tempoInicio) / 1000).toFixed(2);
 
-    // Log de Falha
     let motivo = e.message;
     if (motivo === 'TIMEOUT') {
       motivo = `Tempo limite de ${TIMEOUT_POR_CIDADE_MS / 1000}s excedido`;
@@ -85,17 +83,20 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
 
   try {
     const promessas = await Promise.all([
+      // As que você já tinha:
       // rodarComProtecao('Fernandópolis', buscarFernandopolis),
       rodarComProtecao('Votuporanga', buscarVotuporanga),
       rodarComProtecao('Ouroeste', buscarOuroeste),
+      // rodarComProtecao('Jales', buscarJales),
+      // rodarComProtecao('Macedônia', buscarMacedonia),
+      // rodarComProtecao("Estrela d'Oeste", buscarEstrela),
+      // rodarComProtecao('Meridiano', buscarMeridiano),
+      // rodarComProtecao('São João das Duas Pontes', buscarSaoJoao),
+      // rodarComProtecao('Pedranópolis', buscarPedranopolis),
 
-      rodarComProtecao('Jales', buscarJales),
-      rodarComProtecao('Macedônia', buscarMacedonia),
-      rodarComProtecao("Estrela d'Oeste", buscarEstrela),
-      rodarComProtecao('Meridiano', buscarMeridiano),
-
-      rodarComProtecao('São João das Duas Pontes', buscarSaoJoao),
-      rodarComProtecao('Pedranópolis', buscarPedranopolis),
+      rodarComProtecao('Mira Estrela', buscarMiraEstrela),
+      rodarComProtecao('Indiaporã', buscarIndiapora),
+      rodarComProtecao('Álvares Florence', buscarAlvaresFlorence),
     ]);
 
     promessas.forEach((resultado) => {
@@ -153,8 +154,9 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
   }
 }
 
-// Cole no final de src/app/actions.ts
-
+// ==============================================================
+// 🕵️ AUDITORIA DEV DO INSTAR
+// ==============================================================
 export type Discrepancia = {
   cidade: string;
   concurso: string;
@@ -163,7 +165,8 @@ export type Discrepancia = {
   qtdSite: number;
 };
 
-export async function auditarQuantidadesInstar(grupos: { nome: string, cidade: string, linkOrigem: string, qtdNossa: number }[]): Promise<Discrepancia[]> {
+// 🚀 Adicionado "temRestricao?" nos parâmetros
+export async function auditarQuantidadesInstar(grupos: { nome: string, cidade: string, linkOrigem: string, qtdNossa: number, temRestricao?: boolean }[]): Promise<Discrepancia[]> {
   const discrepancias: Discrepancia[] = [];
   const TAMANHO_LOTE = 10;
 
@@ -177,6 +180,9 @@ export async function auditarQuantidadesInstar(grupos: { nome: string, cidade: s
     await Promise.all(lote.map(async (grupo) => {
       // Audita apenas cidades que usam Instar
       if (!grupo.linkOrigem || !grupo.linkOrigem.includes('/portal/editais/')) return;
+
+      // 🛡️ Se tivermos detectado que a pasta exige login, o auditor ignora a divergência!
+      if (grupo.temRestricao) return;
 
       try {
         const res = await fetch(grupo.linkOrigem, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });

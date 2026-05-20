@@ -164,7 +164,9 @@ export default function Home() {
         nome: g.nome,
         cidade: g.cidade,
         linkOrigem: g.linkOrigem!,
-        qtdNossa: g.totalItens
+        qtdNossa: g.totalItens,
+        // 🚀 Verifica se algum arquivo deste concurso é o Card de Restrição
+        temRestricao: g.itens.some(item => item.titulo.includes('Acesso Restrito'))
       }));
 
     const discrepancias = await auditarQuantidadesInstar(payload);

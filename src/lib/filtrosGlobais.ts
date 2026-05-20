@@ -1,9 +1,6 @@
 // src/lib/filtrosGlobais.ts
 
 export const PALAVRAS_IGNORADAS_GLOBAIS = [
-  // 🧹 AVISO: Filtros antigos de Licitações, Compras e Estrutura foram removidos 
-  // para evitar falsos positivos com nomes de cargos (Ex: "Analista de Licitações").
-
   // --- Editais de Cultura, Fomento e Habitação (Não são empregos) ---
   'agricultura familiar', 'aldir blanc', 'cdhu', 'moradias', 'minha casa minha vida',
   'empreendimento habitacional', 'lei paulo gustavo', 'fomento',
@@ -25,6 +22,9 @@ export const PALAVRAS_IGNORADAS_GLOBAIS = [
   'atribuicao online',
   'concurso de remocao',
 
+  // 🛑 A BALA DE PRATA: Contratos de educação por tempo determinado
+  'ano letivo',
+
   // 🛑 NOVA REGRA: Bloqueia seleções sem prova objetiva (Simplificados e Emergenciais)
   'simplificado', 'curriculo', 'analise de curriculo', 'curriculos', 'emergencial'
 ];
@@ -33,10 +33,16 @@ export function removerAcentos(texto: string) {
   return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
-export function ehSujeira(texto: string, palavrasLocais: string[] = [], linkDoPdf: string = ''): boolean {
+// 🚀 Adicionado 4º parâmetro "excecoesGlobais" com valor padrão vazio
+export function ehSujeira(texto: string, palavrasLocais: string[] = [], linkDoPdf: string = '', excecoesGlobais: string[] = []): boolean {
   const textoNormalizado = removerAcentos(texto);
   const linkNormalizado = removerAcentos(linkDoPdf);
-  const todasAsPalavras = [...PALAVRAS_IGNORADAS_GLOBAIS, ...palavrasLocais.map(removerAcentos)];
+
+  // 🚀 Limpa os acentos das exceções e filtra a lista negra original
+  const excecoesNormalizadas = excecoesGlobais.map(removerAcentos);
+  const palavrasGlobaisFiltradas = PALAVRAS_IGNORADAS_GLOBAIS.filter(p => !excecoesNormalizadas.includes(p));
+
+  const todasAsPalavras = [...palavrasGlobaisFiltradas, ...palavrasLocais.map(removerAcentos)];
 
   return todasAsPalavras.some(palavra =>
     textoNormalizado.includes(palavra) ||
@@ -51,17 +57,12 @@ export function ehSujeira(texto: string, palavrasLocais: string[] = [], linkDoPd
 export function ehAndamentoOrfao(titulo: string, descricao: string = ''): boolean {
   const textoNormalizado = removerAcentos(`${titulo} ${descricao}`).toUpperCase().trim();
 
-  // Encontra qualquer menção a uma fase (inclusive no meio de frases como "Edital 11 de Atribuição")
   const regexFase = /\b(CONVOCACAO|CONVOCA|RETIFICACAO|HOMOLOGACAO|RESULTADO|CLASSIFICACAO|GABARITO|PORTARIA|DECRETO|ERRATA|CHAMADA|ATRIBUI[CQ]AO|LOCAIS DE PROVA|ENSALAMENTO)\b/;
   const ehFase = regexFase.test(textoNormalizado);
 
-  // Verifica se o funcionário citou um Concurso ou Processo Seletivo Válido
   const mencionaCertame = /\b(CONCURSO|SELETIV|SELECAO|PS)\b/.test(textoNormalizado);
-
-  // Regra extra: Se começar com "Edital [Numero] de [Fase]", é órfão de erro humano crasso!
   const ehApenasEditalDeFase = /^EDITAL\s+\d+\s+DE\s+/i.test(textoNormalizado);
 
-  // Se é uma fase isolada E não cita nenhum certame -> BLOQUEIA!
   return (ehFase || ehApenasEditalDeFase) && !mencionaCertame;
 }
 
@@ -74,8 +75,10 @@ export function ehRelevante(texto: string, palavrasChave: string[]): boolean {
 
 export function extrairIdConcurso(titulo: string, descricao: string, aceitarBuscaInvertida: boolean = false, strict: boolean = false): string | undefined {
   let texto = `${titulo} ${descricao}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+
   const regexSujeiraNumerica = /(CONVOCACAO|RETIFICACAO|HOMOLOGACAO|ATRIBUI[CQ]AO|CLASSIFICACAO|RESULTADO|PORTARIA|DECRETO|ERRATA|GABARITO|CHAMADA|RECOMENDACAO ADMINISTRATIVA)(?:(?!CONCUR|SELETIV|\bPS\b)[^\d]){0,25}?\d{1,3}[\s\/\-_\.]+\d{2,4}/g;
   texto = texto.replace(regexSujeiraNumerica, '');
+
   let match = null;
 
   if (strict) {
