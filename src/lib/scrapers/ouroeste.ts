@@ -1,3 +1,4 @@
+// src/lib/scrapers/ouroeste.ts
 import { Edital } from '../../types';
 import { buscarInstarBase } from './instar';
 
