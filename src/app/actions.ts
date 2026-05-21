@@ -22,6 +22,8 @@ import { buscarParisi } from '../lib/scrapers/parisi';
 import { buscarValentimGentil } from '../lib/scrapers/valentimgentil';
 import { buscarVitoriaBrasil } from '../lib/scrapers/vitoriabrasil';
 
+import { buscarGuaraniDOeste } from '../lib/scrapers/guaranidoeste';
+
 import { urlsParaBlacklist } from '../lib/docParser';
 
 export type ResultadoBusca = {
@@ -57,6 +59,7 @@ const MAPA_SCRAPERS: Record<string, () => Promise<Edital[]>> = {
   'Parisi': buscarParisi,
   'Valentim Gentil': buscarValentimGentil,
   'Vitória Brasil': buscarVitoriaBrasil,
+  "Guarani d'Oeste": buscarGuaraniDOeste,
 };
 
 // ==============================================================
@@ -170,7 +173,10 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
       rodarComProtecao('Ouroeste', buscarOuroeste),
       rodarComProtecao('Jales', buscarJales),
       rodarComProtecao('Macedônia', buscarMacedonia),
+
       rodarComProtecao("Estrela d'Oeste", buscarEstrela),
+      rodarComProtecao("Guarani d'Oeste", buscarGuaraniDOeste),
+
       rodarComProtecao('Meridiano', buscarMeridiano),
       rodarComProtecao('São João das Duas Pontes', buscarSaoJoao),
       rodarComProtecao('Pedranópolis', buscarPedranopolis),
