@@ -14,6 +14,7 @@ import { buscarMeridiano } from '../lib/scrapers/meridiano';
 import { buscarSaoJoao } from '../lib/scrapers/saojoao';
 import { buscarJales } from '../lib/scrapers/jales';
 import { buscarUrania } from '../lib/scrapers/urania';
+import { buscarDolcinopolis } from '../lib/scrapers/dolcinopolis';
 
 import { buscarMiraEstrela } from '../lib/scrapers/miraestrela';
 import { buscarIndiapora } from '../lib/scrapers/indiapora';
@@ -62,6 +63,7 @@ const MAPA_SCRAPERS: Record<string, () => Promise<Edital[]>> = {
   'Vitória Brasil': buscarVitoriaBrasil,
   "Guarani d'Oeste": buscarGuaraniDOeste,
   'Urânia': buscarUrania,
+  'Dolcinópolis': buscarDolcinopolis,
 };
 
 // ==============================================================
@@ -169,28 +171,29 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
 
   try {
     const promessas = await Promise.all([
-      rodarComProtecao('Fernandópolis', buscarFernandopolis),
+      // rodarComProtecao('Fernandópolis', buscarFernandopolis),
 
 
-      rodarComProtecao('Jales', buscarJales),
-      rodarComProtecao('Macedônia', buscarMacedonia),
+      // rodarComProtecao('Jales', buscarJales),
+      // rodarComProtecao('Macedônia', buscarMacedonia),
 
-      rodarComProtecao("Estrela d'Oeste", buscarEstrela),
-      rodarComProtecao("Guarani d'Oeste", buscarGuaraniDOeste),
+      // rodarComProtecao("Estrela d'Oeste", buscarEstrela),
+      // rodarComProtecao("Guarani d'Oeste", buscarGuaraniDOeste),
 
-      rodarComProtecao('Meridiano', buscarMeridiano),
-      rodarComProtecao('São João das Duas Pontes', buscarSaoJoao),
-      rodarComProtecao('Pedranópolis', buscarPedranopolis),
+      // rodarComProtecao('Meridiano', buscarMeridiano),
+      // rodarComProtecao('São João das Duas Pontes', buscarSaoJoao),
+      // rodarComProtecao('Pedranópolis', buscarPedranopolis),
 
-      rodarComProtecao('Votuporanga', buscarVotuporanga),
-      rodarComProtecao('Ouroeste', buscarOuroeste),
-      rodarComProtecao('Mira Estrela', buscarMiraEstrela),
-      rodarComProtecao('Indiaporã', buscarIndiapora),
-      rodarComProtecao('Álvares Florence', buscarAlvaresFlorence),
-      rodarComProtecao('Parisi', buscarParisi),
-      rodarComProtecao('Valentim Gentil', buscarValentimGentil),
-      rodarComProtecao('Vitória Brasil', buscarVitoriaBrasil),
-      rodarComProtecao('Urânia', buscarUrania),
+      // rodarComProtecao('Votuporanga', buscarVotuporanga),
+      // rodarComProtecao('Ouroeste', buscarOuroeste),
+      // rodarComProtecao('Mira Estrela', buscarMiraEstrela),
+      // rodarComProtecao('Indiaporã', buscarIndiapora),
+      // rodarComProtecao('Álvares Florence', buscarAlvaresFlorence),
+      // rodarComProtecao('Parisi', buscarParisi),
+      // rodarComProtecao('Valentim Gentil', buscarValentimGentil),
+      // rodarComProtecao('Vitória Brasil', buscarVitoriaBrasil),
+      // rodarComProtecao('Urânia', buscarUrania),
+      rodarComProtecao('Dolcinópolis', buscarDolcinopolis),
     ]);
 
     promessas.forEach((resultado) => {
