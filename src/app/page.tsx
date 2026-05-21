@@ -30,7 +30,7 @@ const anosDisponiveis = Array.from({ length: anoAtual - 2017 + 1 }, (_, i) => an
 const TODAS_CIDADES = [
   'Fernandópolis', 'Votuporanga', 'Ouroeste', 'Jales', 'Macedônia',
   "Estrela d'Oeste", 'Meridiano', 'São João das Duas Pontes', 'Pedranópolis',
-  'Mira Estrela', 'Indiaporã', 'Álvares Florence', 'Parisi', 'Valentim Gentil', 'Vitória Brasil', "Guarani d'Oeste", "Urânia", 'Dolcinópolis'
+  'Mira Estrela', 'Indiaporã', 'Álvares Florence', 'Parisi', 'Valentim Gentil', 'Vitória Brasil', "Guarani d'Oeste", "Urânia", 'Dolcinópolis', 'Pontalinda'
 ].sort();
 
 export default function Home() {

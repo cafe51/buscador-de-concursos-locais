@@ -25,6 +25,7 @@ import { buscarValentimGentil } from '../lib/scrapers/valentimgentil';
 import { buscarVitoriaBrasil } from '../lib/scrapers/vitoriabrasil';
 
 import { buscarGuaraniDOeste } from '../lib/scrapers/guaranidoeste';
+import { buscarPontalinda } from '../lib/scrapers/pontalinda';
 
 import { urlsParaBlacklist } from '../lib/docParser';
 
@@ -64,6 +65,7 @@ const MAPA_SCRAPERS: Record<string, () => Promise<Edital[]>> = {
   "Guarani d'Oeste": buscarGuaraniDOeste,
   'Urânia': buscarUrania,
   'Dolcinópolis': buscarDolcinopolis,
+  'Pontalinda': buscarPontalinda,
 };
 
 // ==============================================================
@@ -193,7 +195,8 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
       // rodarComProtecao('Valentim Gentil', buscarValentimGentil),
       // rodarComProtecao('Vitória Brasil', buscarVitoriaBrasil),
       // rodarComProtecao('Urânia', buscarUrania),
-      rodarComProtecao('Dolcinópolis', buscarDolcinopolis),
+      // rodarComProtecao('Dolcinópolis', buscarDolcinopolis),
+      rodarComProtecao('Pontalinda', buscarPontalinda),
     ]);
 
     promessas.forEach((resultado) => {
