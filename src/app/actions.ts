@@ -3,6 +3,7 @@
 
 import * as cheerio from 'cheerio';
 import { Edital } from '../types';
+
 import { buscarFernandopolis } from '../lib/scrapers/fernandopolis';
 import { buscarVotuporanga } from '../lib/scrapers/votuporanga';
 import { buscarOuroeste } from '../lib/scrapers/ouroeste';
@@ -17,7 +18,6 @@ import { buscarMiraEstrela } from '../lib/scrapers/miraestrela';
 import { buscarIndiapora } from '../lib/scrapers/indiapora';
 import { buscarAlvaresFlorence } from '../lib/scrapers/alvaresflorence';
 
-// 🔥 NOVAS CIDADES IMPORTADAS AQUI
 import { buscarParisi } from '../lib/scrapers/parisi';
 import { buscarValentimGentil } from '../lib/scrapers/valentimgentil';
 import { buscarVitoriaBrasil } from '../lib/scrapers/vitoriabrasil';
@@ -29,10 +29,40 @@ export type ResultadoBusca = {
   falhas: string[];
 };
 
+export type Discrepancia = {
+  cidade: string;
+  concurso: string;
+  linkOrigem: string;
+  qtdNossa: number;
+  qtdSite: number;
+  linksOrigem: string[];
+};
+
+// ==============================================================
+// 🗺️ MAPEAMENTO GLOBAL DE SCRAPERS (SEM EXPORT - USO INTERNO)
+// ==============================================================
+const MAPA_SCRAPERS: Record<string, () => Promise<Edital[]>> = {
+  'Fernandópolis': buscarFernandopolis,
+  'Votuporanga': buscarVotuporanga,
+  'Ouroeste': buscarOuroeste,
+  'Jales': buscarJales,
+  'Macedônia': buscarMacedonia,
+  "Estrela d'Oeste": buscarEstrela,
+  'Meridiano': buscarMeridiano,
+  'São João das Duas Pontes': buscarSaoJoao,
+  'Pedranópolis': buscarPedranopolis,
+  'Mira Estrela': buscarMiraEstrela,
+  'Indiaporã': buscarIndiapora,
+  'Álvares Florence': buscarAlvaresFlorence,
+  'Parisi': buscarParisi,
+  'Valentim Gentil': buscarValentimGentil,
+  'Vitória Brasil': buscarVitoriaBrasil,
+};
+
 // ==============================================================
 // ⏱️ LIMITE MÁXIMO DE TEMPO POR CIDADE (55 Segundos)
 // ==============================================================
-const TIMEOUT_POR_CIDADE_MS = 55000;
+const TIMEOUT_POR_CIDADE_MS = 85000;
 
 async function rodarComProtecao(nomeCidade: string, funcaoScraper: () => Promise<Edital[]>) {
   const tempoInicio = performance.now();
@@ -50,6 +80,7 @@ async function rodarComProtecao(nomeCidade: string, funcaoScraper: () => Promise
     const tempoFim = performance.now();
     const tempoGasto = ((tempoFim - tempoInicio) / 1000).toFixed(2);
 
+    // Formatação cuidadosa dos Logs
     const tamanhoFixoNome = 30;
     const tamanhoFixoTempo = 5;
 
@@ -68,12 +99,57 @@ async function rodarComProtecao(nomeCidade: string, funcaoScraper: () => Promise
       motivo = `Tempo limite de ${TIMEOUT_POR_CIDADE_MS / 1000}s excedido`;
     }
 
-    console.error(`🔴 [${nomeCidade}] FALHOU \t| Tempo: ${tempoGasto}s \t| Motivo: ${motivo}`);
+    // Formatação do Log de Falha
+    const tamanhoFixoNome = 30;
+    const nomeFormatado = `[${nomeCidade}]`.padEnd(tamanhoFixoNome, ' ');
+
+    console.error(`🔴 ${nomeFormatado} FALHOU \t| Tempo: ${tempoGasto}s \t| Motivo: ${motivo}`);
 
     return { sucesso: false, cidade: nomeCidade, dados: [] };
   }
 }
 
+// ==============================================================
+// 🚀 NOVA FERRAMENTA: BUSCAR UMA CIDADE ISOLADA (MODO DEV)
+// ==============================================================
+export async function buscarEditaisPorCidade(nomeCidade: string): Promise<ResultadoBusca> {
+  urlsParaBlacklist.clear();
+  const funcaoScraper = MAPA_SCRAPERS[nomeCidade];
+
+  if (!funcaoScraper) {
+    throw new Error(`Scraper não encontrado para a cidade: ${nomeCidade}`);
+  }
+
+  console.log(`\n===================================================`);
+  console.log(`⏳ INICIANDO RASPAGEM INDIVIDUAL: ${nomeCidade}...`);
+  console.log(`===================================================`);
+
+  const resultado = await rodarComProtecao(nomeCidade, funcaoScraper);
+
+  let listaLimpa: Edital[] = [];
+  if (resultado.sucesso) {
+    const editaisUnicos = new Map<string, Edital>();
+    resultado.dados.forEach((edital) => {
+      if (!editaisUnicos.has(edital.link)) editaisUnicos.set(edital.link, edital);
+    });
+
+    listaLimpa = Array.from(editaisUnicos.values());
+
+    listaLimpa.sort((a, b) => {
+      if (b.dataTimestamp !== a.dataTimestamp) return b.dataTimestamp - a.dataTimestamp;
+      return (a.ordemOriginal || 0) - (b.ordemOriginal || 0);
+    });
+  }
+
+  return {
+    editais: listaLimpa,
+    falhas: resultado.sucesso ? [] : [nomeCidade]
+  };
+}
+
+// ==============================================================
+// 🚀 BUSCA PRINCIPAL DE TODAS AS CIDADES
+// ==============================================================
 export async function buscarTodosEditais(): Promise<ResultadoBusca> {
   let todosOsEditais: Edital[] = [];
   const cidadesComFalha: string[] = [];
@@ -88,6 +164,7 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
 
   try {
     const promessas = await Promise.all([
+      // Comentados conforme a sua versão original para testes
       rodarComProtecao('Fernandópolis', buscarFernandopolis),
       rodarComProtecao('Votuporanga', buscarVotuporanga),
       rodarComProtecao('Ouroeste', buscarOuroeste),
@@ -115,9 +192,6 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
       }
     });
 
-    // ==============================================================
-    // 🛡️ O DESDUPLICADOR GLOBAL: Remove cards com o mesmo link
-    // ==============================================================
     const editaisUnicos = new Map<string, Edital>();
 
     todosOsEditais.forEach((edital) => {
@@ -128,7 +202,6 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
 
     let listaLimpa = Array.from(editaisUnicos.values());
 
-    // Ordenação Cronológica
     listaLimpa.sort((a, b) => {
       if (b.dataTimestamp !== a.dataTimestamp) {
         return b.dataTimestamp - a.dataTimestamp;
@@ -163,22 +236,14 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
 }
 
 // ==============================================================
-// 🕵️ AUDITORIA DEV DO INSTAR (Suporta Pastas Fundidas)
+// 🕵️ AUDITORIA DEV DO INSTAR
 // ==============================================================
-export type Discrepancia = {
-  cidade: string;
-  concurso: string;
-  qtdNossa: number;
-  qtdSite: number;
-  linksOrigem: string[]; // 🚀 Agora é um array de links
-};
-
 export async function auditarQuantidadesInstar(grupos: { nome: string, cidade: string, linksOrigem: string[], qtdNossa: number, temRestricao?: boolean }[]): Promise<Discrepancia[]> {
   const discrepancias: Discrepancia[] = [];
   const TAMANHO_LOTE = 10;
 
   console.log(`\n===================================================`);
-  console.log(`🕵️ INICIANDO AUDITORIA EM ${grupos.length} PASTAS...`);
+  console.log(`🕵️ INICIANDO AUDITORIA EM ${grupos.length} PASTAS INSTAR...`);
   console.log(`===================================================`);
 
   for (let i = 0; i < grupos.length; i += TAMANHO_LOTE) {
@@ -190,7 +255,6 @@ export async function auditarQuantidadesInstar(grupos: { nome: string, cidade: s
       let qtdSiteTotal = 0;
       let temInstar = false;
 
-      // Percorre todos os links que foram fundidos nesta pasta
       for (const link of grupo.linksOrigem) {
         if (link && link.includes('/portal/editais/')) {
           temInstar = true;
@@ -208,11 +272,11 @@ export async function auditarQuantidadesInstar(grupos: { nome: string, cidade: s
         }
       }
 
-      // Se a soma do site for diferente do que temos no Frontend, avisa!
       if (temInstar && qtdSiteTotal > 0 && qtdSiteTotal !== grupo.qtdNossa) {
         discrepancias.push({
           cidade: grupo.cidade,
           concurso: grupo.nome,
+          linkOrigem: grupo.linksOrigem[0] || '',
           qtdNossa: grupo.qtdNossa,
           qtdSite: qtdSiteTotal,
           linksOrigem: grupo.linksOrigem
@@ -224,8 +288,6 @@ export async function auditarQuantidadesInstar(grupos: { nome: string, cidade: s
   console.log(`✅ AUDITORIA CONCLUÍDA! ${discrepancias.length} discrepâncias encontradas.\n`);
   return discrepancias;
 }
-
-// COLOQUE ISSO NO FINAL DO ARQUIVO src/app/actions.ts
 
 // ==============================================================
 // 🛠️ SCRAPER RAW (MODO DEV - IGNORA FILTROS)
@@ -243,7 +305,6 @@ export async function extrairDadosRawInstar(urlLista: string) {
 
     const linksInternos: string[] = [];
 
-    // Pega todos os links das divs mãe dessa página
     $('div.ed_edital').each((_, el) => {
       const href = $(el).find('a').first().attr('href') || '';
       if (href) {
@@ -253,7 +314,6 @@ export async function extrairDadosRawInstar(urlLista: string) {
 
     const dadosRaw: any[] = [];
 
-    // Entra em todos eles paralelamente
     await Promise.all(linksInternos.map(async (link) => {
       try {
         const innerRes = await fetch(link, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
@@ -270,7 +330,6 @@ export async function extrairDadosRawInstar(urlLista: string) {
         let inicioInscricoes = '';
         let fimInscricoes = '';
 
-        // Varre a lista de detalhes
         $inner('.ed_linha_lista_detalhes').each((_, el) => {
           const nomeDetalhe = $inner(el).find('.ed_nome_detalhe').text().trim().toLowerCase();
           const valorDetalhe = $inner(el).find('.ed_descricao_detalhe').text().replace(/\s+/g, ' ').trim();
@@ -282,13 +341,11 @@ export async function extrairDadosRawInstar(urlLista: string) {
           else if (nomeDetalhe.includes('fim das inscrições') || nomeDetalhe.includes('fim das inscricoes')) fimInscricoes = valorDetalhe;
         });
 
-        // Pega a descrição completa
         let descricao = $inner('#detalhes_edital .sw_conteudo_vermais').text().replace(/\s+/g, ' ').trim();
         if (!descricao) {
           descricao = $inner('#detalhes_edital .sp_descricao_sessao').text().replace(/\s+/g, ' ').trim();
         }
 
-        // Pega as quantidades de arquivos
         const badgeQtde = $inner('#btn_arquivos_edital .ed_info_qtde_itens').text().trim();
         const qtdeArquivosBadge = parseInt(badgeQtde, 10) || 0;
 

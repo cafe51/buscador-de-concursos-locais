@@ -1,8 +1,13 @@
 // src/app/page.tsx
 'use client'
-
-import { useState, useEffect, useMemo } from 'react';
-import { buscarTodosEditais, auditarQuantidadesInstar, extrairDadosRawInstar, Discrepancia } from './actions';
+import { useState, useEffect, useMemo, useRef } from 'react'; // 🚀 useRef adicionado aqui!
+import {
+  buscarTodosEditais,
+  auditarQuantidadesInstar,
+  extrairDadosRawInstar,
+  buscarEditaisPorCidade,
+  Discrepancia
+} from './actions';
 import { Edital } from '../types';
 import EditalCard from '../components/EditalCard';
 import FilterPanel from '../components/FilterPanel';
@@ -18,9 +23,15 @@ function formatarNomeArquivo(nome: string) {
   return nome.replace(/[\/\s]/g, '-').toLowerCase();
 }
 
-// LIMITE DO ANO AJUSTADO PARA 2017
 const anoAtual = new Date().getFullYear();
 const anosDisponiveis = Array.from({ length: anoAtual - 2017 + 1 }, (_, i) => anoAtual - i);
+
+// 🚀 AQUI ESTÁ A SOLUÇÃO: Lista fixa de cidades no frontend
+const TODAS_CIDADES = [
+  'Fernandópolis', 'Votuporanga', 'Ouroeste', 'Jales', 'Macedônia',
+  "Estrela d'Oeste", 'Meridiano', 'São João das Duas Pontes', 'Pedranópolis',
+  'Mira Estrela', 'Indiaporã', 'Álvares Florence', 'Parisi', 'Valentim Gentil', 'Vitória Brasil'
+].sort();
 
 export default function Home() {
   const [editais, setEditais] = useState<Edital[]>([]);
@@ -35,18 +46,21 @@ export default function Home() {
   const [concursoSelecionado, setConcursoSelecionado] = useState<string | null>(null);
   const [filtroTipoGrupo, setFiltroTipoGrupo] = useState<'todos' | 'concurso' | 'seletivo'>('todos');
 
-  // ESTADOS FIXOS: Ano e Cidade
   const [filtroAno, setFiltroAno] = useState<number | 'todos'>('todos');
   const [filtroCidade, setFiltroCidade] = useState<string | 'todas'>('todas');
 
   const [paginaAtual, setPaginaAtual] = useState(1);
   const ITENS_POR_PAGINA = 10;
 
-  // ESTADOS DO AUDITOR E RAW SCRAPER (MODO DEV)
+  // ESTADOS DO MODO DEV
   const [auditando, setAuditando] = useState(false);
   const [resultadoAuditoria, setResultadoAuditoria] = useState<Discrepancia[] | null>(null);
   const [urlRaw, setUrlRaw] = useState('');
   const [isRawScraping, setIsRawScraping] = useState(false);
+
+  // ESTADOS DE RASPAGEM INDIVIDUAL
+  const [cidadeAlvoDev, setCidadeAlvoDev] = useState<string>(TODAS_CIDADES[0]);
+  const [isRefreshingCity, setIsRefreshingCity] = useState(false);
 
   async function carregarDados() {
     setLoading(true);
@@ -63,22 +77,26 @@ export default function Home() {
     setLoading(false);
   }
 
-  useEffect(() => { carregarDados() }, []);
+  // 🚀 TRAVA CONTRA O DUPLO RENDER DO REACT STRICT MODE
+  const fetchIniciado = useRef(false);
+
+  useEffect(() => {
+    if (!fetchIniciado.current) {
+      fetchIniciado.current = true;
+      carregarDados();
+    }
+  }, []);
 
   useEffect(() => {
     setPaginaAtual(1);
     if (modoVisualizacao === 'agrupado') setConcursoSelecionado(null);
   }, [palavrasDesejadas, palavrasIgnoradas, filtroAno, filtroCidade]);
 
-  // GERA A LISTA DE CIDADES DINAMICAMENTE
   const cidadesDisponiveis = useMemo(() => {
     const cidades = new Set(editais.map(e => e.cidade));
     return Array.from(cidades).sort();
   }, [editais]);
 
-  // ==============================================================
-  // LÓGICA DE FILTROS COM PRIORIDADE (Short-circuit Evaluation)
-  // ==============================================================
   const editaisFiltrados = useMemo(() => {
     return editais.filter((edital) => {
       const passaFiltroAno = filtroAno === 'todos' || edital.ano === filtroAno;
@@ -100,9 +118,6 @@ export default function Home() {
     });
   }, [editais, palavrasDesejadas, palavrasIgnoradas, filtroAno, filtroCidade]);
 
-  // ==============================================================
-  // AGRUPAMENTO DE CONCURSOS
-  // ==============================================================
   const concursosAgrupados = useMemo(() => {
     const mapa = new Map<string, Edital[]>();
 
@@ -151,7 +166,6 @@ export default function Home() {
   }, [editaisFiltrados, filtroTipoGrupo]);
 
   const grupoAtual = concursosAgrupados.find(c => c.chaveUnica === concursoSelecionado);
-
   const totalPaginas = Math.ceil(editaisFiltrados.length / ITENS_POR_PAGINA);
   const indexInicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
   const editaisDaPaginaLista = editaisFiltrados.slice(indexInicio, indexInicio + ITENS_POR_PAGINA);
@@ -159,10 +173,10 @@ export default function Home() {
   // ==============================================================
   // FUNÇÕES DO MODO DESENVOLVEDOR (QA)
   // ==============================================================
+
   async function rodarAuditoria() {
     setAuditando(true);
     setResultadoAuditoria(null);
-
     const payload = concursosAgrupados
       .filter(g => g.linksOrigem && g.linksOrigem.length > 0)
       .map(g => ({
@@ -172,7 +186,6 @@ export default function Home() {
         qtdNossa: g.totalItens,
         temRestricao: g.itens.some(item => item.titulo.includes('Acesso Restrito'))
       }));
-
     const discrepancias = await auditarQuantidadesInstar(payload);
     setResultadoAuditoria(discrepancias);
     setAuditando(false);
@@ -183,7 +196,6 @@ export default function Home() {
     setIsRawScraping(true);
     try {
       const dados = await extrairDadosRawInstar(urlRaw);
-
       const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
       const urlBlob = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -193,11 +205,38 @@ export default function Home() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(urlBlob);
-
     } catch (e) {
       alert("Falha ao rodar o Raw Scraper. Verifique a URL.");
     }
     setIsRawScraping(false);
+  }
+
+  async function rodarAtualizacaoIndividual() {
+    if (!cidadeAlvoDev) return;
+    setIsRefreshingCity(true);
+    try {
+      const resultado = await buscarEditaisPorCidade(cidadeAlvoDev);
+
+      if (resultado.falhas.length > 0) {
+        alert(`Falha ao buscar editais de ${cidadeAlvoDev}. Verifique os logs no terminal.`);
+      }
+
+      setEditais((prev) => {
+        const dadosOutrasCidades = prev.filter(e => e.cidade !== cidadeAlvoDev);
+        const novaLista = [...dadosOutrasCidades, ...resultado.editais];
+
+        novaLista.sort((a, b) => {
+          if (b.dataTimestamp !== a.dataTimestamp) return b.dataTimestamp - a.dataTimestamp;
+          return (a.ordemOriginal || 0) - (b.ordemOriginal || 0);
+        });
+
+        return novaLista;
+      });
+
+    } catch (e) {
+      alert("Erro ao executar o scraper da cidade selecionada.");
+    }
+    setIsRefreshingCity(false);
   }
 
   return (
@@ -224,7 +263,7 @@ export default function Home() {
               disabled={loading}
               className={`px-6 py-3 rounded font-bold text-white transition-colors ${loading ? 'bg-blue-300 cursor-wait' : 'bg-blue-600 hover:bg-blue-700'}`}
             >
-              {loading ? 'Extraindo dados...' : '🔄 Atualizar'}
+              {loading ? 'Extraindo dados...' : '🔄 Atualizar Todos'}
             </button>
           </div>
         </header>
@@ -418,10 +457,32 @@ export default function Home() {
       {process.env.NODE_ENV === 'development' && (
         <div className="fixed bottom-6 right-6 flex flex-col items-end z-50 gap-4">
 
+          {/* 🛠️ FERRAMENTA 3: RASPAGEM DE CIDADE ÚNICA */}
+          <div className="bg-white border-2 border-green-500 p-4 rounded-lg shadow-xl w-96 animate-fade-in">
+            <h3 className="font-bold text-green-700 mb-2">⚡ Testar Cidade Única</h3>
+            <p className="text-xs text-gray-500 mb-3">Atualiza apenas a cidade selecionada sem destruir os dados das outras.</p>
+            <select
+              value={cidadeAlvoDev}
+              onChange={(e) => setCidadeAlvoDev(e.target.value)}
+              className="border border-green-200 p-2 w-full text-xs font-bold rounded mb-2 outline-none focus:border-green-600"
+            >
+              {TODAS_CIDADES.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            <button
+              onClick={rodarAtualizacaoIndividual}
+              disabled={isRefreshingCity}
+              className="bg-green-600 text-white w-full py-2 rounded text-sm font-bold disabled:bg-gray-400 hover:bg-green-700 transition-colors"
+            >
+              {isRefreshingCity ? '⏳ Raspando cidade...' : `Atualizar ${cidadeAlvoDev}`}
+            </button>
+          </div>
+
           {/* 🛠️ FERRAMENTA 2: RAW SCRAPER */}
           <div className="bg-white border-2 border-purple-500 p-4 rounded-lg shadow-xl w-96 animate-fade-in">
             <h3 className="font-bold text-purple-700 mb-2">🛠️ Raio-X Instar (Raw)</h3>
-            <p className="text-xs text-gray-500 mb-3">Puxa todos os metadados de uma página de listagem sem aplicar nenhum filtro.</p>
+            <p className="text-xs text-gray-500 mb-3">Puxa todos os metadados de uma listagem sem aplicar nenhum filtro.</p>
             <input
               type="text"
               placeholder="Ex: https://.../numero-ano-processo-decrescente/0"
@@ -434,7 +495,7 @@ export default function Home() {
               disabled={isRawScraping || !urlRaw}
               className="bg-purple-600 text-white w-full py-2 rounded text-sm font-bold disabled:bg-gray-400 hover:bg-purple-700 transition-colors"
             >
-              {isRawScraping ? '⏳ Extraindo Dados...' : 'Extrair e Baixar JSON'}
+              {isRawScraping ? '⏳ Extraindo...' : 'Extrair e Baixar JSON'}
             </button>
           </div>
 
