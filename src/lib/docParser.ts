@@ -4,7 +4,6 @@ import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import * as mammoth from 'mammoth';
 import { PDFs_IGNORADOS } from './blacklist';
 
-// 🛑 CALA A BOCA DO NODE.JS PARA AVISOS DA BIBLIOTECA PDF-PARSE
 process.noDeprecation = true;
 
 const consoleWarnOriginal = console.warn;
@@ -24,22 +23,53 @@ const MESES: Record<string, string> = {
 // ==============================================================
 // 📄 EXTRATOR DE TEXTO BRUTO (Módulo Genérico)
 // ==============================================================
-export async function extrairTextoBruto(url: string): Promise<string | null> {
+export async function extrairTextoBruto(url: string, depth = 0): Promise<string | null> {
+  if (depth > 2) return null; // Limite de 2 saltos de redirecionamento
   if (PDFs_IGNORADOS.includes(url)) return null;
 
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
-    const res = await fetch(url, { signal: controller.signal });
+
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/pdf, application/octet-stream, text/html, */*'
+      }
+    });
     clearTimeout(timeoutId);
 
     if (!res.ok) return null;
 
     const arrayBuffer = await res.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const contentType = res.headers.get('content-type') || '';
-    const isPDF = contentType.includes('pdf') || buffer.toString('hex', 0, 4) === '25504446';
+    const contentType = (res.headers.get('content-type') || '').toLowerCase();
+
+    const isPDF = contentType.includes('pdf') || contentType.includes('octet-stream') || buffer.toString('hex', 0, 4) === '25504446';
     const isDOCX = contentType.includes('wordprocessingml') || buffer.toString('hex', 0, 4) === '504b0304';
+
+    // =========================================================================
+    // 🔀 LIDANDO COM REDIRECIONAMENTOS JAVASCRIPT / META HTML (SILENCIOSO)
+    // =========================================================================
+    if (contentType.includes('text/html') && !isPDF && !isDOCX) {
+      const htmlText = buffer.toString('utf-8');
+
+      const jsRedirect = htmlText.match(/window\.location(?:\.href)?\s*=\s*['"]([^'"]+)['"]/i);
+      const metaRedirect = htmlText.match(/url=['"]?([^'">]+)['"]?/i);
+
+      let novaUrl = '';
+      if (jsRedirect && jsRedirect[1]) novaUrl = jsRedirect[1];
+      else if (metaRedirect && metaRedirect[1]) novaUrl = metaRedirect[1];
+
+      if (novaUrl) {
+        const urlAbsoluta = novaUrl.startsWith('http') ? novaUrl : new URL(novaUrl, url).href;
+        return extrairTextoBruto(urlAbsoluta, depth + 1);
+      }
+
+      urlsParaBlacklist.add(url);
+      return null;
+    }
 
     if (isPDF) {
       const logOriginal = console.log;
@@ -49,8 +79,11 @@ export async function extrairTextoBruto(url: string): Promise<string | null> {
 
       try {
         // @ts-ignore
-        const dadosPdf = await pdfParse(buffer, { max: 1 });
+        const dadosPdf = await pdfParse(buffer, { max: 3 }); // Lê até 3 páginas para garantir
         return dadosPdf.text;
+      } catch (err: any) {
+        urlsParaBlacklist.add(url);
+        return null;
       } finally {
         console.log = logOriginal; console.warn = warnOriginal; console.error = errorOriginal;
       }
@@ -61,7 +94,8 @@ export async function extrairTextoBruto(url: string): Promise<string | null> {
 
     urlsParaBlacklist.add(url);
     return null;
-  } catch (error) {
+
+  } catch (error: any) {
     return null;
   }
 }
@@ -74,12 +108,14 @@ export async function extrairDataDoArquivo(url: string): Promise<{ formatada: st
 
   if (!textoExtraido) return null;
 
-  const regex = /\b(\d{1,2})\s+de\s+([a-zA-ZçÇ]+)\s+de\s+(\d{4})\b/gi;
+  const regexExtenso = /\b(\d{1,2})\s+de\s+([a-zA-ZçÇ]+)\s+de\s+(\d{4})\b/gi;
+  const regexNumerica = /\b(\d{2})[\/\.](\d{2})[\/\.](\d{4})\b/gi;
+
   let match;
   let maiorTimestamp = 0;
   let dataMaisRecente = '';
 
-  while ((match = regex.exec(textoExtraido)) !== null) {
+  while ((match = regexExtenso.exec(textoExtraido)) !== null) {
     const dia = match[1].padStart(2, '0');
     const mesTexto = match[2].toLowerCase();
     const ano = match[3];
@@ -91,6 +127,18 @@ export async function extrairDataDoArquivo(url: string): Promise<{ formatada: st
         maiorTimestamp = timestampAtual;
         dataMaisRecente = `${dia}/${mesNumero}/${ano}`;
       }
+    }
+  }
+
+  while ((match = regexNumerica.exec(textoExtraido)) !== null) {
+    const dia = match[1].padStart(2, '0');
+    const mesNumero = match[2].padStart(2, '0');
+    const ano = match[3];
+
+    const timestampAtual = new Date(`${ano}-${mesNumero}-${dia}T00:00:00`).getTime();
+    if (timestampAtual > maiorTimestamp) {
+      maiorTimestamp = timestampAtual;
+      dataMaisRecente = `${dia}/${mesNumero}/${ano}`;
     }
   }
 
