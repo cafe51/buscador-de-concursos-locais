@@ -88,21 +88,20 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
 
   try {
     const promessas = await Promise.all([
-      // rodarComProtecao('Fernandópolis', buscarFernandopolis),
+      rodarComProtecao('Fernandópolis', buscarFernandopolis),
       rodarComProtecao('Votuporanga', buscarVotuporanga),
       rodarComProtecao('Ouroeste', buscarOuroeste),
-      // rodarComProtecao('Jales', buscarJales),
-      // rodarComProtecao('Macedônia', buscarMacedonia),
-      // rodarComProtecao("Estrela d'Oeste", buscarEstrela),
-      // rodarComProtecao('Meridiano', buscarMeridiano),
-      // rodarComProtecao('São João das Duas Pontes', buscarSaoJoao),
-      // rodarComProtecao('Pedranópolis', buscarPedranopolis),
+      rodarComProtecao('Jales', buscarJales),
+      rodarComProtecao('Macedônia', buscarMacedonia),
+      rodarComProtecao("Estrela d'Oeste", buscarEstrela),
+      rodarComProtecao('Meridiano', buscarMeridiano),
+      rodarComProtecao('São João das Duas Pontes', buscarSaoJoao),
+      rodarComProtecao('Pedranópolis', buscarPedranopolis),
 
       rodarComProtecao('Mira Estrela', buscarMiraEstrela),
       rodarComProtecao('Indiaporã', buscarIndiapora),
       rodarComProtecao('Álvares Florence', buscarAlvaresFlorence),
 
-      // 🔥 AS TRÊS NOVAS CIDADES
       rodarComProtecao('Parisi', buscarParisi),
       rodarComProtecao('Valentim Gentil', buscarValentimGentil),
       rodarComProtecao('Vitória Brasil', buscarVitoriaBrasil),
@@ -224,4 +223,114 @@ export async function auditarQuantidadesInstar(grupos: { nome: string, cidade: s
 
   console.log(`✅ AUDITORIA CONCLUÍDA! ${discrepancias.length} discrepâncias encontradas.\n`);
   return discrepancias;
+}
+
+// COLOQUE ISSO NO FINAL DO ARQUIVO src/app/actions.ts
+
+// ==============================================================
+// 🛠️ SCRAPER RAW (MODO DEV - IGNORA FILTROS)
+// ==============================================================
+export async function extrairDadosRawInstar(urlLista: string) {
+  try {
+    const urlObj = new URL(urlLista);
+    const baseUrlStr = urlObj.origin;
+
+    const res = await fetch(urlLista, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
+    if (!res.ok) throw new Error("Falha ao acessar a URL fornecida.");
+
+    const html = await res.text();
+    const $ = cheerio.load(html);
+
+    const linksInternos: string[] = [];
+
+    // Pega todos os links das divs mãe dessa página
+    $('div.ed_edital').each((_, el) => {
+      const href = $(el).find('a').first().attr('href') || '';
+      if (href) {
+        linksInternos.push(href.startsWith('http') ? href : `${baseUrlStr}${href}`);
+      }
+    });
+
+    const dadosRaw: any[] = [];
+
+    // Entra em todos eles paralelamente
+    await Promise.all(linksInternos.map(async (link) => {
+      try {
+        const innerRes = await fetch(link, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
+        if (!innerRes.ok) return;
+
+        const innerHtml = await innerRes.text();
+        const $inner = cheerio.load(innerHtml);
+
+        const titulo = $inner('.ed_titulo_edital').text().replace(/\s+/g, ' ').trim();
+
+        let situacao = '';
+        let modalidade = '';
+        let numProcesso = '';
+        let inicioInscricoes = '';
+        let fimInscricoes = '';
+
+        // Varre a lista de detalhes
+        $inner('.ed_linha_lista_detalhes').each((_, el) => {
+          const nomeDetalhe = $inner(el).find('.ed_nome_detalhe').text().trim().toLowerCase();
+          const valorDetalhe = $inner(el).find('.ed_descricao_detalhe').text().replace(/\s+/g, ' ').trim();
+
+          if (nomeDetalhe.includes('situação') || nomeDetalhe.includes('situacao')) situacao = valorDetalhe;
+          else if (nomeDetalhe.includes('modalidade')) modalidade = valorDetalhe;
+          else if (nomeDetalhe.includes('nº do processo') || nomeDetalhe.includes('nº processo')) numProcesso = valorDetalhe;
+          else if (nomeDetalhe.includes('início das inscrições') || nomeDetalhe.includes('inicio das inscricoes')) inicioInscricoes = valorDetalhe;
+          else if (nomeDetalhe.includes('fim das inscrições') || nomeDetalhe.includes('fim das inscricoes')) fimInscricoes = valorDetalhe;
+        });
+
+        // Pega a descrição completa
+        let descricao = $inner('#detalhes_edital .sw_conteudo_vermais').text().replace(/\s+/g, ' ').trim();
+        if (!descricao) {
+          descricao = $inner('#detalhes_edital .sp_descricao_sessao').text().replace(/\s+/g, ' ').trim();
+        }
+
+        // Pega as quantidades de arquivos
+        const badgeQtde = $inner('#btn_arquivos_edital .ed_info_qtde_itens').text().trim();
+        const qtdeArquivosBadge = parseInt(badgeQtde, 10) || 0;
+
+        const listaArquivos: { nome: string, link: string }[] = [];
+        $inner('.ed_cont_arquivos .ed_arquivo_edital').each((_, el) => {
+          const aTag = $inner(el).find('a');
+          const hrefDoc = aTag.attr('href') || '';
+          const linkDoc = hrefDoc.startsWith('http') ? hrefDoc : `${baseUrlStr}${hrefDoc}`;
+
+          const nomeElement = $inner(el).find('.ed_nome_arquivo').clone();
+          nomeElement.find('.ed_info_tamanho_arquivo').remove();
+          const nomeTexto = nomeElement.text().replace(/\s+/g, ' ').trim();
+
+          const categoria = $inner(el).find('.ed_descricao_tipo_arquivo').text().replace(/\s+/g, ' ').trim();
+          const nomeFinal = categoria ? `${categoria} - ${nomeTexto}` : nomeTexto;
+
+          listaArquivos.push({ nome: nomeFinal, link: linkDoc });
+        });
+
+        dadosRaw.push({
+          linkOrigem: link,
+          titulo,
+          situacao,
+          modalidade,
+          numProcesso,
+          inicioInscricoes,
+          fimInscricoes,
+          descricao,
+          quantidadeArquivosBadge: qtdeArquivosBadge,
+          quantidadeArquivosEncontrados: listaArquivos.length,
+          listaArquivos
+        });
+
+      } catch (e) {
+        console.error("Erro interno no Raw Scraper: ", link);
+      }
+    }));
+
+    return dadosRaw;
+
+  } catch (error: any) {
+    console.error(error);
+    return { erro: error.message };
+  }
 }
