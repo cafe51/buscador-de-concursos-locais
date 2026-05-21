@@ -13,6 +13,7 @@ import { buscarEstrela } from '../lib/scrapers/estrela';
 import { buscarMeridiano } from '../lib/scrapers/meridiano';
 import { buscarSaoJoao } from '../lib/scrapers/saojoao';
 import { buscarJales } from '../lib/scrapers/jales';
+import { buscarUrania } from '../lib/scrapers/urania';
 
 import { buscarMiraEstrela } from '../lib/scrapers/miraestrela';
 import { buscarIndiapora } from '../lib/scrapers/indiapora';
@@ -60,6 +61,7 @@ const MAPA_SCRAPERS: Record<string, () => Promise<Edital[]>> = {
   'Valentim Gentil': buscarValentimGentil,
   'Vitória Brasil': buscarVitoriaBrasil,
   "Guarani d'Oeste": buscarGuaraniDOeste,
+  'Urânia': buscarUrania,
 };
 
 // ==============================================================
@@ -167,10 +169,9 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
 
   try {
     const promessas = await Promise.all([
-      // Comentados conforme a sua versão original para testes
       rodarComProtecao('Fernandópolis', buscarFernandopolis),
-      rodarComProtecao('Votuporanga', buscarVotuporanga),
-      rodarComProtecao('Ouroeste', buscarOuroeste),
+
+
       rodarComProtecao('Jales', buscarJales),
       rodarComProtecao('Macedônia', buscarMacedonia),
 
@@ -181,13 +182,15 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
       rodarComProtecao('São João das Duas Pontes', buscarSaoJoao),
       rodarComProtecao('Pedranópolis', buscarPedranopolis),
 
+      rodarComProtecao('Votuporanga', buscarVotuporanga),
+      rodarComProtecao('Ouroeste', buscarOuroeste),
       rodarComProtecao('Mira Estrela', buscarMiraEstrela),
       rodarComProtecao('Indiaporã', buscarIndiapora),
       rodarComProtecao('Álvares Florence', buscarAlvaresFlorence),
-
       rodarComProtecao('Parisi', buscarParisi),
       rodarComProtecao('Valentim Gentil', buscarValentimGentil),
       rodarComProtecao('Vitória Brasil', buscarVitoriaBrasil),
+      rodarComProtecao('Urânia', buscarUrania),
     ]);
 
     promessas.forEach((resultado) => {
