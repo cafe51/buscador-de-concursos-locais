@@ -6,7 +6,6 @@ import { buscarTodosEditais } from './actions';
 import { Edital } from '../types';
 import { exportarParaJSON } from '../utils/exportJson';
 
-// Componentes Modularizados
 import FilterPanel from '../components/FilterPanel';
 import DevToolsPanel from '../components/DevToolsPanel';
 import Header from '../components/Header';
@@ -21,6 +20,10 @@ function removerAcentos(texto: string) {
   return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
+function formatarNomeArquivo(nome: string) {
+  return nome.replace(/[\/\s]/g, '-').toLowerCase();
+}
+
 const anoAtual = new Date().getFullYear();
 const anosDisponiveis = Array.from({ length: anoAtual - 2017 + 1 }, (_, i) => anoAtual - i);
 
@@ -28,7 +31,8 @@ const TODAS_CIDADES = [
   'Fernandópolis', 'Votuporanga', 'Ouroeste', 'Jales', 'Macedônia',
   "Estrela d'Oeste", 'Meridiano', 'São João das Duas Pontes', 'Pedranópolis',
   'Mira Estrela', 'Indiaporã', 'Álvares Florence', 'Parisi', 'Valentim Gentil',
-  'Vitória Brasil', "Guarani d'Oeste", 'Urânia', 'Dolcinópolis', 'Pontalinda', 'Santa Salete'
+  'Vitória Brasil', "Guarani d'Oeste", 'Urânia', 'Dolcinópolis', 'Pontalinda', 'Santa Salete',
+  'Meridiano (Câmara)'
 ].sort();
 
 export default function Home() {
@@ -46,6 +50,9 @@ export default function Home() {
 
   const [filtroAno, setFiltroAno] = useState<number | 'todos'>('todos');
   const [filtroCidade, setFiltroCidade] = useState<string | 'todas'>('todas');
+
+  // 🚀 NOVO: Estado do Órgão
+  const [filtroOrgao, setFiltroOrgao] = useState<string | 'todos'>('todos');
 
   const [paginaAtual, setPaginaAtual] = useState(1);
   const ITENS_POR_PAGINA = 10;
@@ -74,19 +81,27 @@ export default function Home() {
     }
   }, []);
 
+  // 🚀 Adicionado o filtroOrgao nas dependências do reset de página
   useEffect(() => {
     setPaginaAtual(1);
     if (modoVisualizacao === 'agrupado') setConcursoSelecionado(null);
-  }, [palavrasDesejadas, palavrasIgnoradas, filtroAno, filtroCidade, modoVisualizacao]);
+  }, [palavrasDesejadas, palavrasIgnoradas, filtroAno, filtroCidade, filtroOrgao, modoVisualizacao]);
 
   const cidadesDisponiveis = useMemo(() => {
     return Array.from(new Set(editais.map(e => e.cidade))).sort();
   }, [editais]);
 
+  // 🚀 NOVO: Puxa todos os Órgãos disponíveis no banco de dados da tela
+  const orgaosDisponiveis = useMemo(() => {
+    return Array.from(new Set(editais.map(e => e.orgao))).filter(Boolean).sort();
+  }, [editais]);
+
   const editaisFiltrados = useMemo(() => {
     return editais.filter((edital) => {
+      // 🚀 Aplicando o Filtro Triplo de Segurança
       if (filtroAno !== 'todos' && edital.ano !== filtroAno) return false;
       if (filtroCidade !== 'todas' && edital.cidade !== filtroCidade) return false;
+      if (filtroOrgao !== 'todos' && edital.orgao !== filtroOrgao) return false;
 
       const valoresTextuais = [
         edital.cidade, edital.orgao, edital.titulo, edital.descricao,
@@ -100,7 +115,7 @@ export default function Home() {
 
       return passaDesejadas && passaIgnoradas;
     });
-  }, [editais, palavrasDesejadas, palavrasIgnoradas, filtroAno, filtroCidade]);
+  }, [editais, palavrasDesejadas, palavrasIgnoradas, filtroAno, filtroCidade, filtroOrgao]);
 
   const concursosAgrupados = useMemo(() => {
     const mapa = new Map<string, Edital[]>();
@@ -191,6 +206,7 @@ export default function Home() {
           modoVisualizacao={modoVisualizacao} setModoVisualizacao={setModoVisualizacao}
           onClearSelection={() => setConcursoSelecionado(null)}
           filtroCidade={filtroCidade} setFiltroCidade={setFiltroCidade} cidadesDisponiveis={cidadesDisponiveis}
+          filtroOrgao={filtroOrgao} setFiltroOrgao={setFiltroOrgao} orgaosDisponiveis={orgaosDisponiveis} // 🚀 PASSANDO OS PROPS
           filtroAno={filtroAno} setFiltroAno={setFiltroAno} anosDisponiveis={anosDisponiveis}
         />
 
@@ -223,6 +239,7 @@ export default function Home() {
         concursosAgrupados={concursosAgrupados}
         onUpdateCityData={handleUpdateCityData}
       />
+
     </main>
   );
 }

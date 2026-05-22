@@ -11,6 +11,7 @@ import { buscarMacedonia } from '../lib/scrapers/macedonia';
 import { buscarPedranopolis } from '../lib/scrapers/pedranopolis';
 import { buscarEstrela } from '../lib/scrapers/estrela';
 import { buscarMeridiano } from '../lib/scrapers/meridiano';
+import { buscarCamaraMeridiano } from '../lib/scrapers/camaras/meridiano';
 import { buscarSaoJoao } from '../lib/scrapers/saojoao';
 import { buscarJales } from '../lib/scrapers/jales';
 import { buscarUrania } from '../lib/scrapers/urania';
@@ -55,6 +56,7 @@ const MAPA_SCRAPERS: Record<string, () => Promise<Edital[]>> = {
   'Macedônia': buscarMacedonia,
   "Estrela d'Oeste": buscarEstrela,
   'Meridiano': buscarMeridiano,
+  'Meridiano (Câmara)': buscarCamaraMeridiano,
   'São João das Duas Pontes': buscarSaoJoao,
   'Pedranópolis': buscarPedranopolis,
   'Mira Estrela': buscarMiraEstrela,
@@ -175,30 +177,31 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
 
   try {
     const tarefas = [
-      () => rodarComProtecao('Fernandópolis', buscarFernandopolis),
-      () => rodarComProtecao('Jales', buscarJales),
-      () => rodarComProtecao('Macedônia', buscarMacedonia),
-      () => rodarComProtecao("Estrela d'Oeste", buscarEstrela),
+      // () => rodarComProtecao('Fernandópolis', buscarFernandopolis),
+      // () => rodarComProtecao('Jales', buscarJales),
+      // () => rodarComProtecao('Macedônia', buscarMacedonia),
+      // () => rodarComProtecao("Estrela d'Oeste", buscarEstrela),
       () => rodarComProtecao("Guarani d'Oeste", buscarGuaraniDOeste),
       () => rodarComProtecao('Meridiano', buscarMeridiano),
-      () => rodarComProtecao('São João das Duas Pontes', buscarSaoJoao),
-      () => rodarComProtecao('Pedranópolis', buscarPedranopolis),
-      () => rodarComProtecao('Votuporanga', buscarVotuporanga),
-      () => rodarComProtecao('Ouroeste', buscarOuroeste),
-      () => rodarComProtecao('Mira Estrela', buscarMiraEstrela),
-      () => rodarComProtecao('Indiaporã', buscarIndiapora),
-      () => rodarComProtecao('Álvares Florence', buscarAlvaresFlorence),
-      () => rodarComProtecao('Parisi', buscarParisi),
-      () => rodarComProtecao('Valentim Gentil', buscarValentimGentil),
-      () => rodarComProtecao('Vitória Brasil', buscarVitoriaBrasil),
-      () => rodarComProtecao('Urânia', buscarUrania),
-      () => rodarComProtecao('Dolcinópolis', buscarDolcinopolis),
-      () => rodarComProtecao('Pontalinda', buscarPontalinda),
-      () => rodarComProtecao('Santa Salete', buscarSantaSalete)
+      () => rodarComProtecao('Meridiano (Câmara)', buscarCamaraMeridiano),
+      // () => rodarComProtecao('São João das Duas Pontes', buscarSaoJoao),
+      // () => rodarComProtecao('Pedranópolis', buscarPedranopolis),
+      // () => rodarComProtecao('Votuporanga', buscarVotuporanga),
+      // () => rodarComProtecao('Ouroeste', buscarOuroeste),
+      // () => rodarComProtecao('Mira Estrela', buscarMiraEstrela),
+      // () => rodarComProtecao('Indiaporã', buscarIndiapora),
+      // () => rodarComProtecao('Álvares Florence', buscarAlvaresFlorence),
+      // () => rodarComProtecao('Parisi', buscarParisi),
+      // () => rodarComProtecao('Valentim Gentil', buscarValentimGentil),
+      // () => rodarComProtecao('Vitória Brasil', buscarVitoriaBrasil),
+      // () => rodarComProtecao('Urânia', buscarUrania),
+      // () => rodarComProtecao('Dolcinópolis', buscarDolcinopolis),
+      // () => rodarComProtecao('Pontalinda', buscarPontalinda),
+      // () => rodarComProtecao('Santa Salete', buscarSantaSalete)
     ];
 
     const promessas: any[] = [];
-    
+
     // Executa em lotes de 4 para evitar sobrecarga de Sockets e evitar timeout
     for (let i = 0; i < tarefas.length; i += 4) {
       const lote = tarefas.slice(i, i + 4);
