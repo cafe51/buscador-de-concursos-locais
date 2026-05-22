@@ -115,6 +115,8 @@ export async function extrairDataDoArquivo(url: string): Promise<{ formatada: st
   let maiorTimestamp = 0;
   let dataMaisRecente = '';
 
+  const dataLimite = new Date().getTime() + 86400000; // Hoje + 1 dia de margem de segurança
+
   while ((match = regexExtenso.exec(textoExtraido)) !== null) {
     const dia = match[1].padStart(2, '0');
     const mesTexto = match[2].toLowerCase();
@@ -123,7 +125,7 @@ export async function extrairDataDoArquivo(url: string): Promise<{ formatada: st
     const mesNumero = MESES[mesTexto];
     if (mesNumero) {
       const timestampAtual = new Date(`${ano}-${mesNumero}-${dia}T00:00:00`).getTime();
-      if (timestampAtual > maiorTimestamp) {
+      if (timestampAtual > maiorTimestamp && timestampAtual <= dataLimite) {
         maiorTimestamp = timestampAtual;
         dataMaisRecente = `${dia}/${mesNumero}/${ano}`;
       }
@@ -136,7 +138,7 @@ export async function extrairDataDoArquivo(url: string): Promise<{ formatada: st
     const ano = match[3];
 
     const timestampAtual = new Date(`${ano}-${mesNumero}-${dia}T00:00:00`).getTime();
-    if (timestampAtual > maiorTimestamp) {
+    if (timestampAtual > maiorTimestamp && timestampAtual <= dataLimite) {
       maiorTimestamp = timestampAtual;
       dataMaisRecente = `${dia}/${mesNumero}/${ano}`;
     }

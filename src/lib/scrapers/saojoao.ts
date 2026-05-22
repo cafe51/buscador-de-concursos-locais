@@ -114,22 +114,26 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
           timestamp: new Date(`${itemAno.ano}-01-01T00:00:00`).getTime()
         };
 
-        for (const item of itensBrutos) {
-          let dataFinal = 'sem data';
-          let timestampFinal = 0;
-
+        // Passada 1: Propagação de baixo para cima (do mais antigo para o mais novo)
+        // Como o site normalmente exibe do mais novo (topo) pro mais antigo (fundo),
+        // iterar de baixo pra cima permite que um item sem data herde a data do item anterior a ele no tempo.
+        for (let i = itensBrutos.length - 1; i >= 0; i--) {
+          const item = itensBrutos[i];
           if (item.dataAchadaNoHtml) {
-            dataFinal = item.dataFormatadaHtml;
-            timestampFinal = item.dataTimestampHtml;
-            dataFallback = { formatada: dataFinal, timestamp: timestampFinal };
+            item.dataFinalResolvida = { formatada: item.dataFormatadaHtml, timestamp: item.dataTimestampHtml };
+            dataFallback = item.dataFinalResolvida;
           } else if (item.dataPdf) {
-            dataFinal = item.dataPdf.formatada;
-            timestampFinal = item.dataPdf.timestamp;
-            dataFallback = item.dataPdf;
+            item.dataFinalResolvida = item.dataPdf;
+            dataFallback = item.dataFinalResolvida;
           } else {
-            dataFinal = dataFallback.formatada;
-            timestampFinal = dataFallback.timestamp;
+            item.dataFinalResolvida = { ...dataFallback }; 
           }
+        }
+
+        // Passada 2: Inserção dos resultados com ordenação de horário sintético
+        for (const item of itensBrutos) {
+          let dataFinal = item.dataFinalResolvida.formatada;
+          let timestampFinal = item.dataFinalResolvida.timestamp;
 
           // ==============================================================
           // ⏱️ LÓGICA DE ORDENAÇÃO INTUITIVA (Horário Sintético)
