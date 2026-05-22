@@ -18,6 +18,8 @@ import { buscarUrania } from '../lib/scrapers/urania';
 import { buscarDolcinopolis } from '../lib/scrapers/dolcinopolis';
 
 import { buscarMiraEstrela } from '../lib/scrapers/miraestrela';
+import { buscarCamaraMiraEstrela } from '../lib/scrapers/camaras/miraestrela';
+
 import { buscarIndiapora } from '../lib/scrapers/indiapora';
 import { buscarAlvaresFlorence } from '../lib/scrapers/alvaresflorence';
 
@@ -62,6 +64,7 @@ const MAPA_SCRAPERS: Record<string, () => Promise<Edital[]>> = {
   'São João das Duas Pontes': buscarSaoJoao,
   'Pedranópolis': buscarPedranopolis,
   'Mira Estrela': buscarMiraEstrela,
+  'Mira Estrela (Câmara)': buscarCamaraMiraEstrela,
   'Indiaporã': buscarIndiapora,
   'Álvares Florence': buscarAlvaresFlorence,
   'Parisi': buscarParisi,
@@ -191,7 +194,8 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
       // () => rodarComProtecao('Pedranópolis', buscarPedranopolis),
       // () => rodarComProtecao('Votuporanga', buscarVotuporanga),
       // () => rodarComProtecao('Ouroeste', buscarOuroeste),
-      // () => rodarComProtecao('Mira Estrela', buscarMiraEstrela),
+      () => rodarComProtecao('Mira Estrela', buscarMiraEstrela),
+      () => rodarComProtecao('Mira Estrela (Câmara)', buscarCamaraMiraEstrela),
       // () => rodarComProtecao('Indiaporã', buscarIndiapora),
       // () => rodarComProtecao('Álvares Florence', buscarAlvaresFlorence),
       () => rodarComProtecao('Parisi', buscarParisi),
