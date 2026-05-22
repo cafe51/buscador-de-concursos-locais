@@ -32,7 +32,7 @@ const TODAS_CIDADES = [
   "Estrela d'Oeste", 'Meridiano', 'São João das Duas Pontes', 'Pedranópolis',
   'Mira Estrela', 'Indiaporã', 'Álvares Florence', 'Parisi', 'Valentim Gentil',
   'Vitória Brasil', "Guarani d'Oeste", 'Urânia', 'Dolcinópolis', 'Pontalinda', 'Santa Salete',
-  'Meridiano (Câmara)'
+  'Meridiano (Câmara)', 'Parisi (Câmara)'
 ].sort();
 
 export default function Home() {
@@ -50,8 +50,6 @@ export default function Home() {
 
   const [filtroAno, setFiltroAno] = useState<number | 'todos'>('todos');
   const [filtroCidade, setFiltroCidade] = useState<string | 'todas'>('todas');
-
-  // 🚀 NOVO: Estado do Órgão
   const [filtroOrgao, setFiltroOrgao] = useState<string | 'todos'>('todos');
 
   const [paginaAtual, setPaginaAtual] = useState(1);
@@ -81,7 +79,6 @@ export default function Home() {
     }
   }, []);
 
-  // 🚀 Adicionado o filtroOrgao nas dependências do reset de página
   useEffect(() => {
     setPaginaAtual(1);
     if (modoVisualizacao === 'agrupado') setConcursoSelecionado(null);
@@ -91,14 +88,12 @@ export default function Home() {
     return Array.from(new Set(editais.map(e => e.cidade))).sort();
   }, [editais]);
 
-  // 🚀 NOVO: Puxa todos os Órgãos disponíveis no banco de dados da tela
   const orgaosDisponiveis = useMemo(() => {
     return Array.from(new Set(editais.map(e => e.orgao))).filter(Boolean).sort();
   }, [editais]);
 
   const editaisFiltrados = useMemo(() => {
     return editais.filter((edital) => {
-      // 🚀 Aplicando o Filtro Triplo de Segurança
       if (filtroAno !== 'todos' && edital.ano !== filtroAno) return false;
       if (filtroCidade !== 'todas' && edital.cidade !== filtroCidade) return false;
       if (filtroOrgao !== 'todos' && edital.orgao !== filtroOrgao) return false;
@@ -167,9 +162,20 @@ export default function Home() {
   const indexInicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
   const editaisDaPaginaLista = editaisFiltrados.slice(indexInicio, indexInicio + ITENS_POR_PAGINA);
 
+  // ==============================================================
+  // 🚀 A MÁGICA DA RENDERIZAÇÃO INSTANTÂNEA
+  // ==============================================================
   function handleUpdateCityData(cidadeAlvo: string, novosEditais: Edital[]) {
     setEditais((prev) => {
-      const dadosOutrasCidades = prev.filter(e => e.cidade !== cidadeAlvo);
+      // 1. Identifica se a atualização é de Câmara ou Prefeitura
+      const isCamara = cidadeAlvo.includes('(Câmara)');
+      const cidadeReal = cidadeAlvo.replace(' (Câmara)', '').trim();
+      const orgaoReal = isCamara ? 'Câmara Municipal' : 'Prefeitura';
+
+      // 2. Apaga TODOS os dados velhos especificamente deste Órgão e desta Cidade
+      const dadosOutrasCidades = prev.filter(e => !(e.cidade === cidadeReal && e.orgao === orgaoReal));
+
+      // 3. Insere os dados frescos no lugar
       const novaLista = [...dadosOutrasCidades, ...novosEditais];
       novaLista.sort((a, b) => {
         if (b.dataTimestamp !== a.dataTimestamp) return b.dataTimestamp - a.dataTimestamp;
@@ -177,6 +183,9 @@ export default function Home() {
       });
       return novaLista;
     });
+
+    // 4. Se o usuário estiver com a pasta aberta, fecha ela para mostrar as pastas recém-desenhadas!
+    setConcursoSelecionado(null);
   }
 
   return (
@@ -206,7 +215,7 @@ export default function Home() {
           modoVisualizacao={modoVisualizacao} setModoVisualizacao={setModoVisualizacao}
           onClearSelection={() => setConcursoSelecionado(null)}
           filtroCidade={filtroCidade} setFiltroCidade={setFiltroCidade} cidadesDisponiveis={cidadesDisponiveis}
-          filtroOrgao={filtroOrgao} setFiltroOrgao={setFiltroOrgao} orgaosDisponiveis={orgaosDisponiveis} // 🚀 PASSANDO OS PROPS
+          filtroOrgao={filtroOrgao} setFiltroOrgao={setFiltroOrgao} orgaosDisponiveis={orgaosDisponiveis}
           filtroAno={filtroAno} setFiltroAno={setFiltroAno} anosDisponiveis={anosDisponiveis}
         />
 

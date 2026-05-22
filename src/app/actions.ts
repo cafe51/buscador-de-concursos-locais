@@ -22,6 +22,8 @@ import { buscarIndiapora } from '../lib/scrapers/indiapora';
 import { buscarAlvaresFlorence } from '../lib/scrapers/alvaresflorence';
 
 import { buscarParisi } from '../lib/scrapers/parisi';
+import { buscarCamaraParisi } from '../lib/scrapers/camaras/parisi';
+
 import { buscarValentimGentil } from '../lib/scrapers/valentimgentil';
 import { buscarVitoriaBrasil } from '../lib/scrapers/vitoriabrasil';
 
@@ -63,6 +65,7 @@ const MAPA_SCRAPERS: Record<string, () => Promise<Edital[]>> = {
   'Indiaporã': buscarIndiapora,
   'Álvares Florence': buscarAlvaresFlorence,
   'Parisi': buscarParisi,
+  'Parisi (Câmara)': buscarCamaraParisi,
   'Valentim Gentil': buscarValentimGentil,
   'Vitória Brasil': buscarVitoriaBrasil,
   "Guarani d'Oeste": buscarGuaraniDOeste,
@@ -191,7 +194,8 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
       // () => rodarComProtecao('Mira Estrela', buscarMiraEstrela),
       // () => rodarComProtecao('Indiaporã', buscarIndiapora),
       // () => rodarComProtecao('Álvares Florence', buscarAlvaresFlorence),
-      // () => rodarComProtecao('Parisi', buscarParisi),
+      () => rodarComProtecao('Parisi', buscarParisi),
+      () => rodarComProtecao('Parisi (Câmara)', buscarCamaraParisi)
       // () => rodarComProtecao('Valentim Gentil', buscarValentimGentil),
       // () => rodarComProtecao('Vitória Brasil', buscarVitoriaBrasil),
       // () => rodarComProtecao('Urânia', buscarUrania),
