@@ -1,0 +1,154 @@
+// src/components/DevToolsPanel.tsx
+'use client'
+import { useState } from 'react';
+import {
+  auditarQuantidadesInstar,
+  extrairDadosRawInstar,
+  buscarEditaisPorCidade,
+  Discrepancia
+} from '../app/actions';
+import { Edital } from '../types';
+
+type DevToolsProps = {
+  todasCidades: string[];
+  concursosAgrupados: any[];
+  onUpdateCityData: (cidade: string, novosEditais: Edital[]) => void;
+};
+
+export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpdateCityData }: DevToolsProps) {
+  const [auditando, setAuditando] = useState(false);
+  const [resultadoAuditoria, setResultadoAuditoria] = useState<Discrepancia[] | null>(null);
+
+  const [urlRaw, setUrlRaw] = useState('');
+  const [isRawScraping, setIsRawScraping] = useState(false);
+
+  const [cidadeAlvoDev, setCidadeAlvoDev] = useState<string>(todasCidades[0]);
+  const [isRefreshingCity, setIsRefreshingCity] = useState(false);
+
+  async function rodarAuditoria() {
+    setAuditando(true);
+    setResultadoAuditoria(null);
+    const payload = concursosAgrupados
+      .filter(g => g.linksOrigem && g.linksOrigem.length > 0)
+      .map(g => ({
+        nome: g.nome,
+        cidade: g.cidade,
+        linksOrigem: g.linksOrigem,
+        qtdNossa: g.totalItens,
+        temRestricao: g.itens.some((item: Edital) => item.titulo.includes('Acesso Restrito'))
+      }));
+    const discrepancias = await auditarQuantidadesInstar(payload);
+    setResultadoAuditoria(discrepancias);
+    setAuditando(false);
+  }
+
+  async function rodarRawScraper() {
+    if (!urlRaw) return;
+    setIsRawScraping(true);
+    try {
+      const dados = await extrairDadosRawInstar(urlRaw);
+      const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
+      const urlBlob = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = urlBlob;
+      link.download = `raio-x-instar-${Date.now()}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(urlBlob);
+    } catch (e) {
+      alert("Falha ao rodar o Raw Scraper. Verifique a URL.");
+    }
+    setIsRawScraping(false);
+  }
+
+  async function rodarAtualizacaoIndividual() {
+    if (!cidadeAlvoDev) return;
+    setIsRefreshingCity(true);
+    try {
+      const resultado = await buscarEditaisPorCidade(cidadeAlvoDev);
+      if (resultado.falhas.length > 0) {
+        alert(`Falha ao buscar editais de ${cidadeAlvoDev}. Verifique os logs no terminal.`);
+      }
+      onUpdateCityData(cidadeAlvoDev, resultado.editais);
+    } catch (e) {
+      alert("Erro ao executar o scraper da cidade selecionada.");
+    }
+    setIsRefreshingCity(false);
+  }
+
+  if (process.env.NODE_ENV !== 'development') return null;
+
+  return (
+    <div className="fixed bottom-6 right-6 flex flex-col items-end z-50 gap-4">
+      {/* RASPAGEM INDIVIDUAL */}
+      <div className="bg-white border-2 border-green-500 p-4 rounded-lg shadow-xl w-96 animate-fade-in">
+        <h3 className="font-bold text-green-700 mb-2">⚡ Testar Cidade Única</h3>
+        <p className="text-xs text-gray-500 mb-3">Atualiza apenas a cidade selecionada.</p>
+        <select
+          value={cidadeAlvoDev}
+          onChange={(e) => setCidadeAlvoDev(e.target.value)}
+          className="border border-green-200 p-2 w-full text-xs font-bold rounded mb-2 outline-none focus:border-green-600"
+        >
+          {todasCidades.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <button
+          onClick={rodarAtualizacaoIndividual} disabled={isRefreshingCity}
+          className="bg-green-600 text-white w-full py-2 rounded text-sm font-bold disabled:bg-gray-400 hover:bg-green-700 transition-colors"
+        >
+          {isRefreshingCity ? '⏳ Raspando...' : `Atualizar ${cidadeAlvoDev}`}
+        </button>
+      </div>
+
+      {/* RAW SCRAPER */}
+      <div className="bg-white border-2 border-purple-500 p-4 rounded-lg shadow-xl w-96 animate-fade-in">
+        <h3 className="font-bold text-purple-700 mb-2">🛠️ Raio-X Instar (Raw)</h3>
+        <input
+          type="text"
+          placeholder="Ex: https://.../numero-ano-processo-decrescente/0"
+          value={urlRaw} onChange={(e) => setUrlRaw(e.target.value)}
+          className="border border-purple-200 p-2 w-full text-xs rounded mb-2 outline-none focus:border-purple-600"
+        />
+        <button
+          onClick={rodarRawScraper} disabled={isRawScraping || !urlRaw}
+          className="bg-purple-600 text-white w-full py-2 rounded text-sm font-bold disabled:bg-gray-400 hover:bg-purple-700 transition-colors"
+        >
+          {isRawScraping ? '⏳ Extraindo...' : 'Extrair JSON'}
+        </button>
+      </div>
+
+      {/* AUDITOR */}
+      <div className="flex flex-col items-end">
+        {resultadoAuditoria && (
+          <div className="bg-white border-2 border-red-500 p-4 rounded-lg shadow-xl mb-4 w-96 max-h-[50vh] overflow-y-auto animate-fade-in">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-red-700">🕵️ Relatório</h3>
+              <button onClick={() => setResultadoAuditoria(null)} className="text-gray-400 hover:text-black">✖</button>
+            </div>
+            {resultadoAuditoria.length === 0 ? (
+              <p className="text-sm text-green-600 font-bold">Tudo perfeito!</p>
+            ) : (
+              <div className="space-y-4">
+                {resultadoAuditoria.map((disc, idx) => (
+                  <div key={idx} className="bg-red-50 p-3 rounded border border-red-100 text-sm">
+                    <p className="font-bold text-red-900">{disc.cidade} - {disc.concurso}</p>
+                    <div className="flex justify-between mt-2 font-medium">
+                      <span className="text-green-700">Nós: {disc.qtdNossa}</span>
+                      <span className="text-blue-700">Site: {disc.qtdSite}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        <button
+          onClick={rodarAuditoria} disabled={auditando || concursosAgrupados.length === 0}
+          className={`px-4 py-3 rounded-full font-bold shadow-lg flex items-center gap-2 transition-all ${auditando ? 'bg-gray-300 text-gray-600' : 'bg-black text-white hover:bg-gray-800 hover:-translate-y-1'}`}
+        >
+          {auditando ? '⏳ Auditando...' : '🕵️ Auditar Instar'}
+        </button>
+      </div>
+    </div>
+  );
+}
