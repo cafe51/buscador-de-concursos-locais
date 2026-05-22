@@ -22,6 +22,7 @@ type PastaExtraida = {
 export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> {
   const resultados: Edital[] = [];
   const pastasExtraidas: PastaExtraida[] = [];
+  let falhasDeConexao = 0;
 
   const orgao = config.orgao || 'Prefeitura';
   const basePath = config.basePath || '/portal/editais/1/3/0/0/0/0/0/0/';
@@ -47,8 +48,12 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
       const respostas = await Promise.all(lote.map(async (url) => {
         try {
           const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
+          if (!res.ok) falhasDeConexao++;
           return res.ok ? await res.text() : '';
-        } catch { return ''; }
+        } catch {
+          falhasDeConexao++;
+          return '';
+        }
       }));
       htmlsCategorias.push(...respostas);
     }
@@ -161,7 +166,10 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
       await Promise.all(lote.map(async (concurso) => {
         try {
           const resInner = await fetch(concurso.linkCompleto, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
-          if (!resInner.ok) return;
+          if (!resInner.ok) {
+            falhasDeConexao++;
+            return;
+          }
 
           const htmlInner = await resInner.text();
           const $inner = cheerio.load(htmlInner);
@@ -279,7 +287,7 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
           });
 
         } catch (e) {
-          console.error(`Erro ao raspar a página interna de ${config.cidade}: ${concurso.linkCompleto}`, e);
+          falhasDeConexao++;
         }
       }));
     }
@@ -334,8 +342,19 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
       }
     }
 
-  } catch (e) {
-    console.error(`Erro geral ao buscar via InstarBase (${config.cidade})`, e);
+    if (falhasDeConexao > 0) {
+      if (resultados.length === 0) {
+        throw new Error(`Falha de conexão em ${falhasDeConexao} requisições`);
+      } else {
+        throw Object.assign(new Error(`Conexão instável (${falhasDeConexao} falhas)`), { dadosParciais: resultados });
+      }
+    }
+
+  } catch (e: any) {
+    if (e.dadosParciais || falhasDeConexao > 0) {
+      throw e;
+    }
+    throw new Error(`Erro geral no InstarBase: ${e.message}`);
   }
 
   return resultados;

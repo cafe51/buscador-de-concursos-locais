@@ -159,9 +159,7 @@ export async function buscarCamaraVotuporanga(): Promise<Edital[]> {
       });
     });
 
-  } catch (error) {
-    console.error('Erro geral ao buscar Câmara Votuporanga', error);
-  }
+  } catch (error: any) { throw new Error('Erro geral ao buscar Câmara Votuporanga' + ": " + error.message); }
 
   return resultados;
 }

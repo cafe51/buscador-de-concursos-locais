@@ -195,14 +195,10 @@ export async function buscarPontalinda(): Promise<Edital[]> {
 
         });
 
-      } catch (error) {
-        console.error(`Erro ao ler página interna de Pontalinda: ${pasta.linkCompletoPasta}`, error);
-      }
+      } catch (error: any) { throw new Error(`Erro ao ler página interna de Pontalinda: ${pasta.linkCompletoPasta}` + ": " + error.message); }
     }));
 
-  } catch (error) {
-    console.error('Erro geral ao buscar Pontalinda', error);
-  }
+  } catch (error: any) { throw new Error('Erro geral ao buscar Pontalinda' + ": " + error.message); }
 
   return resultados;
 }

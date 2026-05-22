@@ -166,9 +166,7 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
         }
       }
     }
-  } catch (e) {
-    console.error(`Erro geral ao buscar São João das Duas Pontes`, e);
-  }
+  } catch (e: any) { throw new Error(`Erro geral ao buscar São João das Duas Pontes` + ": " + e.message); }
 
   return resultados;
 }

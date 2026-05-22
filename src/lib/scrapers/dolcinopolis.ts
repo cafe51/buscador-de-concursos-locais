@@ -176,14 +176,10 @@ export async function buscarDolcinopolis(): Promise<Edital[]> {
 
         });
 
-      } catch (error) {
-        console.error(`Erro ao ler página interna de Dolcinópolis: ${pasta.linkCompletoPasta}`, error);
-      }
+      } catch (error: any) { throw new Error(`Erro ao ler página interna de Dolcinópolis: ${pasta.linkCompletoPasta}` + ": " + error.message); }
     }));
 
-  } catch (error) {
-    console.error('Erro geral ao buscar Dolcinópolis', error);
-  }
+  } catch (error: any) { throw new Error('Erro geral ao buscar Dolcinópolis' + ": " + error.message); }
 
   return resultados;
 }

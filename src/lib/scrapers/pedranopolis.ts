@@ -156,13 +156,9 @@ export async function buscarPedranopolis(): Promise<Edital[]> {
               });
             }
           }
-        } catch (e) {
-          console.error(`Erro ao raspar ano ${itemAno.ano} de Pedranópolis`, e);
-        }
+        } catch (e: any) { throw new Error(`Erro ao raspar ano ${itemAno.ano} de Pedranópolis` + ": " + e.message); }
       }
-    } catch (e) {
-      console.error(`Erro ao buscar Pedranópolis na url: ${endpoint.url}`, e);
-    }
+    } catch (e: any) { throw new Error(`Erro ao buscar Pedranópolis na url: ${endpoint.url}` + ": " + e.message); }
   }
   return resultados;
 }

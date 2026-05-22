@@ -3,9 +3,9 @@
 
 import * as cheerio from 'cheerio';
 import { Edital } from '../types';
-
 import { buscarFernandopolis } from '../lib/scrapers/fernandopolis';
-
+import { buscarCamaraFernandopolis } from '../lib/scrapers/camaras/fernandopolis'
+  ;
 import { buscarVotuporanga } from '../lib/scrapers/votuporanga';
 import { buscarCamaraVotuporanga } from '../lib/scrapers/camaras/votuporanga';
 
@@ -65,6 +65,7 @@ export type Discrepancia = {
 // ==============================================================
 const MAPA_SCRAPERS: Record<string, () => Promise<Edital[]>> = {
   'Fernandópolis': buscarFernandopolis,
+  'Fernandópolis (Câmara)': buscarCamaraFernandopolis,
   'Votuporanga': buscarVotuporanga,
   'Votuporanga (Câmara)': buscarCamaraVotuporanga,
   'Ouroeste': buscarOuroeste,
@@ -133,12 +134,18 @@ async function rodarComProtecao(nomeCidade: string, funcaoScraper: () => Promise
     }
 
     // Formatação do Log de Falha
-    const tamanhoFixoNome = 30;
+    const tamanhoFixoTempo = 5;
     const nomeFormatado = `[${nomeCidade}]`.padEnd(tamanhoFixoNome, ' ');
+    const tempoFormatado = tempoGasto.padEnd(tamanhoFixoTempo, ' ');
 
-    console.error(`🔴 ${nomeFormatado} FALHOU \t| Tempo: ${tempoGasto}s \t| Motivo: ${motivo}`);
+    if (e.dadosParciais) {
+      console.log(`🟡 ${nomeFormatado} AVISO \t| Tempo: ${tempoFormatado}s \t| Itens extraídos: ${e.dadosParciais.length} \t| Motivo: ${motivo}`);
+      return { sucesso: false, cidade: nomeCidade, dados: e.dadosParciais, motivo };
+    }
 
-    return { sucesso: false, cidade: nomeCidade, dados: [] };
+    console.error(`🔴 ${nomeFormatado} FALHOU \t| Tempo: ${tempoFormatado}s \t| Motivo: ${motivo}`);
+
+    return { sucesso: false, cidade: nomeCidade, dados: [], motivo };
   }
 }
 
@@ -176,7 +183,7 @@ export async function buscarEditaisPorCidade(nomeCidade: string): Promise<Result
 
   return {
     editais: listaLimpa,
-    falhas: resultado.sucesso ? [] : [nomeCidade]
+    falhas: resultado.sucesso ? [] : [`${resultado.cidade} (${resultado.motivo})`]
   };
 }
 
@@ -197,32 +204,33 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
 
   try {
     const tarefas = [
-      // () => rodarComProtecao('Fernandópolis', buscarFernandopolis),
+      () => rodarComProtecao('Fernandópolis', buscarFernandopolis),
+      () => rodarComProtecao('Fernandópolis (Câmara)', buscarCamaraFernandopolis),
       () => rodarComProtecao('Jales', buscarJales),
       () => rodarComProtecao('Câmara Jales', buscarCamaraJales),
-      // () => rodarComProtecao('Macedônia', buscarMacedonia),
-      // () => rodarComProtecao("Estrela d'Oeste", buscarEstrela),
+      () => rodarComProtecao('Macedônia', buscarMacedonia),
+      () => rodarComProtecao("Estrela d'Oeste", buscarEstrela),
       () => rodarComProtecao("Guarani d'Oeste", buscarGuaraniDOeste),
       () => rodarComProtecao('Meridiano', buscarMeridiano),
       () => rodarComProtecao('Meridiano (Câmara)', buscarCamaraMeridiano),
-      // () => rodarComProtecao('São João das Duas Pontes', buscarSaoJoao),
-      // () => rodarComProtecao('Pedranópolis', buscarPedranopolis),
+      () => rodarComProtecao('São João das Duas Pontes', buscarSaoJoao),
+      () => rodarComProtecao('Pedranópolis', buscarPedranopolis),
       () => rodarComProtecao('Votuporanga', buscarVotuporanga),
       () => rodarComProtecao('Votuporanga (Câmara)', buscarCamaraVotuporanga),
-      // () => rodarComProtecao('Ouroeste', buscarOuroeste),
+      () => rodarComProtecao('Ouroeste', buscarOuroeste),
       () => rodarComProtecao('Mira Estrela', buscarMiraEstrela),
       () => rodarComProtecao('Mira Estrela (Câmara)', buscarCamaraMiraEstrela),
       () => rodarComProtecao('Indiaporã', buscarIndiapora),
       () => rodarComProtecao('Indiaporã (Câmara)', buscarCamaraIndiapora),
-      // () => rodarComProtecao('Álvares Florence', buscarAlvaresFlorence),
+      () => rodarComProtecao('Álvares Florence', buscarAlvaresFlorence),
       () => rodarComProtecao('Parisi', buscarParisi),
-      () => rodarComProtecao('Parisi (Câmara)', buscarCamaraParisi)
-      // () => rodarComProtecao('Valentim Gentil', buscarValentimGentil),
-      // () => rodarComProtecao('Vitória Brasil', buscarVitoriaBrasil),
-      // () => rodarComProtecao('Urânia', buscarUrania),
-      // () => rodarComProtecao('Dolcinópolis', buscarDolcinopolis),
-      // () => rodarComProtecao('Pontalinda', buscarPontalinda),
-      // () => rodarComProtecao('Santa Salete', buscarSantaSalete)
+      () => rodarComProtecao('Parisi (Câmara)', buscarCamaraParisi),
+      () => rodarComProtecao('Valentim Gentil', buscarValentimGentil),
+      () => rodarComProtecao('Vitória Brasil', buscarVitoriaBrasil),
+      () => rodarComProtecao('Urânia', buscarUrania),
+      () => rodarComProtecao('Dolcinópolis', buscarDolcinopolis),
+      () => rodarComProtecao('Pontalinda', buscarPontalinda),
+      () => rodarComProtecao('Santa Salete', buscarSantaSalete)
     ];
 
     const promessas: any[] = [];
@@ -238,7 +246,10 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
       if (resultado.sucesso) {
         todosOsEditais = [...todosOsEditais, ...resultado.dados];
       } else {
-        cidadesComFalha.push(resultado.cidade);
+        if (resultado.dados && resultado.dados.length > 0) {
+          todosOsEditais = [...todosOsEditais, ...resultado.dados];
+        }
+        cidadesComFalha.push(`${resultado.cidade} (${resultado.motivo})`);
       }
     });
 

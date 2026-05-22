@@ -103,9 +103,7 @@ export async function buscarUrania(): Promise<Edital[]> {
       });
     }));
 
-  } catch (e) {
-    console.error(`Erro geral ao buscar Urânia`, e);
-  }
+  } catch (e: any) { throw new Error(`Erro geral ao buscar Urânia` + ": " + e.message); }
 
   return resultados;
 }

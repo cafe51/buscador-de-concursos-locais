@@ -161,14 +161,12 @@ export async function buscarSantaSalete(): Promise<Edital[]> {
           }
         });
 
-      } catch (e) {
-        console.error(`Erro ao processar página interna de Santa Salete: ${pasta.linkCompleto}`);
+      } catch (e: any) { throw new Error(`Erro ao processar página interna de Santa Salete: ${pasta.linkCompleto}`);
       }
     }));
 
   } catch (e) {
-    console.error(`Erro geral em Santa Salete`, e);
-  }
+    console.error(`Erro geral em Santa Salete` + ": " + e.message); }
 
   return resultados;
 }

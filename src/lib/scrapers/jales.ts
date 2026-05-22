@@ -218,9 +218,7 @@ export async function buscarJales(): Promise<Edital[]> {
       }
     }
 
-  } catch (e) {
-    console.error(`Erro geral ao buscar Jales`, e);
-  }
+  } catch (e: any) { throw new Error(`Erro geral ao buscar Jales` + ": " + e.message); }
 
   return resultados;
 }

@@ -316,9 +316,7 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
             documentos: docsDaPasta
           });
 
-        } catch (e) {
-          console.error(`Erro ao raspar a página interna de Vitória Brasil: ${concurso.linkCompleto}`, e);
-        }
+        } catch (e: any) { throw new Error(`Erro ao raspar a página interna de Vitória Brasil: ${concurso.linkCompleto}` + ": " + e.message); }
       }));
     }
 
@@ -419,9 +417,7 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
       }
     }
 
-  } catch (e) {
-    console.error(`Erro geral ao buscar Vitória Brasil`, e);
-  }
+  } catch (e: any) { throw new Error(`Erro geral ao buscar Vitória Brasil` + ": " + e.message); }
 
   return resultados;
 }

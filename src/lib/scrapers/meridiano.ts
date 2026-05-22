@@ -189,9 +189,7 @@ export async function buscarMeridiano(): Promise<Edital[]> {
       }
     }
 
-  } catch (e) {
-    console.error('Erro geral ao buscar Meridiano', e);
-  }
+  } catch (e: any) { throw new Error('Erro geral ao buscar Meridiano' + ": " + e.message); }
 
   return resultados;
 }

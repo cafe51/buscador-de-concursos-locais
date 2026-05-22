@@ -32,7 +32,8 @@ const TODAS_CIDADES = [
   "Estrela d'Oeste", 'Meridiano', 'São João das Duas Pontes', 'Pedranópolis',
   'Mira Estrela', 'Indiaporã', 'Álvares Florence', 'Parisi', 'Valentim Gentil',
   'Vitória Brasil', "Guarani d'Oeste", 'Urânia', 'Dolcinópolis', 'Pontalinda', 'Santa Salete',
-  'Meridiano (Câmara)', 'Parisi (Câmara)', 'Mira Estrela (Câmara)', 'Indiaporã (Câmara)', 'Jales (Câmara)', 'Votuporanga (Câmara)'
+  'Meridiano (Câmara)', 'Parisi (Câmara)', 'Mira Estrela (Câmara)', 'Indiaporã (Câmara)', 'Jales (Câmara)',
+  'Votuporanga (Câmara)', 'Fernandópolis (Câmara)'
 ].sort();
 
 export default function Home() {

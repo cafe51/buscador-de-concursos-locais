@@ -166,9 +166,7 @@ export async function buscarCamaraJales(): Promise<Edital[]> {
       });
     }));
 
-  } catch (error) {
-    console.error('Erro geral ao buscar Câmara Jales', error);
-  }
+  } catch (error: any) { throw new Error('Erro geral ao buscar Câmara Jales' + ": " + error.message); }
 
   return resultados;
 }

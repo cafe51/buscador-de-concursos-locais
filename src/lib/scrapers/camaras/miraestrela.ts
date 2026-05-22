@@ -189,9 +189,7 @@ export async function buscarCamaraMiraEstrela(): Promise<Edital[]> {
       }
     }));
 
-  } catch (e) {
-    console.error(`Erro geral ao buscar Câmara de Mira Estrela`, e);
-  }
+  } catch (e: any) { throw new Error(`Erro geral ao buscar Câmara de Mira Estrela` + ": " + e.message); }
 
   return resultados;
 }

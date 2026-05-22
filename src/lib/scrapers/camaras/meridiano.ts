@@ -105,14 +105,12 @@ export async function buscarCamaraMeridiano(): Promise<Edital[]> {
           ordemOriginal: ordemGlobal,
           linkOrigem: urlLista
         });
-      } catch (e) {
-        console.error(`Erro ao buscar detalhes da Câmara Meridiano: ${item.linkInner}`);
+      } catch (e: any) { throw new Error(`Erro ao buscar detalhes da Câmara Meridiano: ${item.linkInner}`);
       }
     }));
 
   } catch (e) {
-    console.error('Erro geral ao buscar Câmara Meridiano', e);
-  }
+    console.error('Erro geral ao buscar Câmara Meridiano' + ": " + e.message); }
 
   return resultados;
 }

@@ -121,14 +121,10 @@ export async function buscarCamaraParisi(): Promise<Edital[]> {
           });
         });
 
-      } catch (error) {
-        console.error(`Erro ao ler o feed interno da Câmara Parisi: ${feedUrl}`, error);
-      }
+      } catch (error: any) { throw new Error(`Erro ao ler o feed interno da Câmara Parisi: ${feedUrl}` + ": " + error.message); }
     }));
 
-  } catch (error) {
-    console.error('Erro geral ao buscar Câmara Parisi', error);
-  }
+  } catch (error: any) { throw new Error('Erro geral ao buscar Câmara Parisi' + ": " + error.message); }
 
   return resultados;
 }

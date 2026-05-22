@@ -194,14 +194,10 @@ export async function buscarCamaraIndiapora(): Promise<Edital[]> {
           });
         });
 
-      } catch (error) {
-        console.error(`Erro ao ler página interna da Câmara de Indiaporã: ${pasta.linkCompletoPasta}`, error);
-      }
+      } catch (error: any) { throw new Error(`Erro ao ler página interna da Câmara de Indiaporã: ${pasta.linkCompletoPasta}` + ": " + error.message); }
     }));
 
-  } catch (error) {
-    console.error('Erro geral ao buscar Câmara Indiaporã', error);
-  }
+  } catch (error: any) { throw new Error('Erro geral ao buscar Câmara Indiaporã' + ": " + error.message); }
 
   return resultados;
 }
