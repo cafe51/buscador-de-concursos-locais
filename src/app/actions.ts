@@ -5,16 +5,23 @@ import * as cheerio from 'cheerio';
 import { Edital } from '../types';
 
 import { buscarFernandopolis } from '../lib/scrapers/fernandopolis';
+
 import { buscarVotuporanga } from '../lib/scrapers/votuporanga';
+import { buscarCamaraVotuporanga } from '../lib/scrapers/camaras/votuporanga';
+
 import { buscarOuroeste } from '../lib/scrapers/ouroeste';
 import { buscarMacedonia } from '../lib/scrapers/macedonia';
 import { buscarPedranopolis } from '../lib/scrapers/pedranopolis';
 import { buscarEstrela } from '../lib/scrapers/estrela';
+
 import { buscarMeridiano } from '../lib/scrapers/meridiano';
 import { buscarCamaraMeridiano } from '../lib/scrapers/camaras/meridiano';
+
 import { buscarSaoJoao } from '../lib/scrapers/saojoao';
+
 import { buscarJales } from '../lib/scrapers/jales';
 import { buscarCamaraJales } from '../lib/scrapers/camaras/jales';
+
 import { buscarUrania } from '../lib/scrapers/urania';
 import { buscarDolcinopolis } from '../lib/scrapers/dolcinopolis';
 
@@ -34,6 +41,7 @@ import { buscarVitoriaBrasil } from '../lib/scrapers/vitoriabrasil';
 
 import { buscarGuaraniDOeste } from '../lib/scrapers/guaranidoeste';
 import { buscarPontalinda } from '../lib/scrapers/pontalinda';
+
 import { buscarSantaSalete } from '../lib/scrapers/santasalete';
 
 import { urlsParaBlacklist } from '../lib/docParser';
@@ -58,6 +66,7 @@ export type Discrepancia = {
 const MAPA_SCRAPERS: Record<string, () => Promise<Edital[]>> = {
   'Fernandópolis': buscarFernandopolis,
   'Votuporanga': buscarVotuporanga,
+  'Votuporanga (Câmara)': buscarCamaraVotuporanga,
   'Ouroeste': buscarOuroeste,
   'Jales': buscarJales,
   'Jales (Câmara)': buscarCamaraJales,
@@ -198,7 +207,8 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
       () => rodarComProtecao('Meridiano (Câmara)', buscarCamaraMeridiano),
       // () => rodarComProtecao('São João das Duas Pontes', buscarSaoJoao),
       // () => rodarComProtecao('Pedranópolis', buscarPedranopolis),
-      // () => rodarComProtecao('Votuporanga', buscarVotuporanga),
+      () => rodarComProtecao('Votuporanga', buscarVotuporanga),
+      () => rodarComProtecao('Votuporanga (Câmara)', buscarCamaraVotuporanga),
       // () => rodarComProtecao('Ouroeste', buscarOuroeste),
       () => rodarComProtecao('Mira Estrela', buscarMiraEstrela),
       () => rodarComProtecao('Mira Estrela (Câmara)', buscarCamaraMiraEstrela),
