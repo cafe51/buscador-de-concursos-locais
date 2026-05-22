@@ -26,6 +26,7 @@ import { buscarVitoriaBrasil } from '../lib/scrapers/vitoriabrasil';
 
 import { buscarGuaraniDOeste } from '../lib/scrapers/guaranidoeste';
 import { buscarPontalinda } from '../lib/scrapers/pontalinda';
+import { buscarSantaSalete } from '../lib/scrapers/santasalete';
 
 import { urlsParaBlacklist } from '../lib/docParser';
 
@@ -66,6 +67,7 @@ const MAPA_SCRAPERS: Record<string, () => Promise<Edital[]>> = {
   'Urânia': buscarUrania,
   'Dolcinópolis': buscarDolcinopolis,
   'Pontalinda': buscarPontalinda,
+  'Santa Salete': buscarSantaSalete,
 };
 
 // ==============================================================
@@ -172,32 +174,37 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
   const tempoInicioTotal = performance.now();
 
   try {
-    const promessas = await Promise.all([
-      // rodarComProtecao('Fernandópolis', buscarFernandopolis),
+    const tarefas = [
+      () => rodarComProtecao('Fernandópolis', buscarFernandopolis),
+      () => rodarComProtecao('Jales', buscarJales),
+      () => rodarComProtecao('Macedônia', buscarMacedonia),
+      () => rodarComProtecao("Estrela d'Oeste", buscarEstrela),
+      () => rodarComProtecao("Guarani d'Oeste", buscarGuaraniDOeste),
+      () => rodarComProtecao('Meridiano', buscarMeridiano),
+      () => rodarComProtecao('São João das Duas Pontes', buscarSaoJoao),
+      () => rodarComProtecao('Pedranópolis', buscarPedranopolis),
+      () => rodarComProtecao('Votuporanga', buscarVotuporanga),
+      () => rodarComProtecao('Ouroeste', buscarOuroeste),
+      () => rodarComProtecao('Mira Estrela', buscarMiraEstrela),
+      () => rodarComProtecao('Indiaporã', buscarIndiapora),
+      () => rodarComProtecao('Álvares Florence', buscarAlvaresFlorence),
+      () => rodarComProtecao('Parisi', buscarParisi),
+      () => rodarComProtecao('Valentim Gentil', buscarValentimGentil),
+      () => rodarComProtecao('Vitória Brasil', buscarVitoriaBrasil),
+      () => rodarComProtecao('Urânia', buscarUrania),
+      () => rodarComProtecao('Dolcinópolis', buscarDolcinopolis),
+      () => rodarComProtecao('Pontalinda', buscarPontalinda),
+      () => rodarComProtecao('Santa Salete', buscarSantaSalete)
+    ];
 
-
-      // rodarComProtecao('Jales', buscarJales),
-      // rodarComProtecao('Macedônia', buscarMacedonia),
-
-      // rodarComProtecao("Estrela d'Oeste", buscarEstrela),
-      // rodarComProtecao("Guarani d'Oeste", buscarGuaraniDOeste),
-
-      // rodarComProtecao('Meridiano', buscarMeridiano),
-      // rodarComProtecao('São João das Duas Pontes', buscarSaoJoao),
-      // rodarComProtecao('Pedranópolis', buscarPedranopolis),
-
-      // rodarComProtecao('Votuporanga', buscarVotuporanga),
-      // rodarComProtecao('Ouroeste', buscarOuroeste),
-      // rodarComProtecao('Mira Estrela', buscarMiraEstrela),
-      // rodarComProtecao('Indiaporã', buscarIndiapora),
-      // rodarComProtecao('Álvares Florence', buscarAlvaresFlorence),
-      // rodarComProtecao('Parisi', buscarParisi),
-      // rodarComProtecao('Valentim Gentil', buscarValentimGentil),
-      // rodarComProtecao('Vitória Brasil', buscarVitoriaBrasil),
-      // rodarComProtecao('Urânia', buscarUrania),
-      // rodarComProtecao('Dolcinópolis', buscarDolcinopolis),
-      rodarComProtecao('Pontalinda', buscarPontalinda),
-    ]);
+    const promessas: any[] = [];
+    
+    // Executa em lotes de 4 para evitar sobrecarga de Sockets e evitar timeout
+    for (let i = 0; i < tarefas.length; i += 4) {
+      const lote = tarefas.slice(i, i + 4);
+      const resultadosLote = await Promise.all(lote.map(t => t()));
+      promessas.push(...resultadosLote);
+    }
 
     promessas.forEach((resultado) => {
       if (resultado.sucesso) {
@@ -246,7 +253,7 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
     };
 
   } catch (e: any) {
-    throw new Error('Erro grave ao processar as buscas.');
+    console.error("ERRO GRAVE NA BUSCA:", e); throw new Error("Erro grave ao processar as buscas.");
   }
 }
 
