@@ -14,6 +14,7 @@ import { buscarMeridiano } from '../lib/scrapers/meridiano';
 import { buscarCamaraMeridiano } from '../lib/scrapers/camaras/meridiano';
 import { buscarSaoJoao } from '../lib/scrapers/saojoao';
 import { buscarJales } from '../lib/scrapers/jales';
+import { buscarCamaraJales } from '../lib/scrapers/camaras/jales';
 import { buscarUrania } from '../lib/scrapers/urania';
 import { buscarDolcinopolis } from '../lib/scrapers/dolcinopolis';
 
@@ -59,6 +60,7 @@ const MAPA_SCRAPERS: Record<string, () => Promise<Edital[]>> = {
   'Votuporanga': buscarVotuporanga,
   'Ouroeste': buscarOuroeste,
   'Jales': buscarJales,
+  'Jales (Câmara)': buscarCamaraJales,
   'Macedônia': buscarMacedonia,
   "Estrela d'Oeste": buscarEstrela,
   'Meridiano': buscarMeridiano,
@@ -187,7 +189,8 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
   try {
     const tarefas = [
       // () => rodarComProtecao('Fernandópolis', buscarFernandopolis),
-      // () => rodarComProtecao('Jales', buscarJales),
+      () => rodarComProtecao('Jales', buscarJales),
+      () => rodarComProtecao('Câmara Jales', buscarCamaraJales),
       // () => rodarComProtecao('Macedônia', buscarMacedonia),
       // () => rodarComProtecao("Estrela d'Oeste", buscarEstrela),
       () => rodarComProtecao("Guarani d'Oeste", buscarGuaraniDOeste),
