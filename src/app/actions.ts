@@ -21,6 +21,8 @@ import { buscarMiraEstrela } from '../lib/scrapers/miraestrela';
 import { buscarCamaraMiraEstrela } from '../lib/scrapers/camaras/miraestrela';
 
 import { buscarIndiapora } from '../lib/scrapers/indiapora';
+import { buscarCamaraIndiapora } from '../lib/scrapers/camaras/indiapora';
+
 import { buscarAlvaresFlorence } from '../lib/scrapers/alvaresflorence';
 
 import { buscarParisi } from '../lib/scrapers/parisi';
@@ -66,6 +68,7 @@ const MAPA_SCRAPERS: Record<string, () => Promise<Edital[]>> = {
   'Mira Estrela': buscarMiraEstrela,
   'Mira Estrela (Câmara)': buscarCamaraMiraEstrela,
   'Indiaporã': buscarIndiapora,
+  'Indiaporã (Câmara)': buscarCamaraIndiapora,
   'Álvares Florence': buscarAlvaresFlorence,
   'Parisi': buscarParisi,
   'Parisi (Câmara)': buscarCamaraParisi,
@@ -196,7 +199,8 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
       // () => rodarComProtecao('Ouroeste', buscarOuroeste),
       () => rodarComProtecao('Mira Estrela', buscarMiraEstrela),
       () => rodarComProtecao('Mira Estrela (Câmara)', buscarCamaraMiraEstrela),
-      // () => rodarComProtecao('Indiaporã', buscarIndiapora),
+      () => rodarComProtecao('Indiaporã', buscarIndiapora),
+      () => rodarComProtecao('Indiaporã (Câmara)', buscarCamaraIndiapora),
       // () => rodarComProtecao('Álvares Florence', buscarAlvaresFlorence),
       () => rodarComProtecao('Parisi', buscarParisi),
       () => rodarComProtecao('Parisi (Câmara)', buscarCamaraParisi)
