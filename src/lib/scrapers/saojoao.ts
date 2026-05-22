@@ -18,7 +18,11 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
   try {
     const htmlsCategorias = await Promise.all(endpoints.map(async (ep) => {
       try {
-        const res = await fetch(ep.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
+        const res = await fetch(ep.url, { headers: { 
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+        }, cache: 'no-store' });
         return res.ok ? await res.text() : '';
       } catch { return ''; }
     }));
@@ -43,7 +47,11 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
 
     const paginasAnosBaixadas = await Promise.all(linksAnosUnicos.map(async (item) => {
       try {
-        const res = await fetch(item.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
+        const res = await fetch(item.url, { headers: { 
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+        }, cache: 'no-store' });
         return { ...item, html: res.ok ? await res.text() : '' };
       } catch { return { ...item, html: '' }; }
     }));

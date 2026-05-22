@@ -20,7 +20,11 @@ export async function buscarDolcinopolis(): Promise<Edital[]> {
 
       const urlLista = pagina === 1 ? `${baseUrl}${basePath}` : `${baseUrl}${basePath}?pagina=${pagina}`;
 
-      const res = await fetch(urlLista, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
+      const res = await fetch(urlLista, { headers: { 
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+        }, cache: 'no-store' });
       if (!res.ok) {
         chegouNoFim = true;
         break;
@@ -82,7 +86,11 @@ export async function buscarDolcinopolis(): Promise<Edital[]> {
     // 2. PROCESSAR PÁGINAS INTERNAS (PARALELIZADO)
     await Promise.all(pastasParaProcessar.map(async (pasta) => {
       try {
-        const resInner = await fetch(pasta.linkCompletoPasta, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
+        const resInner = await fetch(pasta.linkCompletoPasta, { headers: { 
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+        }, cache: 'no-store' });
         if (!resInner.ok) return;
 
         const htmlInner = await resInner.text();

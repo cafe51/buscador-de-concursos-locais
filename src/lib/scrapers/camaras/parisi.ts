@@ -11,7 +11,11 @@ export async function buscarCamaraParisi(): Promise<Edital[]> {
   const palavrasLocais = ['sentenca', 'tcesp'];
 
   try {
-    const res = await fetch(mainRssUrl, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
+    const res = await fetch(mainRssUrl, { headers: { 
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+        }, cache: 'no-store' });
     if (!res.ok) return [];
 
     const xml = await res.text();
@@ -29,7 +33,11 @@ export async function buscarCamaraParisi(): Promise<Edital[]> {
 
     await Promise.all(linksDasPastas.map(async (feedUrl) => {
       try {
-        const resInner = await fetch(feedUrl, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
+        const resInner = await fetch(feedUrl, { headers: { 
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+        }, cache: 'no-store' });
         if (!resInner.ok) return;
 
         const xmlInner = await resInner.text();

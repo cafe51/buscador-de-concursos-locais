@@ -24,7 +24,11 @@ export async function buscarJales(): Promise<Edital[]> {
       for (let pagina = loteInicio; pagina < loteInicio + 5; pagina++) {
         const urlLista = `https://www.jales.sp.gov.br/cidadao/concursos-e-processos-seletivos?&pagina=${pagina}`;
         promessasPaginas.push(
-          fetch(urlLista, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' })
+          fetch(urlLista, { headers: { 
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+        }, cache: 'no-store' })
             .then(async (res) => ({ pagina, html: res.ok ? await res.text() : '' }))
             .catch(() => ({ pagina, html: '' }))
         );
@@ -68,7 +72,11 @@ export async function buscarJales(): Promise<Edital[]> {
 
       const detalhesHtml = await Promise.all(lote.map(async (concurso) => {
         try {
-          const res = await fetch(concurso.urlInterna, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' });
+          const res = await fetch(concurso.urlInterna, { headers: { 
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+        }, cache: 'no-store' });
           return { ...concurso, html: res.ok ? await res.text() : '' };
         } catch {
           return { ...concurso, html: '' };

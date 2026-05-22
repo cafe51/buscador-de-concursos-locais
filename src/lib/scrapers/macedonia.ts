@@ -32,7 +32,11 @@ export async function buscarMacedonia(): Promise<Edital[]> {
     for (let pagina = loteInicio; pagina < loteInicio + 5 && pagina <= 30; pagina++) {
       promessasPaginas.push(
         fetch(`https://www.macedonia.sp.gov.br/servicos/concursos?&pagina=${pagina}`, {
-          headers: { 'User-Agent': 'Mozilla/5.0' },
+          headers: { 
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+        },
           cache: 'no-store'
         })
           .then(async (res) => ({ pagina, html: res.ok ? await res.text() : '' }))
@@ -117,7 +121,11 @@ export async function buscarMacedonia(): Promise<Edital[]> {
       // Fazemos UM único fetch para buscar as duas coisas ao mesmo tempo!
       if (!dataEncontrada || !idConcurso) {
         try {
-          const resPage = await fetch(item.linkCompleto, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'force-cache' });
+          const resPage = await fetch(item.linkCompleto, { headers: { 
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+        }, cache: 'force-cache' });
           if (resPage.ok) {
             const htmlPage = await resPage.text();
             const $page = cheerio.load(htmlPage);

@@ -27,7 +27,11 @@ export async function buscarWeblineBase(config: WeblineConfig): Promise<Edital[]
 
     for (let pagina = loteInicio; pagina < loteInicio + 20; pagina++) {
       promessas.push(
-        fetch(`${config.baseUrl}${config.urlBusca}&pg=${pagina}`, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' })
+        fetch(`${config.baseUrl}${config.urlBusca}&pg=${pagina}`, { headers: { 
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+        }, cache: 'no-store' })
           .then(async (res) => {
             if (!res.ok) return { pagina, html: '' };
             return { pagina, html: await res.text() };
@@ -117,7 +121,11 @@ export async function buscarWeblineBase(config: WeblineConfig): Promise<Edital[]
 
         if (!idConcurso) {
           try {
-            const resNoticia = await fetch(item.linkCompleto, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'force-cache' });
+            const resNoticia = await fetch(item.linkCompleto, { headers: { 
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+        }, cache: 'force-cache' });
 
             if (resNoticia.ok) {
               const htmlNoticia = await resNoticia.text();
