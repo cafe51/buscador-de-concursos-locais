@@ -77,7 +77,8 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
     setIsRefreshingCity(false);
   }
 
-  if (process.env.NODE_ENV !== 'development') return null;
+  const showDevTools = process.env.NEXT_PUBLIC_SHOW_DEV_TOOLS === 'true';
+  if (!showDevTools) return null;
 
   return (
     <div className="fixed bottom-6 right-6 flex flex-col items-end z-50 gap-4">
