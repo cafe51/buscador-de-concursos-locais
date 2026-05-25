@@ -10,11 +10,13 @@ export async function buscarSantaSalete(): Promise<Edital[]> {
   let ordemGlobal = 0;
 
   try {
-    const res = await fetch(mainUrl, { headers: { 
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-        }, cache: 'no-store' });
+    const res = await fetch(mainUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+      }, cache: 'no-store'
+    });
     if (!res.ok) return [];
 
     const html = await res.text();
@@ -46,11 +48,13 @@ export async function buscarSantaSalete(): Promise<Edital[]> {
     // 2. Processar páginas internas (Com Leitura Linear Inteligente)
     await Promise.all(pastas.map(async (pasta) => {
       try {
-        const resInner = await fetch(pasta.linkCompleto, { headers: { 
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-        }, cache: 'no-store' });
+        const resInner = await fetch(pasta.linkCompleto, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+          }, cache: 'no-store'
+        });
         if (!resInner.ok) return;
         const htmlInner = await resInner.text();
         const $inner = cheerio.load(htmlInner);
@@ -169,12 +173,14 @@ export async function buscarSantaSalete(): Promise<Edital[]> {
           }
         });
 
-      } catch (e: any) { throw new Error(`Erro ao processar página interna de Santa Salete: ${pasta.linkCompleto}`);
+      } catch (e: any) {
+        throw new Error(`Erro ao processar página interna de Santa Salete: ${pasta.linkCompleto}`);
       }
     }));
 
   } catch (e) {
-    console.error(`Erro geral em Santa Salete` + ": " + e.message); }
+    console.error(`Erro geral em Santa Salete` + ": " + (e as Error).message);
+  }
 
   return resultados;
 }

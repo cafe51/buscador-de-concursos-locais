@@ -135,6 +135,7 @@ async function rodarComProtecao(nomeCidade: string, funcaoScraper: () => Promise
 
     // Formatação do Log de Falha
     const tamanhoFixoTempo = 5;
+    const tamanhoFixoNome = 30;
     const nomeFormatado = `[${nomeCidade}]`.padEnd(tamanhoFixoNome, ' ');
     const tempoFormatado = tempoGasto.padEnd(tamanhoFixoTempo, ' ');
 
@@ -169,7 +170,7 @@ export async function buscarEditaisPorCidade(nomeCidade: string): Promise<Result
   let listaLimpa: Edital[] = [];
   if (resultado.sucesso) {
     const editaisUnicos = new Map<string, Edital>();
-    resultado.dados.forEach((edital) => {
+    resultado.dados.forEach((edital: Edital) => {
       if (!editaisUnicos.has(edital.link)) editaisUnicos.set(edital.link, edital);
     });
 

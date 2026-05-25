@@ -11,11 +11,13 @@ export async function buscarCamaraMiraEstrela(): Promise<Edital[]> {
 
   try {
     // 1. ACESSA A PÁGINA INICIAL E BUSCA OS ANOS
-    const resAnos = await fetch(urlInicial, { headers: { 
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-        }, cache: 'no-store' });
+    const resAnos = await fetch(urlInicial, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+      }, cache: 'no-store'
+    });
     if (!resAnos.ok) return [];
 
     const htmlAnos = await resAnos.text();
@@ -32,11 +34,13 @@ export async function buscarCamaraMiraEstrela(): Promise<Edital[]> {
 
     await Promise.all(linksAnos.map(async (urlAno) => {
       try {
-        const resLista = await fetch(urlAno, { headers: { 
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-        }, cache: 'no-store' });
+        const resLista = await fetch(urlAno, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+          }, cache: 'no-store'
+        });
         if (!resLista.ok) return;
         const htmlLista = await resLista.text();
         const $lista = cheerio.load(htmlLista);
@@ -57,11 +61,13 @@ export async function buscarCamaraMiraEstrela(): Promise<Edital[]> {
     // 3. ENTRA NA PÁGINA DE DETALHES DE CADA CONCURSO
     await Promise.all(Array.from(linksConcursos).map(async (urlConcurso) => {
       try {
-        const resDetalhes = await fetch(urlConcurso, { headers: { 
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-        }, cache: 'no-store' });
+        const resDetalhes = await fetch(urlConcurso, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+          }, cache: 'no-store'
+        });
         if (!resDetalhes.ok) return;
         const htmlDetalhes = await resDetalhes.text();
         const $ = cheerio.load(htmlDetalhes);
@@ -201,7 +207,7 @@ export async function buscarCamaraMiraEstrela(): Promise<Edital[]> {
       }
     }));
 
-  } catch (e: any) { throw new Error(`Erro geral ao buscar Câmara de Mira Estrela` + ": " + e.message); }
+  } catch (e: any) { throw new Error(`Erro geral ao buscar Câmara de Mira Estrela` + ": " + (e as Error).message); }
 
   return resultados;
 }

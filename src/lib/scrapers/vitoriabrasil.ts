@@ -38,11 +38,13 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
       const lote = endpoints.slice(i, i + TAMANHO_LOTE_ENDPOINTS);
       const respostas = await Promise.all(lote.map(async (url) => {
         try {
-          const res = await fetch(url, { headers: { 
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-        }, cache: 'no-store' });
+          const res = await fetch(url, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+              'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+            }, cache: 'no-store'
+          });
           return res.ok ? await res.text() : '';
         } catch { return ''; }
       }));
@@ -148,11 +150,13 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
 
       await Promise.all(lote.map(async (concurso) => {
         try {
-          const resInner = await fetch(concurso.linkCompleto, { headers: { 
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-        }, cache: 'no-store' });
+          const resInner = await fetch(concurso.linkCompleto, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+              'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+            }, cache: 'no-store'
+          });
           if (!resInner.ok) return;
 
           const htmlInner = await resInner.text();
@@ -324,7 +328,7 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
             documentos: docsDaPasta
           });
 
-        } catch (e: any) { throw new Error(`Erro ao raspar a página interna de Vitória Brasil: ${concurso.linkCompleto}` + ": " + e.message); }
+        } catch (e: any) { throw new Error(`Erro ao raspar a página interna de Vitória Brasil: ${concurso.linkCompleto}` + ": " + (e as Error).message); }
       }));
     }
 
@@ -425,7 +429,7 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
       }
     }
 
-  } catch (e: any) { throw new Error(`Erro geral ao buscar Vitória Brasil` + ": " + e.message); }
+  } catch (e: any) { throw new Error(`Erro geral ao buscar Vitória Brasil` + ": " + (e as Error).message); }
 
   return resultados;
 }
