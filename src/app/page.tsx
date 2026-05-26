@@ -63,6 +63,8 @@ export default function Home() {
   const [isRefleshingFailed, setIsRefleshingFailed] = useState(false);
 
   const fetchIniciado = useRef(false);
+  const [carregouURL, setCarregouURL] = useState(false);
+  const isFirstFilterChange = useRef(true);
 
   // 1. CARREGAMENTO RÁPIDO DO USUÁRIO COMUM (Puxa APENAS da Nuvem)
   async function carregarDados() {
@@ -196,17 +198,141 @@ export default function Home() {
     }
   }
 
+  // 1. CARREGAMENTO INICIAL DOS FILTROS DA URL
   useEffect(() => {
-    if (!fetchIniciado.current) {
+    if (typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+
+    const desejadas = params.get('desejadas');
+    if (desejadas) {
+      setPalavrasDesejadas(desejadas.split(',').filter(Boolean));
+    }
+
+    const ignoradas = params.get('ignoradas');
+    if (ignoradas) {
+      setPalavrasIgnoradas(ignoradas.split(',').filter(Boolean));
+    }
+
+    const modo = params.get('modo');
+    if (modo === 'lista' || modo === 'agrupado') {
+      setModoVisualizacao(modo as 'lista' | 'agrupado');
+    }
+
+    const concurso = params.get('concurso');
+    if (concurso) {
+      setConcursoSelecionado(concurso);
+    }
+
+    const tipoGrupo = params.get('tipoGrupo');
+    if (tipoGrupo === 'todos' || tipoGrupo === 'concurso' || tipoGrupo === 'seletivo') {
+      setFiltroTipoGrupo(tipoGrupo as 'todos' | 'concurso' | 'seletivo');
+    }
+
+    const ano = params.get('ano');
+    if (ano) {
+      setFiltroAno(ano === 'todos' ? 'todos' : parseInt(ano, 10));
+    }
+
+    const cidade = params.get('cidade');
+    if (cidade) {
+      setFiltroCidade(cidade);
+    }
+
+    const orgao = params.get('orgao');
+    if (orgao) {
+      setFiltroOrgao(orgao);
+    }
+
+    const pagina = params.get('pagina');
+    if (pagina) {
+      setPaginaAtual(parseInt(pagina, 10));
+    }
+
+    setCarregouURL(true);
+  }, []);
+
+  // 2. CARREGAMENTO DOS DADOS (APENAS APÓS TENTAR LER A URL)
+  useEffect(() => {
+    if (carregouURL && !fetchIniciado.current) {
       fetchIniciado.current = true;
       carregarDados();
     }
-  }, []);
+  }, [carregouURL]);
 
+  // 3. SINCRONIZAÇÃO DOS FILTROS DO REACT DE VOLTA PARA A URL
   useEffect(() => {
+    if (!carregouURL) return;
+
+    const params = new URLSearchParams();
+
+    if (palavrasDesejadas.length > 0) {
+      params.set('desejadas', palavrasDesejadas.join(','));
+    }
+    if (palavrasIgnoradas.length > 0) {
+      params.set('ignoradas', palavrasIgnoradas.join(','));
+    }
+    if (modoVisualizacao !== 'lista') {
+      params.set('modo', modoVisualizacao);
+    }
+    if (concursoSelecionado) {
+      params.set('concurso', concursoSelecionado);
+    }
+    if (filtroTipoGrupo !== 'todos') {
+      params.set('tipoGrupo', filtroTipoGrupo);
+    }
+    if (filtroAno !== 'todos') {
+      params.set('ano', filtroAno.toString());
+    }
+    if (filtroCidade !== 'todas') {
+      params.set('cidade', filtroCidade);
+    }
+    if (filtroOrgao !== 'todos') {
+      params.set('orgao', filtroOrgao);
+    }
+    if (paginaAtual !== 1) {
+      params.set('pagina', paginaAtual.toString());
+    }
+
+    const queryString = params.toString();
+    const novaURL = queryString ? `?${queryString}` : window.location.pathname;
+
+    window.history.replaceState(null, '', novaURL);
+  }, [
+    palavrasDesejadas,
+    palavrasIgnoradas,
+    modoVisualizacao,
+    concursoSelecionado,
+    filtroTipoGrupo,
+    filtroAno,
+    filtroCidade,
+    filtroOrgao,
+    paginaAtual,
+    carregouURL
+  ]);
+
+  // 4. RESET DE PÁGINA EM MUDANÇAS DE FILTRO DO USUÁRIO
+  useEffect(() => {
+    if (!carregouURL) return;
+
+    if (isFirstFilterChange.current) {
+      isFirstFilterChange.current = false;
+      return;
+    }
+
     setPaginaAtual(1);
-    if (modoVisualizacao === 'agrupado') setConcursoSelecionado(null);
-  }, [palavrasDesejadas, palavrasIgnoradas, filtroAno, filtroCidade, filtroOrgao, modoVisualizacao]);
+    if (modoVisualizacao === 'agrupado') {
+      setConcursoSelecionado(null);
+    }
+  }, [
+    palavrasDesejadas,
+    palavrasIgnoradas,
+    filtroAno,
+    filtroCidade,
+    filtroOrgao,
+    modoVisualizacao,
+    carregouURL
+  ]);
 
   const cidadesDisponiveis = useMemo(() => {
     return Array.from(new Set(editais.map(e => e.cidade))).sort();
