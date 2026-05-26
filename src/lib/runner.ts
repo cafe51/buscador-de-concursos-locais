@@ -4,7 +4,9 @@ export type ResultadoRunner = {
   sucesso: boolean;
   cidade: string;
   dados: Edital[];
+  tempoGasto: number;
   motivo?: string;
+  aviso?: boolean;
 };
 
 // ==============================================================
@@ -37,7 +39,7 @@ export async function rodarComProtecao(nomeCidade: string, funcaoScraper: () => 
 
     console.log(`🟢 ${nomeFormatado} OK \t| Tempo: ${tempoFormatado}s \t| Itens extraídos: ${dados.length}`);
 
-    return { sucesso: true, cidade: nomeCidade, dados };
+    return { sucesso: true, cidade: nomeCidade, dados, tempoGasto: Number(tempoGasto) };
   } catch (e: any) {
     const tempoFim = performance.now();
     const tempoGasto = ((tempoFim - tempoInicio) / 1000).toFixed(2);
@@ -55,11 +57,11 @@ export async function rodarComProtecao(nomeCidade: string, funcaoScraper: () => 
 
     if (e.dadosParciais) {
       console.log(`🟡 ${nomeFormatado} AVISO \t| Tempo: ${tempoFormatado}s \t| Itens extraídos: ${e.dadosParciais.length} \t| Motivo: ${motivo}`);
-      return { sucesso: false, cidade: nomeCidade, dados: e.dadosParciais, motivo };
+      return { sucesso: false, cidade: nomeCidade, dados: e.dadosParciais, motivo, tempoGasto: Number(tempoGasto), aviso: true };
     }
 
     console.error(`🔴 ${nomeFormatado} FALHOU \t| Tempo: ${tempoFormatado}s \t| Motivo: ${motivo}`);
 
-    return { sucesso: false, cidade: nomeCidade, dados: [], motivo };
+    return { sucesso: false, cidade: nomeCidade, dados: [], motivo, tempoGasto: Number(tempoGasto) };
   }
 }

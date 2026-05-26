@@ -10,6 +10,7 @@ import { urlsParaBlacklist } from '../lib/docParser';
 export type ResultadoBusca = {
   editais: Edital[];
   falhas: string[];
+  resultadosDetalhes: import('../lib/runner').ResultadoRunner[];
 };
 
 // ==============================================================
@@ -46,7 +47,8 @@ export async function buscarEditaisPorCidade(nomeCidade: string): Promise<Result
 
   return {
     editais: listaLimpa,
-    falhas: resultado.sucesso ? [] : [`${resultado.cidade} (${resultado.motivo})`]
+    falhas: resultado.sucesso ? [] : [`${resultado.cidade} (${resultado.motivo})`],
+    resultadosDetalhes: [resultado]
   };
 }
 
@@ -126,7 +128,8 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
 
     return {
       editais: listaLimpa,
-      falhas: cidadesComFalha
+      falhas: cidadesComFalha,
+      resultadosDetalhes: promessas
     };
 
   } catch (e: any) {
