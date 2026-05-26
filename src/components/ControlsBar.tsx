@@ -30,7 +30,7 @@ export default function ControlsBar({
           onClick={() => { setModoVisualizacao('lista'); onClearSelection(); }}
           className={`flex-1 lg:flex-none px-4 py-2 rounded-md font-semibold text-sm transition-all ${modoVisualizacao === 'lista' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
         >
-          📋 Ver Tudo
+          📋 Feed
         </button>
         <button
           onClick={() => setModoVisualizacao('agrupado')}
