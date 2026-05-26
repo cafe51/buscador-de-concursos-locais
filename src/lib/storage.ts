@@ -112,9 +112,48 @@ export async function sincronizarBanco(novosEditais: Edital[], substituirTudo: b
     }
     console.log("===================================================\n");
 
+    // Salva a data do momento como a última atualização do banco
+    await salvarMetadata(new Date().toISOString());
+
     return { sucesso: true, adicionados: qtdeAdicionados, atualizados: relatorioAtualizacoes };
   } catch (e) {
     console.error("Erro na sincronização com Vercel Blob:", e);
     return { sucesso: false, adicionados: 0, atualizados: [] };
+  }
+}
+
+export async function carregarMetadata(): Promise<{ ultimaAtualizacao?: string } | null> {
+  try {
+    const { blobs } = await list();
+    const file = blobs.find(b => b.pathname === 'metadata.json');
+
+    if (!file) return null;
+
+    const res = await fetch(file.downloadUrl, {
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` }
+    });
+
+    if (!res.ok) return null;
+
+    return await res.json();
+  } catch (e) {
+    console.error("Erro ao carregar metadata:", e);
+    return null;
+  }
+}
+
+export async function salvarMetadata(ultimaAtualizacao: string): Promise<boolean> {
+  try {
+    await put('metadata.json', JSON.stringify({ ultimaAtualizacao }), {
+      access: 'private',
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: 'application/json'
+    });
+    return true;
+  } catch (e) {
+    console.error("Erro ao salvar metadata:", e);
+    return false;
   }
 }

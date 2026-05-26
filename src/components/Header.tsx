@@ -4,9 +4,10 @@ type HeaderProps = {
   hasData: boolean;
   onExport: () => void;
   onUpdate: () => void;
+  ultimaAtualizacao?: string;
 };
 
-export default function Header({ loading, hasData, onExport, onUpdate }: HeaderProps) {
+export default function Header({ loading, hasData, onExport, onUpdate, ultimaAtualizacao }: HeaderProps) {
   const showDevTools = process.env.NODE_ENV === 'development';
 
   return (
@@ -14,6 +15,11 @@ export default function Header({ loading, hasData, onExport, onUpdate }: HeaderP
       <div>
         <h1 className="text-2xl md:text-3xl font-bold text-blue-900">Radar de Concursos 🎯</h1>
         <p className="text-sm md:text-base text-gray-500 mt-1">Monitorando Órgãos Locais e Região</p>
+        {ultimaAtualizacao && (
+          <p className="text-xs text-emerald-600 mt-1.5 font-medium flex items-center gap-1.5">
+            <span>⏰</span> Última atualização automática: {ultimaAtualizacao}
+          </p>
+        )}
       </div>
       {showDevTools && (
         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">

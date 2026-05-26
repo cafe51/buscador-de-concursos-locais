@@ -8,9 +8,9 @@ export type ResultadoRunner = {
 };
 
 // ==============================================================
-// ⏱️ LIMITE MÁXIMO DE TEMPO POR CIDADE (85 Segundos)
+// ⏱️ LIMITE MÁXIMO DE TEMPO POR CIDADE (300 Segundos)
 // ==============================================================
-const TIMEOUT_POR_CIDADE_MS = 85000;
+const TIMEOUT_POR_CIDADE_MS = 300000;
 
 export async function rodarComProtecao(nomeCidade: string, funcaoScraper: () => Promise<Edital[]>): Promise<ResultadoRunner> {
   const tempoInicio = performance.now();

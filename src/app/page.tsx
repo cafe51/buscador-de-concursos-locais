@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 // 🚀 Importações do banco de dados adicionadas
-import { carregarDoBanco } from '../lib/storage';
+import { carregarDoBanco, carregarMetadata } from '../lib/storage';
 import { Edital } from '../types';
 import { exportarParaJSON } from '../utils/exportJson';
 
@@ -25,6 +25,22 @@ function formatarNomeArquivo(nome: string) {
   return nome.replace(/[\/\s]/g, '-').toLowerCase();
 }
 
+function formatarDataHora(isoString: string) {
+  try {
+    const data = new Date(isoString);
+    return data.toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch {
+    return isoString;
+  }
+}
+
 const anoAtual = new Date().getFullYear();
 const anosDisponiveis = Array.from({ length: anoAtual - 2017 + 1 }, (_, i) => anoAtual - i);
 
@@ -42,6 +58,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [erroFatal, setErroFatal] = useState('');
   const [alertas, setAlertas] = useState<string[]>([]);
+  const [ultimaAtualizacao, setUltimaAtualizacao] = useState<string>('');
 
   const [palavrasDesejadas, setPalavrasDesejadas] = useState<string[]>([]);
   const [palavrasIgnoradas, setPalavrasIgnoradas] = useState<string[]>([]);
@@ -81,6 +98,15 @@ export default function Home() {
         setEditais([]);
         console.warn("Banco de dados vazio ou não encontrado na Nuvem.");
       }
+
+      // 🚀 NOVA PARTE: Carregar a metadata da última atualização
+      const meta = await carregarMetadata();
+      if (meta && meta.ultimaAtualizacao) {
+        setUltimaAtualizacao(formatarDataHora(meta.ultimaAtualizacao));
+      } else {
+        setUltimaAtualizacao('');
+      }
+
       setPaginaAtual(1);
     } catch (e) {
       setErroFatal('Ocorreu um erro ao conectar ao banco de dados.');
@@ -439,6 +465,7 @@ export default function Home() {
           hasData={editaisFiltrados.length > 0}
           onExport={() => exportarParaJSON(editaisFiltrados, 'meus-editais')}
           onUpdate={carregarDados} // Se ele clicar aqui, só puxa os dados recentes da Nuvem!
+          ultimaAtualizacao={ultimaAtualizacao}
         />
 
         {alertas.length > 0 && !loading && (
