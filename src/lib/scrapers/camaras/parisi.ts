@@ -64,8 +64,20 @@ export async function buscarCamaraParisi(): Promise<Edital[]> {
 
           if (dateISO) {
             const dateObj = new Date(dateISO);
-            dataFormatada = `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()}`;
-            dataTimestamp = dateObj.getTime();
+            
+            // 🌎 Formata a data de forma robusta e consistente no fuso horário de São Paulo,
+            // evitando discrepâncias de timezone entre o servidor e a máquina local.
+            const formatter = new Intl.DateTimeFormat('pt-BR', {
+              timeZone: 'America/Sao_Paulo',
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric'
+            });
+            dataFormatada = formatter.format(dateObj);
+            
+            // Para o timestamp, mantemos consistência com o início do dia no fuso de SP (UTC-3)
+            const [dia, mes, ano] = dataFormatada.split('/');
+            dataTimestamp = new Date(`${ano}-${mes}-${dia}T00:00:00-03:00`).getTime();
           }
 
           dataTimestamp -= (index * 60000);
