@@ -171,6 +171,10 @@ async function main() {
     console.log("\n===================================================");
     console.log(`⏱️ Tempo total do bloco de execução: ${((fim - inicio) / 1000).toFixed(2)}s`);
     console.log("===================================================");
+    
+    // Força o encerramento do processo Node.js com sucesso.
+    // Isso evita que a Action do GitHub fique travada "In progress" devido a conexões pendentes (como conexões HTTP keep-alive).
+    process.exit(0);
   }
 }
 
