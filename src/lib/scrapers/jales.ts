@@ -1,38 +1,24 @@
-// src/lib/scrapers/jales.ts
 import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
 import { ehSujeira, extrairIdConcurso } from '../filtrosGlobais';
+import { fetchHtml, extrairData, limparTituloDoc } from './utils';
 
 export async function buscarJales(): Promise<Edital[]> {
   const resultados: Edital[] = [];
   let ordemGlobal = 0;
-
   const linksProcessados = new Set<string>();
   const todosOsConcursos: { tituloConcurso: string, urlInterna: string }[] = [];
-
   let chegouNoFim = false;
 
   try {
-    // ==============================================================
-    // 🚀 FASE 1: PAGINAÇÃO INFINITA (Lotes de 5)
-    // ==============================================================
     for (let loteInicio = 1; ; loteInicio += 5) {
       if (chegouNoFim) break;
 
       const promessasPaginas = [];
-
       for (let pagina = loteInicio; pagina < loteInicio + 5; pagina++) {
         const urlLista = `https://www.jales.sp.gov.br/cidadao/concursos-e-processos-seletivos?&pagina=${pagina}`;
         promessasPaginas.push(
-          fetch(urlLista, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-              'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-            }, cache: 'no-store'
-          })
-            .then(async (res) => ({ pagina, html: res.ok ? await res.text() : '' }))
-            .catch(() => ({ pagina, html: '' }))
+          fetchHtml(urlLista).then(res => ({ pagina, html: res.ok ? res.html : '' }))
         );
       }
 
@@ -64,37 +50,20 @@ export async function buscarJales(): Promise<Edital[]> {
       }
     }
 
-    // ==============================================================
-    // 🚀 FASE 2: PROCESSAMENTO PARALELO (Lotes de 15)
-    // ==============================================================
     const TAMANHO_LOTE = 15;
 
     for (let i = 0; i < todosOsConcursos.length; i += TAMANHO_LOTE) {
       const lote = todosOsConcursos.slice(i, i + TAMANHO_LOTE);
 
       const detalhesHtml = await Promise.all(lote.map(async (concurso) => {
-        try {
-          const res = await fetch(concurso.urlInterna, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-              'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-            }, cache: 'no-store'
-          });
-          return { ...concurso, html: res.ok ? await res.text() : '' };
-        } catch {
-          return { ...concurso, html: '' };
-        }
+        const res = await fetchHtml(concurso.urlInterna);
+        return { ...concurso, html: res.ok ? res.html : '' };
       }));
 
-      // ==============================================================
-      // 🧩 FASE 3: LEITURA ESTRUTURADA E EXTRAÇÃO COM CORREÇÃO DE DIAS
-      // ==============================================================
       for (const detalhe of detalhesHtml) {
         if (!detalhe.html) continue;
 
         const $inner = cheerio.load(detalhe.html);
-
         let $main = $inner('main');
         if ($main.length === 0) $main = $inner('article');
         if ($main.length === 0) $main = $inner('body');
@@ -112,9 +81,6 @@ export async function buscarJales(): Promise<Edital[]> {
         $main.find('p').each((_, pEl) => {
           let textoDoParagrafo = $inner(pEl).text().replace(/\s+/g, ' ').trim();
 
-          // 🌟 A CORREÇÃO DE "PRIMEIRO": Troca "1º/", "1°/" ou "1o/" por "01/"
-          textoDoParagrafo = textoDoParagrafo.replace(/1[º°o]\s*[\/\.]/gi, '01/');
-
           $inner(pEl).find('a').each((_, aEl) => {
             const fileHref = $inner(aEl).attr('href') || '';
             if (!fileHref || fileHref.startsWith('#') || fileHref.includes('javascript:')) return;
@@ -124,62 +90,23 @@ export async function buscarJales(): Promise<Edital[]> {
             if (linksProcessados.has(linkCompleto)) return;
             linksProcessados.add(linkCompleto);
 
-            let tituloArquivo = $inner(aEl).text().replace(/\s+/g, ' ').trim();
+            let tituloArquivo = $inner(aEl).text();
+            tituloArquivo = limparTituloDoc(tituloArquivo, $inner(aEl).attr('title') || textoDoParagrafo);
 
-            // 🌟 APLICA A CORREÇÃO NO TÍTULO TAMBÉM (Para o limpador funcionar)
-            tituloArquivo = tituloArquivo.replace(/1[º°o]\s*[\/\.]/gi, '01/');
+            if (tituloArquivo.length < 3 || ehSujeira(tituloArquivo)) return;
 
-            const palavrasGenericas = ['download', 'ver', 'anexo', 'clique aqui', 'acessar'];
-
-            if (!tituloArquivo || palavrasGenericas.includes(tituloArquivo.toLowerCase())) {
-              tituloArquivo = $inner(aEl).attr('title') || textoDoParagrafo;
-            }
-            if (/^[\d\/\.\-\s]+$/.test(tituloArquivo)) {
-              tituloArquivo = $inner(aEl).attr('title') || textoDoParagrafo;
-            }
-
-            // LIMPEZA CIRÚRGICA DO TÍTULO
-            tituloArquivo = tituloArquivo.replace(/(Concurso P[úu]blico|Processo Seletivo).*?[\-\|]/i, '').trim();
-            // 🌟 AGORA ACEITA 1 DÍGITO NO DIA TAMBÉM (\d{1,2})
-            tituloArquivo = tituloArquivo.replace(/\b\d{1,2}[\/\.]\d{2}[\/\.]\d{4}\b/g, '').trim();
-
-            tituloArquivo = tituloArquivo.replace(/^[\d\/\.\-\s\|]+/, '').trim();
-            if (tituloArquivo.startsWith('-') || tituloArquivo.startsWith('|')) {
-              tituloArquivo = tituloArquivo.substring(1).trim();
-            }
-
-            if (tituloArquivo.length < 3) return;
-            if (ehSujeira(tituloArquivo)) return;
-
-            // EXTRAÇÃO DA DATA
-            let dataFormatada = '';
-            let dataTimestamp = 0;
-
-            // 🌟 AGORA ACEITA DIA COM 1 OU 2 DÍGITOS (\d{1,2})
-            const matchData = textoDoParagrafo.match(/(\d{1,2})[\/\.](\d{2})[\/\.](\d{4})/);
-
-            if (matchData) {
-              const dia = matchData[1].padStart(2, '0'); // Se vier "5", transforma em "05"
-              const mes = matchData[2];
-              const ano = matchData[3];
-              dataFormatada = `${dia}/${mes}/${ano}`;
-              dataTimestamp = new Date(`${ano}-${mes}-${dia}T00:00:00`).getTime();
-            }
-
+            const dataParsed = extrairData(textoDoParagrafo);
+            
             arquivosDesteConcurso.push({
               titulo: tituloArquivo,
               link: linkCompleto,
-              dataFormatada,
-              dataTimestamp
+              dataFormatada: dataParsed ? dataParsed.dataFormatada : '',
+              dataTimestamp: dataParsed ? dataParsed.dataTimestamp : 0
             });
           });
         });
 
-        // ==============================================================
-        // 🚑 LÓGICA DE RESGATE DE DATAS FALTANTES
-        // ==============================================================
         let dataMaisAntiga = Infinity;
-
         for (const arq of arquivosDesteConcurso) {
           if (arq.dataTimestamp > 0 && arq.dataTimestamp < dataMaisAntiga) {
             dataMaisAntiga = arq.dataTimestamp;
@@ -214,7 +141,6 @@ export async function buscarJales(): Promise<Edital[]> {
           }
 
           ordemGlobal++;
-
           resultados.push({
             cidade: 'Jales',
             orgao: 'Prefeitura',

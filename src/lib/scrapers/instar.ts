@@ -1,4 +1,3 @@
-// src/lib/scrapers/instar.ts
 import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
 import { ehSujeira, ehAndamentoOrfao, extrairIdConcurso } from '../filtrosGlobais';
@@ -19,11 +18,195 @@ type PastaExtraida = {
   documentos: Omit<Edital, 'ordemOriginal'>[];
 };
 
+type ConcursoInfo = {
+  linkCompleto: string;
+  idConcurso: string;
+  tituloMain: string;
+  dataCertameFormatada: string;
+  dataCertameTimestamp: number;
+};
+
+// ============================================================================
+// FUNÇÕES AUXILIARES
+// ============================================================================
+
+async function fetchCategoryPages(config: InstarConfig, endpoints: string[], detalhesFalhas: string[]): Promise<string[]> {
+  const htmlsCategorias: string[] = [];
+  const TAMANHO_LOTE_ENDPOINTS = 20;
+
+  for (let i = 0; i < endpoints.length; i += TAMANHO_LOTE_ENDPOINTS) {
+    const lote = endpoints.slice(i, i + TAMANHO_LOTE_ENDPOINTS);
+    const respostas = await Promise.all(lote.map(async (url) => {
+      try {
+        const res = await fetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8'
+          }, cache: 'no-store'
+        });
+        if (!res.ok) {
+          detalhesFalhas.push(`[HTTP ${res.status}] Lista: ${url}`);
+          return '';
+        }
+        return await res.text();
+      } catch (err: any) {
+        detalhesFalhas.push(`[REDE/TIMEOUT] Lista: ${url} -> ${err.message}`);
+        return '';
+      }
+    }));
+    htmlsCategorias.push(...respostas);
+  }
+  return htmlsCategorias;
+}
+
+function parseConcursosList(htmls: string[], config: InstarConfig): ConcursoInfo[] {
+  const concursosParaBaixar: ConcursoInfo[] = [];
+  const linksProcessados = new Set<string>();
+  const palavrasLocais = config.palavrasLocais || [];
+  const excecoesGlobais = config.excecoesPalavrasGlobais || [];
+
+  for (const html of htmls) {
+    if (!html) continue;
+    const $ = cheerio.load(html);
+
+    $('div.ed_edital').each((_, elemento) => {
+      let postagemRaw = '';
+      const $divPostagem = $(elemento).find('.ed_cont_postagem_edital span.sw_lato');
+
+      if ($divPostagem.length > 0 && $divPostagem.text().trim() !== '') {
+        postagemRaw = $divPostagem.text().trim();
+      } else {
+        postagemRaw = $(elemento).find('.ed_cont_realizacao_edital').text().trim();
+      }
+
+      let dataCertameFormatada = 'sem data';
+      let dataCertameTimestamp = 0;
+
+      const matchPostagem = postagemRaw.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+      if (matchPostagem) {
+        const anoPostagem = parseInt(matchPostagem[3], 10);
+        if (anoPostagem < 2019) return;
+        dataCertameFormatada = matchPostagem[0];
+        dataCertameTimestamp = new Date(`${matchPostagem[3]}-${matchPostagem[2]}-${matchPostagem[1]}T00:00:00`).getTime();
+      }
+
+      const href = $(elemento).find('a').first().attr('href') || '';
+      const linkCompleto = href.startsWith('http') ? href : `${config.baseUrl}${href}`;
+
+      if (linksProcessados.has(linkCompleto)) return;
+      linksProcessados.add(linkCompleto);
+
+      const tituloMain = $(elemento).find('.ed_titulo_edital').text().replace(/\s+/g, ' ').trim();
+      const descricaoMain = $(elemento).find('.ed_descricao_edital').text().replace(/\s+/g, ' ').trim();
+      const textoParaAvaliar = `${tituloMain} ${descricaoMain}`;
+
+      if (ehSujeira(textoParaAvaliar, palavrasLocais, linkCompleto, excecoesGlobais)) return;
+      if (ehAndamentoOrfao(tituloMain, descricaoMain)) return;
+
+      let idConcurso = extrairIdConcurso(tituloMain, descricaoMain, true, false);
+
+      if (!idConcurso) {
+        let modalidadeRaw = '';
+        let numProcesso = '';
+
+        $(elemento).find('.ed_area_info_modalidade_situacao span.sw_lato_bold').each((_, spanEl) => {
+          if ($(spanEl).text().includes('Modalidade:')) {
+            modalidadeRaw = $(spanEl).next('span').text().trim();
+          }
+        });
+
+        $(elemento).find('.ed_area_info_numero_processo span.sw_lato_bold').each((_, spanEl) => {
+          if ($(spanEl).text().includes('Nº Processo:')) {
+            numProcesso = $(spanEl).next('span').text().trim();
+          }
+        });
+
+        let modalidade = modalidadeRaw.replace(/P[UÚ]BLICO/ig, '').trim();
+        if (!modalidade) modalidade = 'Processo Seletivo';
+
+        if (numProcesso) {
+          const matchNum = numProcesso.match(/(\d{1,3})[\s\/\-_]+(\d{2}|\d{4})\b/);
+          if (matchNum) {
+            const num = parseInt(matchNum[1], 10).toString().padStart(2, '0');
+            let ano = matchNum[2];
+            if (ano.length === 2) ano = `20${ano}`;
+            idConcurso = `${modalidade} ${num}/${ano}`;
+          }
+        }
+
+        if (!idConcurso) idConcurso = tituloMain;
+      }
+
+      if (idConcurso && idConcurso.startsWith('Concurso ')) {
+        idConcurso = idConcurso.replace('Concurso ', 'Concurso Público ');
+      }
+
+      if (idConcurso) {
+        const upperTitulo = tituloMain.toUpperCase();
+        if (upperTitulo.includes('ESTAGI') || upperTitulo.includes('ESTÁGI')) {
+          idConcurso += ' (Estagiários)';
+        }
+      }
+
+      concursosParaBaixar.push({
+        linkCompleto,
+        idConcurso,
+        tituloMain,
+        dataCertameFormatada,
+        dataCertameTimestamp
+      });
+    });
+  }
+  return concursosParaBaixar;
+}
+
+async function resolveTrueDownloadLink(docLink: string, baseUrl: string): Promise<string> {
+  if (!docLink || !docLink.includes('/download/')) return docLink;
+
+  let tentativas = 0;
+  let sucesso = false;
+  let resolvedLink = docLink;
+
+  while (tentativas < 2 && !sucesso) {
+    try {
+      const resLink = await fetch(resolvedLink, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        }, cache: 'no-store'
+      });
+
+      if (resLink.ok) {
+        const textLink = await resLink.text();
+        const match = textLink.match(/<meta\s+http-equiv=["']refresh["']\s+content=["']0;\s*url=([^"']+)["']/i);
+        if (match && match[1]) {
+          let trueUrl = match[1];
+          if (trueUrl.startsWith('/')) {
+            trueUrl = `${baseUrl}${trueUrl}`;
+          } else if (!trueUrl.startsWith('http')) {
+            trueUrl = `${baseUrl}/${trueUrl}`;
+          }
+          resolvedLink = trueUrl;
+        }
+        sucesso = true;
+      } else {
+        tentativas++;
+        await new Promise(r => setTimeout(r, 800));
+      }
+    } catch (e) {
+      tentativas++;
+      await new Promise(r => setTimeout(r, 800));
+    }
+  }
+  return resolvedLink;
+}
+
+// ============================================================================
+// FUNÇÃO PRINCIPAL
+// ============================================================================
+
 export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> {
   const resultados: Edital[] = [];
   const pastasExtraidas: PastaExtraida[] = [];
-
-  // 🚀 MUDANÇA: Agora guardamos os detalhes exatos de cada falha
   const detalhesFalhas: string[] = [];
 
   const orgao = config.orgao || 'Prefeitura';
@@ -42,132 +225,8 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
   });
 
   try {
-    const htmlsCategorias: string[] = [];
-    const TAMANHO_LOTE_ENDPOINTS = 20;
-
-    for (let i = 0; i < endpoints.length; i += TAMANHO_LOTE_ENDPOINTS) {
-      const lote = endpoints.slice(i, i + TAMANHO_LOTE_ENDPOINTS);
-      const respostas = await Promise.all(lote.map(async (url) => {
-        try {
-          const res = await fetch(url, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-              'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-            }, cache: 'no-store'
-          });
-          if (!res.ok) {
-            detalhesFalhas.push(`[HTTP ${res.status}] Lista: ${url}`);
-            return '';
-          }
-          return await res.text();
-        } catch (err: any) {
-          detalhesFalhas.push(`[REDE/TIMEOUT] Lista: ${url} -> ${err.message}`);
-          return '';
-        }
-      }));
-      htmlsCategorias.push(...respostas);
-    }
-
-    const concursosParaBaixar: any[] = [];
-    const linksProcessados = new Set<string>();
-
-    for (const html of htmlsCategorias) {
-      if (!html) continue;
-      const $ = cheerio.load(html);
-
-      $('div.ed_edital').each((_, elemento) => {
-
-        let postagemRaw = '';
-        const $divPostagem = $(elemento).find('.ed_cont_postagem_edital span.sw_lato');
-
-        if ($divPostagem.length > 0 && $divPostagem.text().trim() !== '') {
-          postagemRaw = $divPostagem.text().trim();
-        } else {
-          postagemRaw = $(elemento).find('.ed_cont_realizacao_edital').text().trim();
-        }
-
-        let dataCertameFormatada = 'sem data';
-        let dataCertameTimestamp = 0;
-
-        const matchPostagem = postagemRaw.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-        if (matchPostagem) {
-          const anoPostagem = parseInt(matchPostagem[3], 10);
-          if (anoPostagem < 2019) return;
-
-          dataCertameFormatada = matchPostagem[0];
-          dataCertameTimestamp = new Date(`${matchPostagem[3]}-${matchPostagem[2]}-${matchPostagem[1]}T00:00:00`).getTime();
-        }
-
-        const href = $(elemento).find('a').first().attr('href') || '';
-        const linkCompleto = href.startsWith('http') ? href : `${config.baseUrl}${href}`;
-
-        if (linksProcessados.has(linkCompleto)) return;
-        linksProcessados.add(linkCompleto);
-
-        const tituloMain = $(elemento).find('.ed_titulo_edital').text().replace(/\s+/g, ' ').trim();
-        const descricaoMain = $(elemento).find('.ed_descricao_edital').text().replace(/\s+/g, ' ').trim();
-        const textoParaAvaliar = `${tituloMain} ${descricaoMain}`;
-
-        if (ehSujeira(textoParaAvaliar, palavrasLocais, linkCompleto, excecoesGlobais)) return;
-        if (ehAndamentoOrfao(tituloMain, descricaoMain)) return;
-
-        let idConcurso = extrairIdConcurso(tituloMain, descricaoMain, true, false);
-
-        if (!idConcurso) {
-          let modalidadeRaw = '';
-          let numProcesso = '';
-
-          $(elemento).find('.ed_area_info_modalidade_situacao span.sw_lato_bold').each((_, spanEl) => {
-            if ($(spanEl).text().includes('Modalidade:')) {
-              modalidadeRaw = $(spanEl).next('span').text().trim();
-            }
-          });
-
-          $(elemento).find('.ed_area_info_numero_processo span.sw_lato_bold').each((_, spanEl) => {
-            if ($(spanEl).text().includes('Nº Processo:')) {
-              numProcesso = $(spanEl).next('span').text().trim();
-            }
-          });
-
-          let modalidade = modalidadeRaw.replace(/P[UÚ]BLICO/ig, '').trim();
-          if (!modalidade) modalidade = 'Processo Seletivo';
-
-          if (numProcesso) {
-            const matchNum = numProcesso.match(/(\d{1,3})[\s\/\-_]+(\d{2}|\d{4})\b/);
-            if (matchNum) {
-              const num = parseInt(matchNum[1], 10).toString().padStart(2, '0');
-              let ano = matchNum[2];
-              if (ano.length === 2) ano = `20${ano}`;
-              idConcurso = `${modalidade} ${num}/${ano}`;
-            }
-          }
-
-          if (!idConcurso) {
-            idConcurso = tituloMain;
-          }
-        }
-
-        if (idConcurso && idConcurso.startsWith('Concurso ')) {
-          idConcurso = idConcurso.replace('Concurso ', 'Concurso Público ');
-        }
-
-        if (idConcurso) {
-          const upperTitulo = tituloMain.toUpperCase();
-          if (upperTitulo.includes('ESTAGI') || upperTitulo.includes('ESTÁGI')) {
-            idConcurso += ' (Estagiários)';
-          }
-        }
-
-        concursosParaBaixar.push({
-          linkCompleto,
-          idConcurso,
-          tituloMain,
-          dataCertameFormatada,
-          dataCertameTimestamp
-        });
-      });
-    }
+    const htmlsCategorias = await fetchCategoryPages(config, endpoints, detalhesFalhas);
+    const concursosParaBaixar = parseConcursosList(htmlsCategorias, config);
 
     const TAMANHO_LOTE = 5;
 
@@ -184,14 +243,11 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
             try {
               resInner = await fetch(concurso.linkCompleto, {
                 headers: {
-                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                  'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
                 }, cache: 'no-store'
               });
-              if (resInner.ok) {
-                pastaSucesso = true;
-              } else {
+              if (resInner.ok) pastaSucesso = true;
+              else {
                 tentativasPasta++;
                 await new Promise(r => setTimeout(r, 1000));
               }
@@ -213,19 +269,15 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
           $abaDetalhesClone.find('.vinc_area_slide_pessoas_vinculadas').remove();
           const textoAbaDetalhes = $abaDetalhesClone.text().replace(/\s+/g, ' ').trim();
 
-          if (ehSujeira(textoAbaDetalhes, palavrasLocais, concurso.linkCompleto, excecoesGlobais)) {
-            return;
-          }
+          if (ehSujeira(textoAbaDetalhes, palavrasLocais, concurso.linkCompleto, excecoesGlobais)) return;
 
           let concursoContaminado = false;
           const documentosTemporarios: any[] = [];
-
           let requerLogin = false;
+
           $inner('.itn_btn_login').each((_, el) => {
             const textoAlerta = $inner(el).text().toLowerCase();
-            if (textoAlerta.includes('logado') || textoAlerta.includes('necessário')) {
-              requerLogin = true;
-            }
+            if (textoAlerta.includes('logado') || textoAlerta.includes('necessário')) requerLogin = true;
           });
 
           if (requerLogin) {
@@ -243,7 +295,6 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
               if (!hrefDoc) return;
 
               const linkDoc = hrefDoc.startsWith('http') ? hrefDoc : `${config.baseUrl}${hrefDoc}`;
-
               const nomeElement = $inner(el).find('.ed_nome_arquivo').clone();
               const tamanhoTexto = nomeElement.find('.ed_info_tamanho_arquivo').text().replace(/\s+/g, ' ').trim();
               nomeElement.find('.ed_info_tamanho_arquivo').remove();
@@ -251,16 +302,8 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
               const nomeTexto = nomeElement.text().replace(/\s+/g, ' ').trim();
               const categoriaTitulo = $inner(el).find('.ed_descricao_tipo_arquivo').text().replace(/\s+/g, ' ').trim();
 
-              let tituloFinal = '';
-              let descricaoFinal = '';
-
-              if (categoriaTitulo) {
-                tituloFinal = categoriaTitulo;
-                descricaoFinal = tamanhoTexto ? `${nomeTexto} (${tamanhoTexto})` : nomeTexto;
-              } else {
-                tituloFinal = nomeTexto || 'Documento Anexo';
-                descricaoFinal = tamanhoTexto ? `(${tamanhoTexto})` : '';
-              }
+              let tituloFinal = categoriaTitulo || nomeTexto || 'Documento Anexo';
+              let descricaoFinal = categoriaTitulo ? (tamanhoTexto ? `${nomeTexto} (${tamanhoTexto})` : nomeTexto) : (tamanhoTexto ? `(${tamanhoTexto})` : '');
 
               if (ehSujeira(`${tituloFinal} ${descricaoFinal}`, palavrasLocais, linkDoc, excecoesGlobais)) {
                 concursoContaminado = true;
@@ -270,7 +313,6 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
               const dataSpan = $inner(el).find('.ed_data_hora_arquivo span').first().text().trim();
               let dataFormatada = 'sem data';
               let dataTimestamp = 0;
-
               const matchData = dataSpan.match(/(\d{2})\/(\d{2})\/(\d{4})/);
 
               if (matchData) {
@@ -291,49 +333,9 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
             });
           }
 
-          // 🚀 BUSCA DO LINK VERDADEIRO
-          // Resolve links dinâmicos de download para evitar duplicações
           if (documentosTemporarios.length > 0) {
-            // Busca SEQUENCIAL com retentativa para evitar RATE LIMIT (Ouroeste e Jales)
             for (const doc of documentosTemporarios) {
-              if (doc.link && doc.link.includes('/download/')) {
-                let tentativas = 0;
-                let sucesso = false;
-                
-                while (tentativas < 2 && !sucesso) {
-                  try {
-                    const resLink = await fetch(doc.link, {
-                      headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-                      },
-                      cache: 'no-store'
-                    });
-                    
-                    if (resLink.ok) {
-                      const textLink = await resLink.text();
-                      const match = textLink.match(/<meta\s+http-equiv=["']refresh["']\s+content=["']0;\s*url=([^"']+)["']/i);
-                      if (match && match[1]) {
-                        let trueUrl = match[1];
-                        if (trueUrl.startsWith('/')) {
-                          trueUrl = `${config.baseUrl}${trueUrl}`;
-                        } else if (!trueUrl.startsWith('http')) {
-                          trueUrl = `${config.baseUrl}/${trueUrl}`;
-                        }
-                        doc.link = trueUrl;
-                      }
-                      sucesso = true;
-                    } else {
-                      tentativas++;
-                      await new Promise(r => setTimeout(r, 800));
-                    }
-                  } catch (e) {
-                    tentativas++;
-                    await new Promise(r => setTimeout(r, 800));
-                  }
-                }
-              }
+              doc.link = await resolveTrueDownloadLink(doc.link, config.baseUrl);
             }
           }
 
@@ -374,21 +376,15 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
     }
 
     const pastasAgrupadas = new Map<string, PastaExtraida[]>();
-
     for (const pasta of pastasExtraidas) {
-      if (!pastasAgrupadas.has(pasta.idConcurso)) {
-        pastasAgrupadas.set(pasta.idConcurso, []);
-      }
+      if (!pastasAgrupadas.has(pasta.idConcurso)) pastasAgrupadas.set(pasta.idConcurso, []);
       pastasAgrupadas.get(pasta.idConcurso)!.push(pasta);
     }
 
     let ordemGlobal = 0;
-
     for (const pastasDoConcurso of pastasAgrupadas.values()) {
       pastasDoConcurso.sort((a, b) => {
-        if (a.dataTimestamp !== b.dataTimestamp) {
-          return a.dataTimestamp - b.dataTimestamp;
-        }
+        if (a.dataTimestamp !== b.dataTimestamp) return a.dataTimestamp - b.dataTimestamp;
         return b.documentos.length - a.documentos.length;
       });
 
@@ -405,35 +401,23 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
               doc.descricao = `${marcador}${pastaAtual.tituloPasta}`;
             }
           }
-
           ordemGlobal++;
-          resultados.push({
-            ...doc,
-            ordemOriginal: ordemGlobal
-          });
+          resultados.push({ ...doc, ordemOriginal: ordemGlobal });
         }
       }
     }
 
-    // ==============================================================
-    // 🚨 EXIBIÇÃO CLARA DE LOGS DE FALHA NO TERMINAL
-    // ==============================================================
     if (detalhesFalhas.length > 0) {
       console.log(`\n⚠️ [DETETIVE INSTAR - ${config.cidade}] Foram detectadas ${detalhesFalhas.length} falhas:`);
       detalhesFalhas.forEach(f => console.log(`   -> ${f}`));
 
       const msg = `Conexão instável (${detalhesFalhas.length} falhas)`;
-      if (resultados.length === 0) {
-        throw new Error(msg);
-      } else {
-        throw Object.assign(new Error(msg), { dadosParciais: resultados });
-      }
+      if (resultados.length === 0) throw new Error(msg);
+      else throw Object.assign(new Error(msg), { dadosParciais: resultados });
     }
 
   } catch (e: any) {
-    if (e.dadosParciais || detalhesFalhas.length > 0) {
-      throw e;
-    }
+    if (e.dadosParciais || detalhesFalhas.length > 0) throw e;
     const cause = (e as any).cause;
     const causeMsg = cause ? " - Detalhes: " + (cause.message || cause.code || JSON.stringify(cause)) : "";
     throw new Error(`Erro geral no InstarBase: ${(e as Error).message}` + causeMsg);

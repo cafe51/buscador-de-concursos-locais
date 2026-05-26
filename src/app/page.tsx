@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 // 🚀 Importações do banco de dados adicionadas
-import { carregarDoBanco } from './actions';
+import { carregarDoBanco } from '../lib/storage';
 import { Edital } from '../types';
 import { exportarParaJSON } from '../utils/exportJson';
 
@@ -90,7 +90,8 @@ export default function Home() {
     setIsSavingToCloud(true);
     try {
       // Importamos a nova função
-      const { buscarTodosEditais, sincronizarBanco } = await import('./actions');
+      const { buscarTodosEditais } = await import('./actions');
+      const { sincronizarBanco } = await import('../lib/storage');
 
       const resultado = await buscarTodosEditais();
       setAlertas(resultado.falhas);
@@ -118,7 +119,8 @@ export default function Home() {
     
     setIsCreatingNewDb(true);
     try {
-      const { buscarTodosEditais, sincronizarBanco } = await import('./actions');
+      const { buscarTodosEditais } = await import('./actions');
+      const { sincronizarBanco } = await import('../lib/storage');
       const resultado = await buscarTodosEditais();
       setAlertas(resultado.falhas);
 

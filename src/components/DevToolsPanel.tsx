@@ -1,12 +1,8 @@
 // src/components/DevToolsPanel.tsx
 'use client'
 import { useState } from 'react';
-import {
-  auditarQuantidadesInstar,
-  extrairDadosRawInstar,
-  buscarEditaisPorCidade,
-  Discrepancia
-} from '../app/actions';
+import { buscarEditaisPorCidade } from '../app/actions';
+import { auditarQuantidadesInstar, extrairDadosRawInstar, Discrepancia } from '../lib/diagnostics';
 import { Edital } from '../types';
 
 type DevToolsProps = {
