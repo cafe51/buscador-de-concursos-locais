@@ -1,0 +1,32 @@
+name: Raspagem Automática de Editais
+
+on:
+  schedule:
+    # Roda todos os dias às 08:00 e 20:00 (UTC)
+    # Isso corresponde às 05:00 e 17:00 no horário de Brasília (BRT)
+    - cron: '0 8,20 * * *'
+  # O workflow_dispatch permite que você ative a execução manualmente no GitHub
+  workflow_dispatch: 
+
+jobs:
+  scrape-and-update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm' # Usa o cache do npm para deixar a pipeline mais rápida
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Executar scraper e atualizar banco de dados
+        env:
+          # Injeta o token da Vercel nos processos do Node
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+        run: npx tsx scripts/run-scraper.ts
