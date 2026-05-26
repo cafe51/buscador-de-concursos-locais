@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { buscarEditaisPorCidade } from '../app/actions';
 import { auditarQuantidadesInstar, extrairDadosRawInstar, Discrepancia } from '../lib/diagnostics';
+import { sincronizarBanco } from '../lib/storage';
 import { Edital } from '../types';
 
 type DevToolsProps = {
@@ -70,9 +71,18 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
       const resultado = await buscarEditaisPorCidade(cidadeAlvoDev);
       if (resultado.falhas.length > 0) {
         alert(`Falha ao buscar editais de ${cidadeAlvoDev}. Verifique os logs no terminal.`);
+      } else {
+        // Envia os dados frescos para fundir com os antigos na nuvem
+        const syncResult = await sincronizarBanco(resultado.editais);
+        if (syncResult.sucesso) {
+          alert(`✅ Cidade [${cidadeAlvoDev}] Atualizada e Salva na Nuvem!\n\n📈 Novos Editais: ${syncResult.adicionados}\n🔄 Editais Atualizados: ${syncResult.atualizados.length}`);
+        } else {
+          alert(`⚠️ Cidade [${cidadeAlvoDev}] atualizada localmente, mas falhou ao salvar na Nuvem.`);
+        }
       }
       onUpdateCityData(cidadeAlvoDev, resultado.editais);
     } catch (e) {
+      console.error(e);
       alert("Erro ao executar o scraper da cidade selecionada.");
     }
     setIsRefreshingCity(false);
@@ -131,7 +141,7 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
       {/* RASPAGEM INDIVIDUAL */}
       <div className="bg-white border-2 border-green-500 p-4 rounded-lg shadow-xl w-full max-w-md sm:w-96 animate-fade-in">
         <h3 className="font-bold text-green-700 mb-2">⚡ Testar Cidade Única</h3>
-        <p className="text-xs text-gray-500 mb-3">Atualiza apenas a cidade selecionada.</p>
+        <p className="text-xs text-gray-500 mb-3">Atualiza a cidade selecionada e salva as modificações diretamente no servidor.</p>
         <select
           value={cidadeAlvoDev}
           onChange={(e) => setCidadeAlvoDev(e.target.value)}
@@ -141,9 +151,9 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
         </select>
         <button
           onClick={rodarAtualizacaoIndividual} disabled={isRefreshingCity}
-          className="bg-green-600 text-white w-full py-2 rounded text-sm font-bold disabled:bg-gray-400 hover:bg-green-700 transition-colors"
+          className="bg-green-600 text-white w-full py-2 rounded text-sm font-bold disabled:bg-gray-400 hover:bg-green-700 transition-colors shadow-lg"
         >
-          {isRefreshingCity ? '⏳ Raspando...' : `Atualizar ${cidadeAlvoDev}`}
+          {isRefreshingCity ? '⏳ Raspando e Sincronizando...' : `Atualizar ${cidadeAlvoDev} na Nuvem`}
         </button>
       </div>
 
