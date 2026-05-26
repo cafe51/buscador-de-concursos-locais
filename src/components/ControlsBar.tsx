@@ -40,31 +40,31 @@ export default function ControlsBar({
         </button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto justify-end">
+      <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-3 w-full lg:w-auto sm:justify-end">
         {/* FILTRO DE CIDADE */}
-        <div className="flex flex-1 sm:flex-none items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm">
+        <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm w-full sm:w-auto">
           <label htmlFor="cidadeFiltro" className="text-sm font-bold text-gray-700 hidden sm:block">Cidade:</label>
           <span className="sm:hidden text-sm font-bold text-gray-700">📍</span>
           <select
             id="cidadeFiltro"
             value={filtroCidade}
             onChange={(e) => setFiltroCidade(e.target.value)}
-            className="bg-transparent text-sm font-semibold text-blue-700 outline-none cursor-pointer flex-1 w-full max-w-[150px] truncate"
+            className="bg-transparent text-sm font-semibold text-blue-700 outline-none cursor-pointer flex-1 w-full max-w-full sm:max-w-[150px] truncate"
           >
             <option value="todas">Todas as Cidades</option>
             {cidadesDisponiveis.map(cidade => <option key={cidade} value={cidade}>{cidade}</option>)}
           </select>
         </div>
 
-        {/* 🚀 NOVO: FILTRO DE ÓRGÃO */}
-        <div className="flex flex-1 sm:flex-none items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm">
+        {/* FILTRO DE ÓRGÃO */}
+        <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm w-full sm:w-auto">
           <label htmlFor="orgaoFiltro" className="text-sm font-bold text-gray-700 hidden sm:block">Órgão:</label>
           <span className="sm:hidden text-sm font-bold text-gray-700">🏛️</span>
           <select
             id="orgaoFiltro"
             value={filtroOrgao}
             onChange={(e) => setFiltroOrgao(e.target.value)}
-            className="bg-transparent text-sm font-semibold text-blue-700 outline-none cursor-pointer flex-1 w-full max-w-[150px] truncate"
+            className="bg-transparent text-sm font-semibold text-blue-700 outline-none cursor-pointer flex-1 w-full max-w-full sm:max-w-[150px] truncate"
           >
             <option value="todos">Todos os Órgãos</option>
             {orgaosDisponiveis.map(orgao => <option key={orgao} value={orgao}>{orgao}</option>)}
@@ -72,14 +72,14 @@ export default function ControlsBar({
         </div>
 
         {/* FILTRO DE ANO */}
-        <div className="flex flex-1 sm:flex-none items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm">
+        <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm w-full sm:w-auto">
           <label htmlFor="anoFiltro" className="text-sm font-bold text-gray-700 hidden sm:block">Ano:</label>
           <span className="sm:hidden text-sm font-bold text-gray-700">📅</span>
           <select
             id="anoFiltro"
             value={filtroAno}
             onChange={(e) => setFiltroAno(e.target.value === 'todos' ? 'todos' : parseInt(e.target.value, 10))}
-            className="bg-transparent text-sm font-semibold text-blue-700 outline-none cursor-pointer flex-1 w-full"
+            className="bg-transparent text-sm font-semibold text-blue-700 outline-none cursor-pointer flex-1 w-full max-w-full sm:max-w-[100px]"
           >
             <option value="todos">Todos</option>
             {anosDisponiveis.map(ano => <option key={ano} value={ano}>{ano}</option>)}

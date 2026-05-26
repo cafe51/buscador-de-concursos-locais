@@ -54,16 +54,16 @@ export default function FilterPanel({ palavrasDesejadas, setPalavrasDesejadas, p
       {/* PAINEL DE DESEJADAS */}
       <div>
         <h3 className="font-semibold text-green-700 mb-2">✅ Palavras Desejadas</h3>
-        <div className="flex gap-2 mb-3">
+        <div className="flex flex-col sm:flex-row gap-2 mb-3">
           <input
             type="text"
             value={inputDesejada}
             onChange={(e) => setInputDesejada(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && adicionarDesejada()}
             placeholder="Ex: processo seletivo, edital, concurso"
-            className="border p-2 rounded flex-1 text-sm outline-none focus:border-green-500"
+            className="border p-2 rounded flex-1 text-sm outline-none focus:border-green-500 shadow-sm"
           />
-          <button onClick={adicionarDesejada} className="bg-green-600 text-white px-4 rounded hover:bg-green-700 transition-colors">Add</button>
+          <button onClick={adicionarDesejada} className="bg-green-600 text-white px-6 py-2 sm:py-0 rounded hover:bg-green-700 transition-colors shadow-sm font-semibold">Add</button>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -72,7 +72,7 @@ export default function FilterPanel({ palavrasDesejadas, setPalavrasDesejadas, p
               key={p}
               onClick={() => setPalavrasDesejadas(palavrasDesejadas.filter(item => item !== p))}
               title="Clique para remover"
-              className="bg-green-100 text-green-800 text-xs px-3 py-1.5 rounded flex items-center gap-2 hover:bg-red-100 hover:text-red-800 hover:line-through transition-colors cursor-pointer group"
+              className="bg-green-100 text-green-800 text-xs px-3 py-1.5 rounded-full flex items-center gap-2 hover:bg-red-100 hover:text-red-800 hover:line-through transition-colors cursor-pointer group shadow-sm border border-green-200 hover:border-red-300"
             >
               {p} <span className="font-bold text-green-600 group-hover:text-red-600">x</span>
             </button>
@@ -83,16 +83,16 @@ export default function FilterPanel({ palavrasDesejadas, setPalavrasDesejadas, p
       {/* PAINEL DE IGNORADAS */}
       <div>
         <h3 className="font-semibold text-red-700 mb-2">❌ Palavras Ignoradas</h3>
-        <div className="flex gap-2 mb-3">
+        <div className="flex flex-col sm:flex-row gap-2 mb-3">
           <input
             type="text"
             value={inputIgnorada}
             onChange={(e) => setInputIgnorada(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && adicionarIgnorada()}
             placeholder="Ex: convocacao, homologacao, gabarito"
-            className="border p-2 rounded flex-1 text-sm outline-none focus:border-red-500"
+            className="border p-2 rounded flex-1 text-sm outline-none focus:border-red-500 shadow-sm"
           />
-          <button onClick={adicionarIgnorada} className="bg-red-600 text-white px-4 rounded hover:bg-red-700 transition-colors">Add</button>
+          <button onClick={adicionarIgnorada} className="bg-red-600 text-white px-6 py-2 sm:py-0 rounded hover:bg-red-700 transition-colors shadow-sm font-semibold">Add</button>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -101,7 +101,7 @@ export default function FilterPanel({ palavrasDesejadas, setPalavrasDesejadas, p
               key={p}
               onClick={() => setPalavrasIgnoradas(palavrasIgnoradas.filter(item => item !== p))}
               title="Clique para remover"
-              className="bg-red-100 text-red-800 text-xs px-3 py-1.5 rounded flex items-center gap-2 hover:bg-red-200 hover:text-red-900 hover:line-through transition-colors cursor-pointer group"
+              className="bg-red-100 text-red-800 text-xs px-3 py-1.5 rounded-full flex items-center gap-2 hover:bg-red-200 hover:text-red-900 hover:line-through transition-colors cursor-pointer group shadow-sm border border-red-200 hover:border-red-400"
             >
               {p} <span className="font-bold text-red-600 group-hover:text-red-900">x</span>
             </button>

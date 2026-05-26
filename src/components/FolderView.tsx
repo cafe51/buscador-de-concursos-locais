@@ -18,7 +18,7 @@ export default function FolderView({ concursosAgrupados, filtroTipoGrupo, setFil
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {concursosAgrupados.length === 0 ? (
           <div className="col-span-full bg-white p-6 rounded-lg shadow text-center text-gray-500 border border-gray-100">Nenhum concurso atende ao filtro atual.</div>
         ) : (

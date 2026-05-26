@@ -28,6 +28,7 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
 
   const [cidadeAlvoDev, setCidadeAlvoDev] = useState<string>(todasCidades[0]);
   const [isRefreshingCity, setIsRefreshingCity] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(true);
 
   async function rodarAuditoria() {
     setAuditando(true);
@@ -81,14 +82,34 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
     setIsRefreshingCity(false);
   }
 
-  const showDevTools = process.env.NEXT_PUBLIC_SHOW_DEV_TOOLS === 'true';
+  const showDevTools = process.env.NODE_ENV === 'development';
   if (!showDevTools) return null;
 
+  if (isMinimized) {
+    return (
+      <button
+        onClick={() => setIsMinimized(false)}
+        className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white p-4 rounded-full shadow-2xl hover:bg-black transition-all hover:scale-110 flex items-center justify-center border border-gray-700 group"
+        title="Abrir DevTools"
+      >
+        <span className="text-2xl leading-none group-hover:rotate-90 transition-transform duration-300">⚙️</span>
+      </button>
+    );
+  }
+
   return (
-    <div className="fixed bottom-6 right-6 flex flex-col items-end z-50 gap-4">
+    <div className="fixed inset-0 sm:inset-auto sm:bottom-6 sm:right-6 z-50 flex flex-col items-center sm:items-end gap-4 p-4 sm:p-0 bg-gray-900/40 sm:bg-transparent backdrop-blur-sm sm:backdrop-blur-none overflow-y-auto">
+      <div className="w-full sm:w-auto flex justify-end mb-2 mt-4 sm:mt-0">
+        <button
+          onClick={() => setIsMinimized(true)}
+          className="bg-gray-800 text-white px-6 py-2 rounded-full text-sm font-bold shadow-xl hover:bg-black transition-colors border border-gray-700 flex items-center gap-2"
+        >
+          <span>Fechar DevTools</span> ✖
+        </button>
+      </div>
 
       {/* ☁️ NUVEM VERCEL BLOB */}
-      <div className="bg-white border-2 border-blue-500 p-4 rounded-lg shadow-xl w-96 animate-fade-in flex flex-col gap-3">
+      <div className="bg-white border-2 border-blue-500 p-4 rounded-lg shadow-xl w-full max-w-md sm:w-96 animate-fade-in flex flex-col gap-3">
         <div>
           <h3 className="font-bold text-blue-700 mb-2">☁️ Atualizar Nuvem</h3>
           <p className="text-xs text-gray-500 mb-3">Raspa TODAS as cidades e faz o upload (Upsert) para o banco de dados da Vercel (Pode levar 2 minutos).</p>
@@ -112,7 +133,7 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
       </div>
 
       {/* RASPAGEM INDIVIDUAL */}
-      <div className="bg-white border-2 border-green-500 p-4 rounded-lg shadow-xl w-96 animate-fade-in">
+      <div className="bg-white border-2 border-green-500 p-4 rounded-lg shadow-xl w-full max-w-md sm:w-96 animate-fade-in">
         <h3 className="font-bold text-green-700 mb-2">⚡ Testar Cidade Única</h3>
         <p className="text-xs text-gray-500 mb-3">Atualiza apenas a cidade selecionada.</p>
         <select
@@ -131,7 +152,7 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
       </div>
 
       {/* RAW SCRAPER */}
-      <div className="bg-white border-2 border-purple-500 p-4 rounded-lg shadow-xl w-96 animate-fade-in">
+      <div className="bg-white border-2 border-purple-500 p-4 rounded-lg shadow-xl w-full max-w-md sm:w-96 animate-fade-in">
         <h3 className="font-bold text-purple-700 mb-2">🛠️ Raio-X Instar (Raw)</h3>
         <input
           type="text"
@@ -148,9 +169,9 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
       </div>
 
       {/* AUDITOR */}
-      <div className="flex flex-col items-end">
+      <div className="flex flex-col items-center sm:items-end w-full max-w-md sm:w-auto">
         {resultadoAuditoria && (
-          <div className="bg-white border-2 border-red-500 p-4 rounded-lg shadow-xl mb-4 w-96 max-h-[50vh] overflow-y-auto animate-fade-in">
+          <div className="bg-white border-2 border-red-500 p-4 rounded-lg shadow-xl mb-4 w-full sm:w-96 max-h-[50vh] overflow-y-auto animate-fade-in">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-red-700">🕵️ Relatório</h3>
               <button onClick={() => setResultadoAuditoria(null)} className="text-gray-400 hover:text-black">✖</button>
@@ -174,7 +195,7 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
         )}
         <button
           onClick={rodarAuditoria} disabled={auditando || concursosAgrupados.length === 0}
-          className={`px-4 py-3 rounded-full font-bold shadow-lg flex items-center gap-2 transition-all ${auditando ? 'bg-gray-300 text-gray-600' : 'bg-black text-white hover:bg-gray-800 hover:-translate-y-1'}`}
+          className={`px-6 py-3 rounded-full font-bold shadow-xl flex items-center gap-2 transition-all w-full sm:w-auto justify-center ${auditando ? 'bg-gray-300 text-gray-600' : 'bg-black text-white hover:bg-gray-800 hover:-translate-y-1'}`}
         >
           {auditando ? '⏳ Auditando...' : '🕵️ Auditar Instar'}
         </button>

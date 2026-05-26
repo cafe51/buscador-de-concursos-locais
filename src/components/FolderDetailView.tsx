@@ -18,10 +18,10 @@ export default function FolderDetailView({ grupo, onBack }: FolderDetailViewProp
         <button onClick={onBack} className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-semibold transition-colors">
           <span>←</span> Voltar para as Pastas
         </button>
-        {process.env.NEXT_PUBLIC_SHOW_DEV_TOOLS === 'true' && (
+        {process.env.NODE_ENV === 'development' && (
           <button
             onClick={() => exportarParaJSON(grupo.itens, formatarNomeArquivo(`${grupo.cidade}-${grupo.nome}`))}
-            className="bg-white text-purple-700 border border-purple-300 hover:bg-purple-50 px-4 py-2 rounded text-sm font-bold shadow-sm transition-colors"
+            className="w-full sm:w-auto bg-white text-purple-700 border border-purple-300 hover:bg-purple-50 px-4 py-2 rounded text-sm font-bold shadow-sm transition-colors"
           >
             📥 Baixar Arquivos Deste Concurso
           </button>

@@ -9,7 +9,7 @@ export default function EditalCard({ edital }: { edital: Edital }) {
       rel="noopener noreferrer"
       className="block bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow border-l-4 border-blue-600 relative overflow-hidden group"
     >
-      <div className="flex justify-between items-start mb-3">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-3 mb-3">
         <div className="flex flex-wrap gap-2">
 
           <span className="bg-blue-100 text-blue-800 border border-blue-200 text-xs font-bold px-2 py-1 rounded">
@@ -47,7 +47,7 @@ export default function EditalCard({ edital }: { edital: Edital }) {
         </div>
 
         {edital.dataPublicacao && (
-          <span className="text-xs font-medium text-gray-400 bg-gray-50 px-2 py-1 rounded">
+          <span className="text-xs font-medium text-gray-400 bg-gray-50 px-2 py-1 rounded shrink-0 w-fit">
             🗓️ {edital.dataPublicacao}
           </span>
         )}
