@@ -18,10 +18,10 @@ async function main() {
   console.log("===================================================");
   console.log("🚀 INICIANDO BLOCO DE RASPAGEM AUTOMATIZADA (GITHUB ACTIONS)");
   console.log("===================================================");
-  
+
   const inicioDate = new Date();
   const inicio = performance.now();
-  
+
   // Inicializando mapa de logs para todas as cidades
   const logsCidades: Record<string, LogCidadeDetail> = {};
   CIDADES_ATIVAS.forEach(c => {
@@ -35,7 +35,7 @@ async function main() {
     let { editais, falhas, resultadosDetalhes } = await buscarTodosEditais();
     const todosEditais = [...editais];
     let cidadesComFalha = [...falhas];
-    
+
     // Processar resultados detalhados da tentativa inicial (Pega tempo, aviso, erros)
     resultadosDetalhes.forEach(res => {
       logsCidades[res.cidade] = {
@@ -50,7 +50,7 @@ async function main() {
     });
 
     console.log(`\n✅ Raspagem inicial finalizada. Itens extraídos: ${editais.length}`);
-    
+
     // 2. Lógica de Retentativas
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       if (cidadesComFalha.length === 0) break;
@@ -59,24 +59,24 @@ async function main() {
 
       console.log(`\n⚠️ Falhas detectadas em: ${cidadesComFalha.join(', ')}`);
       console.log(`⏳ Aguardando ${RETRY_DELAY_MINUTES} minuto(s) para a Tentativa ${tentativasEfetuadas} (Retry ${attempt} de ${MAX_RETRIES})...`);
-      
+
       await wait(RETRY_DELAY_MS);
-      
+
       const nomesCidades = cidadesComFalha.map(falha => {
         const match = falha.match(/(.+)\s+\([^)]+\)$/);
         return match ? match[1].trim() : falha.trim();
       });
 
       cidadesComFalha = [];
-      
+
       for (const cidadeKey of nomesCidades) {
         console.log(`\n♻️ Reprocessando cidade com falha: ${cidadeKey}`);
         try {
           const resultado = await buscarEditaisPorCidade(cidadeKey);
-          
+
           if (resultado.resultadosDetalhes && resultado.resultadosDetalhes.length > 0) {
             const res = resultado.resultadosDetalhes[0];
-            
+
             // Soma o tempo gasto nas retentativas e atualiza status
             logsCidades[cidadeKey] = {
               cidade: res.cidade,
@@ -87,7 +87,7 @@ async function main() {
               aviso: res.aviso,
               erro: res.motivo
             };
-            
+
             if (res.sucesso) {
               todosEditais.push(...res.dados);
             } else {
@@ -113,7 +113,7 @@ async function main() {
     // 3. Montar Métricas e Sincronizar Banco
     const fimDate = new Date();
     const duracaoSegundos = Math.round((fimDate.getTime() - inicioDate.getTime()) / 1000);
-    
+
     let statusGeral: 'sucesso' | 'falha_parcial' | 'falha' = 'sucesso';
     if (cidadesComFalha.length > 0) {
       if (cidadesComFalha.length === CIDADES_ATIVAS.length) {
@@ -129,7 +129,7 @@ async function main() {
     if (todosEditais.length > 0) {
       console.log("\nIniciando sincronização principal com o banco de dados...");
       const resultadoSync = await sincronizarBanco(todosEditais, false);
-      
+
       if (resultadoSync.sucesso) {
         syncInfo = {
           adicionados: resultadoSync.adicionados,
