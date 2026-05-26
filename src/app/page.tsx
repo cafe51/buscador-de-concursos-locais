@@ -2,7 +2,8 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { buscarTodosEditais } from './actions';
+// 🚀 Importações do banco de dados adicionadas
+import { carregarDoBanco } from './actions';
 import { Edital } from '../types';
 import { exportarParaJSON } from '../utils/exportJson';
 
@@ -56,21 +57,84 @@ export default function Home() {
   const [paginaAtual, setPaginaAtual] = useState(1);
   const ITENS_POR_PAGINA = 10;
 
+  // 🚀 NOVO: Estado para bloqueio do botão da nuvem
+  const [isSavingToCloud, setIsSavingToCloud] = useState(false);
+  const [isCreatingNewDb, setIsCreatingNewDb] = useState(false);
+
   const fetchIniciado = useRef(false);
 
+  // 1. CARREGAMENTO RÁPIDO DO USUÁRIO COMUM (Puxa APENAS da Nuvem)
   async function carregarDados() {
     setLoading(true);
     setErroFatal('');
     setAlertas([]);
     try {
-      const resultado = await buscarTodosEditais();
-      setEditais(resultado.editais);
-      setAlertas(resultado.falhas);
+      const dadosSalvos = await carregarDoBanco();
+
+      if (dadosSalvos && dadosSalvos.length > 0) {
+        setEditais(dadosSalvos);
+      } else {
+        // Se o banco estiver vazio, a tela apenas avisa, sem travar o servidor!
+        setEditais([]);
+        console.warn("Banco de dados vazio ou não encontrado na Nuvem.");
+      }
       setPaginaAtual(1);
     } catch (e) {
-      setErroFatal('Ocorreu um erro fatal de conexão. Tente novamente mais tarde.');
+      setErroFatal('Ocorreu um erro ao conectar ao banco de dados.');
     }
     setLoading(false);
+  }
+
+  // 🚀 A FUNÇÃO DO MODO DESENVOLVEDOR (Raspa a internet inteira e salva no Banco)
+  async function rasparESalvarNaNuvem() {
+    setIsSavingToCloud(true);
+    try {
+      // Importamos a nova função
+      const { buscarTodosEditais, sincronizarBanco } = await import('./actions');
+
+      const resultado = await buscarTodosEditais();
+      setAlertas(resultado.falhas);
+
+      // Envia os dados frescos para fundir com os antigos na nuvem
+      const syncResult = await sincronizarBanco(resultado.editais);
+
+      if (syncResult.sucesso) {
+        alert(`✅ Sincronização Concluída!\n\n📈 Novos Itens Adicionados: ${syncResult.adicionados}\n🔄 Itens Atualizados: ${syncResult.atualizados.length}\n\nAbra o terminal do seu servidor para ver o relatório completo de alterações.`);
+
+        // Recarrega os dados do banco recém-atualizado para a tela do usuário
+        carregarDados();
+      } else {
+        alert("❌ Erro ao salvar na Nuvem. Verifique o console.");
+      }
+    } catch (e) {
+      alert("❌ Falha crítica ao raspar as cidades.");
+    }
+    setIsSavingToCloud(false);
+  }
+
+  // 🚀 NOVA FUNÇÃO: ZERAR E CRIAR NOVO BANCO
+  async function criarNovoBancoNaNuvem() {
+    if (!confirm("⚠️ ATENÇÃO: Isso vai apagar todo o banco atual e recriar apenas com os dados que forem encontrados agora. Deseja continuar?")) return;
+    
+    setIsCreatingNewDb(true);
+    try {
+      const { buscarTodosEditais, sincronizarBanco } = await import('./actions');
+      const resultado = await buscarTodosEditais();
+      setAlertas(resultado.falhas);
+
+      // Envia os dados frescos para substituir os antigos
+      const syncResult = await sincronizarBanco(resultado.editais, true);
+
+      if (syncResult.sucesso) {
+        alert(`✅ Novo Banco Criado com Sucesso!\n\n📈 Itens Adicionados: ${syncResult.adicionados}\n\nAbra o terminal do seu servidor para ver o relatório completo de alterações.`);
+        carregarDados();
+      } else {
+        alert("❌ Erro ao criar novo banco na Nuvem. Verifique o console.");
+      }
+    } catch (e) {
+      alert("❌ Falha crítica ao raspar as cidades.");
+    }
+    setIsCreatingNewDb(false);
   }
 
   useEffect(() => {
@@ -163,20 +227,14 @@ export default function Home() {
   const indexInicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
   const editaisDaPaginaLista = editaisFiltrados.slice(indexInicio, indexInicio + ITENS_POR_PAGINA);
 
-  // ==============================================================
-  // 🚀 A MÁGICA DA RENDERIZAÇÃO INSTANTÂNEA
-  // ==============================================================
   function handleUpdateCityData(cidadeAlvo: string, novosEditais: Edital[]) {
     setEditais((prev) => {
-      // 1. Identifica se a atualização é de Câmara ou Prefeitura
       const isCamara = cidadeAlvo.includes('(Câmara)');
       const cidadeReal = cidadeAlvo.replace(' (Câmara)', '').trim();
       const orgaoReal = isCamara ? 'Câmara Municipal' : 'Prefeitura';
 
-      // 2. Apaga TODOS os dados velhos especificamente deste Órgão e desta Cidade
       const dadosOutrasCidades = prev.filter(e => !(e.cidade === cidadeReal && e.orgao === orgaoReal));
 
-      // 3. Insere os dados frescos no lugar
       const novaLista = [...dadosOutrasCidades, ...novosEditais];
       novaLista.sort((a, b) => {
         if (b.dataTimestamp !== a.dataTimestamp) return b.dataTimestamp - a.dataTimestamp;
@@ -185,7 +243,6 @@ export default function Home() {
       return novaLista;
     });
 
-    // 4. Se o usuário estiver com a pasta aberta, fecha ela para mostrar as pastas recém-desenhadas!
     setConcursoSelecionado(null);
   }
 
@@ -196,7 +253,7 @@ export default function Home() {
           loading={loading}
           hasData={editaisFiltrados.length > 0}
           onExport={() => exportarParaJSON(editaisFiltrados, 'meus-editais')}
-          onUpdate={carregarDados}
+          onUpdate={carregarDados} // Se ele clicar aqui, só puxa os dados recentes da Nuvem!
         />
 
         {alertas.length > 0 && !loading && (
@@ -221,7 +278,7 @@ export default function Home() {
         />
 
         {loading ? (
-          <div className="text-center p-8 text-gray-500 animate-pulse">Lendo páginas e extraindo dados...</div>
+          <div className="text-center p-8 text-gray-500 animate-pulse">Carregando dados da nuvem...</div>
         ) : editaisFiltrados.length === 0 ? (
           <div className="bg-white p-6 rounded-lg shadow text-center text-gray-500 border border-gray-100">Nenhum edital encontrado com esses filtros.</div>
         ) : modoVisualizacao === 'lista' ? (
@@ -248,6 +305,10 @@ export default function Home() {
         todasCidades={TODAS_CIDADES}
         concursosAgrupados={concursosAgrupados}
         onUpdateCityData={handleUpdateCityData}
+        onScrapeAndSave={rasparESalvarNaNuvem} // 🚀 Função Injetada!
+        isSavingToCloud={isSavingToCloud}
+        onCreateNewDb={criarNovoBancoNaNuvem}
+        isCreatingNewDb={isCreatingNewDb}
       />
 
     </main>

@@ -143,7 +143,6 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
     }
 
     const TAMANHO_LOTE = 15;
-    const mapaResolucoesPdfs = new Map<string, Promise<string | undefined>>();
 
     for (let i = 0; i < concursosParaBaixar.length; i += TAMANHO_LOTE) {
       const lote = concursosParaBaixar.slice(i, i + TAMANHO_LOTE);
@@ -200,7 +199,49 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
               const hrefDoc = aTag.attr('href') || '';
               if (!hrefDoc) continue;
 
-              const linkDoc = hrefDoc.startsWith('http') ? hrefDoc : `${baseUrl}${hrefDoc}`;
+              let linkDoc = hrefDoc.startsWith('http') ? hrefDoc : `${baseUrl}${hrefDoc}`;
+
+              // 🚀 BUSCA DO LINK VERDADEIRO IMEDIATA
+              // Resolve links dinâmicos ANTES de extrair o texto do PDF para evitar 
+              // duplicar requisições e sofrer rate-limit da prefeitura
+              if (linkDoc.includes('/download/')) {
+                let tentativas = 0;
+                let sucesso = false;
+
+                while (tentativas < 2 && !sucesso) {
+                  try {
+                    const resLink = await fetch(linkDoc, {
+                      headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+                      },
+                      cache: 'no-store'
+                    });
+
+                    if (resLink.ok) {
+                      const textLink = await resLink.text();
+                      const match = textLink.match(/<meta\s+http-equiv=["']refresh["']\s+content=["']0;\s*url=([^"']+)["']/i);
+                      if (match && match[1]) {
+                        let trueUrl = match[1];
+                        if (trueUrl.startsWith('/')) {
+                          trueUrl = `${baseUrl}${trueUrl}`;
+                        } else if (!trueUrl.startsWith('http')) {
+                          trueUrl = `${baseUrl}/${trueUrl}`;
+                        }
+                        linkDoc = trueUrl;
+                      }
+                      sucesso = true;
+                    } else {
+                      tentativas++;
+                      await new Promise(r => setTimeout(r, 800));
+                    }
+                  } catch (e) {
+                    tentativas++;
+                    await new Promise(r => setTimeout(r, 800));
+                  }
+                }
+              }
 
               let tituloFinal = '';
               let descricaoFinal = '';
@@ -236,38 +277,48 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
 
               if (concurso.isFragmentado && idResolvido.startsWith('TEMPORARIO|')) {
                 const partes = idResolvido.split('|');
-                const fallbackName = `${partes[1]} ${partes[2] === 'Anterior' ? '' : partes[2]}`.trim();
+                let fallbackName = `${partes[1]} ${partes[2] === 'Anterior' ? '' : partes[2]}`.trim();
 
-                if (!mapaResolucoesPdfs.has(idResolvido)) {
-                  const promessaLeituraPdf = (async () => {
-                    try {
-                      const textoPdf = await extrairTextoBruto(linkDoc);
-                      if (textoPdf) {
-                        const cleanTexto = textoPdf.replace(/\s+/g, ' ');
+                // Tenta extrair o ID diretamente da URL verdadeira (ex: cp-01-22_03035010.pdf)
+                const regexLink = /(?:^|[\W_])(cp|ps|concurso|processo seletivo)[\W_]{0,3}?(\d{1,3})[\W_]+(\d{2}|\d{4})[\W_]/i;
+                const matchLink = linkDoc.match(regexLink);
+                if (matchLink) {
+                  const tipoLink = (matchLink[1].toUpperCase().includes('CONCUR') || matchLink[1].toUpperCase() === 'CP') ? 'Concurso' : 'Processo Seletivo';
+                  const numeroLink = parseInt(matchLink[2], 10).toString().padStart(2, '0');
+                  let anoLink = matchLink[3];
+                  if (anoLink.length === 2) anoLink = `20${anoLink}`;
+                  idResolvido = `${tipoLink} ${numeroLink}/${anoLink}`;
+                } else {
+                  // Se não encontrou na URL, lê o PDF (mas NÃO faz cache global que contamina outros arquivos)
+                  try {
+                    const textoPdf = await extrairTextoBruto(linkDoc);
+                    if (textoPdf) {
+                      const cleanTexto = textoPdf.replace(/\s+/g, ' ');
 
-                        // 1. Tenta o filtro global
-                        let idExtraido = extrairIdConcurso(corrigirErrosDigitacao(cleanTexto), '');
+                      // 1. Tenta o filtro global
+                      let idExtraido = extrairIdConcurso(corrigirErrosDigitacao(cleanTexto), '');
 
-                        // 2. 🚀 FALLBACK RÚSTICO: Puxa à força bruta o padrão de Vitória Brasil
-                        if (!idExtraido) {
-                          const matchRustico = cleanTexto.match(/(Processo\s*Seletivo|Concurso\s*P[uú]blico)[^\d]{0,80}?(\d{1,3})\s*[\/\-]\s*(\d{4})/i);
-                          if (matchRustico) {
-                            const tipo = matchRustico[1].toLowerCase().includes('concurso') ? 'Concurso Público' : 'Processo Seletivo';
-                            idExtraido = `${tipo} ${matchRustico[2].padStart(2, '0')}/${matchRustico[3]}`;
-                          }
+                      // 2. 🚀 FALLBACK RÚSTICO: Puxa à força bruta o padrão de Vitória Brasil
+                      if (!idExtraido) {
+                        const matchRustico = cleanTexto.match(/(Processo\s*Seletivo|Concurso\s*P[uú]blico)[^\d]{0,80}?(\d{1,3})\s*[\/\-]\s*(\d{4})/i);
+                        if (matchRustico) {
+                          const tipo = matchRustico[1].toLowerCase().includes('concurso') ? 'Concurso Público' : 'Processo Seletivo';
+                          idExtraido = `${tipo} ${matchRustico[2].padStart(2, '0')}/${matchRustico[3]}`;
                         }
-
-                        if (idExtraido) return idExtraido;
                       }
-                    } catch (e) { }
-                    return fallbackName;
-                  })();
 
-                  mapaResolucoesPdfs.set(idResolvido, promessaLeituraPdf);
+                      if (idExtraido) {
+                        idResolvido = idExtraido;
+                      } else {
+                        idResolvido = fallbackName;
+                      }
+                    } else {
+                      idResolvido = fallbackName;
+                    }
+                  } catch (e) {
+                    idResolvido = fallbackName;
+                  }
                 }
-
-                const nomeExtraido = await mapaResolucoesPdfs.get(idResolvido);
-                idResolvido = nomeExtraido || fallbackName;
               }
 
               if (idResolvido && idResolvido.startsWith('Concurso ')) {
@@ -304,6 +355,7 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
 
           if (concursoContaminado) return;
 
+
           const idParaAglutinacao = documentosTemporarios[0]?.finalIdConcurso || concurso.idConcurso;
 
           const docsDaPasta = documentosTemporarios.map(doc => ({
@@ -328,7 +380,11 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
             documentos: docsDaPasta
           });
 
-        } catch (e: any) { throw new Error(`Erro ao raspar a página interna de Vitória Brasil: ${concurso.linkCompleto}` + ": " + (e as Error).message); }
+        } catch (e: any) {
+          const cause = (e as any).cause;
+          const causeMsg = cause ? " - Detalhes: " + (cause.message || cause.code || JSON.stringify(cause)) : "";
+          throw new Error(`Erro ao raspar a página interna de Vitória Brasil: ${concurso.linkCompleto}` + ": " + (e as Error).message + causeMsg);
+        }
       }));
     }
 
@@ -429,7 +485,11 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
       }
     }
 
-  } catch (e: any) { throw new Error(`Erro geral ao buscar Vitória Brasil` + ": " + (e as Error).message); }
+  } catch (e: any) {
+    const cause = (e as any).cause;
+    const causeMsg = cause ? " - Detalhes: " + (cause.message || cause.code || JSON.stringify(cause)) : "";
+    throw new Error(`Erro geral ao buscar Vitória Brasil` + ": " + (e as Error).message + causeMsg);
+  }
 
   return resultados;
 }

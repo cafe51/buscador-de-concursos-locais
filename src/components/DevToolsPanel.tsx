@@ -13,9 +13,13 @@ type DevToolsProps = {
   todasCidades: string[];
   concursosAgrupados: any[];
   onUpdateCityData: (cidade: string, novosEditais: Edital[]) => void;
+  onScrapeAndSave: () => void; // 🚀 Adicionado
+  isSavingToCloud: boolean;    // 🚀 Adicionado
+  onCreateNewDb: () => void;   // 🚀 Adicionado
+  isCreatingNewDb: boolean;    // 🚀 Adicionado
 };
 
-export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpdateCityData }: DevToolsProps) {
+export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpdateCityData, onScrapeAndSave, isSavingToCloud, onCreateNewDb, isCreatingNewDb }: DevToolsProps) {
   const [auditando, setAuditando] = useState(false);
   const [resultadoAuditoria, setResultadoAuditoria] = useState<Discrepancia[] | null>(null);
 
@@ -82,6 +86,31 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
 
   return (
     <div className="fixed bottom-6 right-6 flex flex-col items-end z-50 gap-4">
+
+      {/* ☁️ NUVEM VERCEL BLOB */}
+      <div className="bg-white border-2 border-blue-500 p-4 rounded-lg shadow-xl w-96 animate-fade-in flex flex-col gap-3">
+        <div>
+          <h3 className="font-bold text-blue-700 mb-2">☁️ Atualizar Nuvem</h3>
+          <p className="text-xs text-gray-500 mb-3">Raspa TODAS as cidades e faz o upload (Upsert) para o banco de dados da Vercel (Pode levar 2 minutos).</p>
+          <button
+            onClick={onScrapeAndSave} disabled={isSavingToCloud || isCreatingNewDb}
+            className="bg-blue-600 text-white w-full py-3 rounded text-sm font-bold disabled:bg-gray-400 hover:bg-blue-700 transition-colors shadow-lg"
+          >
+            {isSavingToCloud ? '⏳ Raspando e Salvando...' : '🚀 Raspar TUDO e Atualizar Nuvem'}
+          </button>
+        </div>
+        <div className="border-t border-gray-200 pt-3">
+          <h3 className="font-bold text-red-600 mb-2">🛑 Criar Novo Banco</h3>
+          <p className="text-xs text-gray-500 mb-3">Zera a nuvem atual e recria o banco APENAS com os dados encontrados agora (Destrutivo).</p>
+          <button
+            onClick={onCreateNewDb} disabled={isSavingToCloud || isCreatingNewDb}
+            className="bg-red-600 text-white w-full py-2 rounded text-sm font-bold disabled:bg-gray-400 hover:bg-red-700 transition-colors shadow-lg"
+          >
+            {isCreatingNewDb ? '⏳ Recriando Banco...' : '💥 Zerar e Criar Novo Banco'}
+          </button>
+        </div>
+      </div>
+
       {/* RASPAGEM INDIVIDUAL */}
       <div className="bg-white border-2 border-green-500 p-4 rounded-lg shadow-xl w-96 animate-fade-in">
         <h3 className="font-bold text-green-700 mb-2">⚡ Testar Cidade Única</h3>

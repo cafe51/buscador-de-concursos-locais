@@ -129,10 +129,18 @@ export async function buscarCamaraParisi(): Promise<Edital[]> {
           });
         });
 
-      } catch (error: any) { throw new Error(`Erro ao ler o feed interno da Câmara Parisi: ${feedUrl}` + ": " + error.message); }
+      } catch (error: any) {
+    const cause = (error as any).cause;
+    const causeMsg = cause ? " - Detalhes: " + (cause.message || cause.code || JSON.stringify(cause)) : "";
+    throw new Error(`Erro ao ler o feed interno da Câmara Parisi: ${feedUrl}` + ": " + (error as Error).message + causeMsg);
+  }
     }));
 
-  } catch (error: any) { throw new Error('Erro geral ao buscar Câmara Parisi' + ": " + error.message); }
+  } catch (error: any) {
+    const cause = (error as any).cause;
+    const causeMsg = cause ? " - Detalhes: " + (cause.message || cause.code || JSON.stringify(cause)) : "";
+    throw new Error('Erro geral ao buscar Câmara Parisi' + ": " + (error as Error).message + causeMsg);
+  }
 
   return resultados;
 }

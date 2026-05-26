@@ -3,6 +3,8 @@
 
 import * as cheerio from 'cheerio';
 import { Edital } from '../types';
+import { put, list } from '@vercel/blob';
+
 import { buscarFernandopolis } from '../lib/scrapers/fernandopolis';
 import { buscarCamaraFernandopolis } from '../lib/scrapers/camaras/fernandopolis'
   ;
@@ -451,5 +453,139 @@ export async function extrairDadosRawInstar(urlLista: string) {
   } catch (error: any) {
     console.error(error);
     return { erro: error.message };
+  }
+}
+
+// ==============================================================
+// ☁️ VERCEL BLOB: BANCO DE DADOS
+// ==============================================================
+
+// Puxa o JSON de 1.6MB da nuvem em milissegundos
+// ==============================================================
+// ☁️ VERCEL BLOB: BANCO DE DADOS
+// ==============================================================
+
+export async function carregarDoBanco(): Promise<Edital[]> {
+  try {
+    const { blobs } = await list();
+    const file = blobs.find(b => b.pathname === 'editais.json');
+
+    if (!file) return [];
+
+    const res = await fetch(file.downloadUrl, {
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` }
+    });
+
+    if (!res.ok) {
+      console.error("Erro HTTP ao baixar o banco:", res.status, res.statusText);
+      return [];
+    }
+
+    const dados = await res.json();
+    return dados;
+  } catch (e) {
+    console.error("Erro ao ler do Vercel Blob:", e);
+    return [];
+  }
+}
+
+// 🚀 NOVA FUNÇÃO: Sincronização Inteligente (Upsert) ou Substituição Total
+export async function sincronizarBanco(novosEditais: Edital[], substituirTudo: boolean = false): Promise<{ sucesso: boolean, adicionados: number, atualizados: string[] }> {
+  try {
+    console.log("\n===================================================");
+    if (substituirTudo) {
+      console.log("☁️ CRIANDO NOVO BANCO NA NUVEM (SUBSTITUIÇÃO TOTAL)...");
+    } else {
+      console.log("☁️ SINCRONIZANDO COM A NUVEM...");
+    }
+    console.log("===================================================");
+
+    // Se for substituir tudo, ignoramos o banco antigo.
+    const editaisAntigos = substituirTudo ? [] : await carregarDoBanco();
+
+    const mapaFinal = new Map<string, Edital>();
+    const relatorioAtualizacoes: string[] = [];
+    const relatorioAdicoes: string[] = [];
+    let qtdeAdicionados = 0;
+
+    // 1. Alimenta o mapa com os dados antigos (Garante que se o scraper falhar, o dado velho sobrevive!)
+    editaisAntigos.forEach(e => mapaFinal.set(e.link, e));
+
+    // 2. Processa os dados novos
+    novosEditais.forEach(novo => {
+      const antigo = mapaFinal.get(novo.link);
+
+      if (antigo) {
+        // Compara os dois para ver se algo mudou
+        const alteracoes: string[] = [];
+        const chavesParaIgnorar = ['ordemOriginal', 'dataTimestamp']; // Ignora mudanças de milissegundos da ordenação
+
+        (Object.keys(novo) as Array<keyof Edital>).forEach(key => {
+          if (!chavesParaIgnorar.includes(key)) {
+            // Transforma em string para comparar até mesmo os Arrays
+            const valNovo = JSON.stringify(novo[key] || '');
+            const valAntigo = JSON.stringify(antigo[key] || '');
+
+            if (valNovo !== valAntigo) {
+              alteracoes.push(`${key}: '${antigo[key] || 'vazio'}' ➔ '${novo[key] || 'vazio'}'`);
+            }
+          }
+        });
+
+        if (alteracoes.length > 0) {
+          relatorioAtualizacoes.push(
+            `\n   🏢 [${novo.cidade}] 📄 "${novo.titulo}"` +
+            `\n   🔗 Link: ${novo.link}` +
+            `\n   🔄 Mudanças: ${alteracoes.join(' | ')}`
+          );
+        }
+      } else {
+        qtdeAdicionados++;
+        relatorioAdicoes.push(
+          `\n   ✨ [${novo.cidade}] 📄 "${novo.titulo}"` +
+          `\n   🔗 Link: ${novo.link}`
+        );
+      }
+
+      // Salva ou Sobrescreve o item no mapa consolidado
+      mapaFinal.set(novo.link, novo);
+    });
+
+    // 3. Monta o array final e reordena tudo cronologicamente
+    const listaFinal = Array.from(mapaFinal.values());
+    listaFinal.sort((a, b) => {
+      if (b.dataTimestamp !== a.dataTimestamp) return b.dataTimestamp - a.dataTimestamp;
+      return (a.ordemOriginal || 0) - (b.ordemOriginal || 0);
+    });
+
+    // 4. Faz o Upload com permissão de Sobrescrita
+    console.log(`☁️ Enviando pacote consolidado (${listaFinal.length} itens) para o Vercel Blob...`);
+    await put('editais.json', JSON.stringify(listaFinal), {
+      access: 'private',
+      addRandomSuffix: false,
+      allowOverwrite: true, // 🚀 CORREÇÃO DO ERRO DA VERCEL
+      contentType: 'application/json'
+    });
+
+    console.log(`✅ Upload concluído!`);
+    console.log(`📈 Novos Editais Adicionados: ${qtdeAdicionados}`);
+    console.log(`🔄 Editais Atualizados: ${relatorioAtualizacoes.length}`);
+
+    if (relatorioAdicoes.length > 0 && !substituirTudo) {
+      console.log("\n🆕 Relatório de Adições:");
+      relatorioAdicoes.forEach(log => console.log(log));
+    }
+
+    if (relatorioAtualizacoes.length > 0) {
+      console.log("\n📝 Relatório de Alterações:");
+      relatorioAtualizacoes.forEach(log => console.log(log));
+    }
+    console.log("===================================================\n");
+
+    return { sucesso: true, adicionados: qtdeAdicionados, atualizados: relatorioAtualizacoes };
+  } catch (e) {
+    console.error("Erro na sincronização com Vercel Blob:", e);
+    return { sucesso: false, adicionados: 0, atualizados: [] };
   }
 }

@@ -202,10 +202,18 @@ export async function buscarCamaraIndiapora(): Promise<Edital[]> {
           });
         });
 
-      } catch (error: any) { throw new Error(`Erro ao ler página interna da Câmara de Indiaporã: ${pasta.linkCompletoPasta}` + ": " + error.message); }
+      } catch (error: any) {
+    const cause = (error as any).cause;
+    const causeMsg = cause ? " - Detalhes: " + (cause.message || cause.code || JSON.stringify(cause)) : "";
+    throw new Error(`Erro ao ler página interna da Câmara de Indiaporã: ${pasta.linkCompletoPasta}` + ": " + (error as Error).message + causeMsg);
+  }
     }));
 
-  } catch (error: any) { throw new Error('Erro geral ao buscar Câmara Indiaporã' + ": " + error.message); }
+  } catch (error: any) {
+    const cause = (error as any).cause;
+    const causeMsg = cause ? " - Detalhes: " + (cause.message || cause.code || JSON.stringify(cause)) : "";
+    throw new Error('Erro geral ao buscar Câmara Indiaporã' + ": " + (error as Error).message + causeMsg);
+  }
 
   return resultados;
 }

@@ -22,7 +22,9 @@ type PastaExtraida = {
 export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> {
   const resultados: Edital[] = [];
   const pastasExtraidas: PastaExtraida[] = [];
-  let falhasDeConexao = 0;
+
+  // 🚀 MUDANÇA: Agora guardamos os detalhes exatos de cada falha
+  const detalhesFalhas: string[] = [];
 
   const orgao = config.orgao || 'Prefeitura';
   const basePath = config.basePath || '/portal/editais/1/3/0/0/0/0/0/0/';
@@ -54,10 +56,13 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
               'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
             }, cache: 'no-store'
           });
-          if (!res.ok) falhasDeConexao++;
-          return res.ok ? await res.text() : '';
-        } catch {
-          falhasDeConexao++;
+          if (!res.ok) {
+            detalhesFalhas.push(`[HTTP ${res.status}] Lista: ${url}`);
+            return '';
+          }
+          return await res.text();
+        } catch (err: any) {
+          detalhesFalhas.push(`[REDE/TIMEOUT] Lista: ${url} -> ${err.message}`);
           return '';
         }
       }));
@@ -164,22 +169,40 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
       });
     }
 
-    const TAMANHO_LOTE = 15;
+    const TAMANHO_LOTE = 5;
 
     for (let i = 0; i < concursosParaBaixar.length; i += TAMANHO_LOTE) {
       const lote = concursosParaBaixar.slice(i, i + TAMANHO_LOTE);
 
       await Promise.all(lote.map(async (concurso) => {
         try {
-          const resInner = await fetch(concurso.linkCompleto, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-              'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-            }, cache: 'no-store'
-          });
-          if (!resInner.ok) {
-            falhasDeConexao++;
+          let resInner: Response | undefined = undefined;
+          let tentativasPasta = 0;
+          let pastaSucesso = false;
+
+          while (tentativasPasta < 3 && !pastaSucesso) {
+            try {
+              resInner = await fetch(concurso.linkCompleto, {
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                  'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+                }, cache: 'no-store'
+              });
+              if (resInner.ok) {
+                pastaSucesso = true;
+              } else {
+                tentativasPasta++;
+                await new Promise(r => setTimeout(r, 1000));
+              }
+            } catch (e) {
+              tentativasPasta++;
+              await new Promise(r => setTimeout(r, 1000));
+            }
+          }
+
+          if (!resInner || !resInner.ok) {
+            detalhesFalhas.push(`[HTTP/REDE FALHA] Pasta Interna: ${concurso.linkCompleto}`);
             return;
           }
 
@@ -268,6 +291,52 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
             });
           }
 
+          // 🚀 BUSCA DO LINK VERDADEIRO
+          // Resolve links dinâmicos de download para evitar duplicações
+          if (documentosTemporarios.length > 0) {
+            // Busca SEQUENCIAL com retentativa para evitar RATE LIMIT (Ouroeste e Jales)
+            for (const doc of documentosTemporarios) {
+              if (doc.link && doc.link.includes('/download/')) {
+                let tentativas = 0;
+                let sucesso = false;
+                
+                while (tentativas < 2 && !sucesso) {
+                  try {
+                    const resLink = await fetch(doc.link, {
+                      headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+                      },
+                      cache: 'no-store'
+                    });
+                    
+                    if (resLink.ok) {
+                      const textLink = await resLink.text();
+                      const match = textLink.match(/<meta\s+http-equiv=["']refresh["']\s+content=["']0;\s*url=([^"']+)["']/i);
+                      if (match && match[1]) {
+                        let trueUrl = match[1];
+                        if (trueUrl.startsWith('/')) {
+                          trueUrl = `${config.baseUrl}${trueUrl}`;
+                        } else if (!trueUrl.startsWith('http')) {
+                          trueUrl = `${config.baseUrl}/${trueUrl}`;
+                        }
+                        doc.link = trueUrl;
+                      }
+                      sucesso = true;
+                    } else {
+                      tentativas++;
+                      await new Promise(r => setTimeout(r, 800));
+                    }
+                  } catch (e) {
+                    tentativas++;
+                    await new Promise(r => setTimeout(r, 800));
+                  }
+                }
+              }
+            }
+          }
+
           if (concursoContaminado) return;
 
           let anoConcurso: number | undefined = undefined;
@@ -298,15 +367,12 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
             documentos: docsDaPasta
           });
 
-        } catch (e) {
-          falhasDeConexao++;
+        } catch (e: any) {
+          detalhesFalhas.push(`[EXCEÇÃO CÓDIGO] Pasta Interna: ${concurso.linkCompleto} -> ${e.message}`);
         }
       }));
     }
 
-    // ==============================================================
-    // 🚀 LÓGICA DE FUSÃO E ELEIÇÃO DA PASTA PRINCIPAL
-    // ==============================================================
     const pastasAgrupadas = new Map<string, PastaExtraida[]>();
 
     for (const pasta of pastasExtraidas) {
@@ -319,7 +385,6 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
     let ordemGlobal = 0;
 
     for (const pastasDoConcurso of pastasAgrupadas.values()) {
-
       pastasDoConcurso.sort((a, b) => {
         if (a.dataTimestamp !== b.dataTimestamp) {
           return a.dataTimestamp - b.dataTimestamp;
@@ -332,10 +397,6 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
         const isPrincipal = (i === 0);
 
         for (const doc of pastaAtual.documentos) {
-
-          // ==========================================================
-          // 🚀 SE O DOCUMENTO FOR ESTRANGEIRO (Veio de uma pasta unida)
-          // ==========================================================
           if (!isPrincipal) {
             const marcador = "(*) ";
             if (doc.descricao) {
@@ -354,19 +415,28 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
       }
     }
 
-    if (falhasDeConexao > 0) {
+    // ==============================================================
+    // 🚨 EXIBIÇÃO CLARA DE LOGS DE FALHA NO TERMINAL
+    // ==============================================================
+    if (detalhesFalhas.length > 0) {
+      console.log(`\n⚠️ [DETETIVE INSTAR - ${config.cidade}] Foram detectadas ${detalhesFalhas.length} falhas:`);
+      detalhesFalhas.forEach(f => console.log(`   -> ${f}`));
+
+      const msg = `Conexão instável (${detalhesFalhas.length} falhas)`;
       if (resultados.length === 0) {
-        throw new Error(`Falha de conexão em ${falhasDeConexao} requisições`);
+        throw new Error(msg);
       } else {
-        throw Object.assign(new Error(`Conexão instável (${falhasDeConexao} falhas)`), { dadosParciais: resultados });
+        throw Object.assign(new Error(msg), { dadosParciais: resultados });
       }
     }
 
   } catch (e: any) {
-    if (e.dadosParciais || falhasDeConexao > 0) {
+    if (e.dadosParciais || detalhesFalhas.length > 0) {
       throw e;
     }
-    throw new Error(`Erro geral no InstarBase: ${(e as Error).message}`);
+    const cause = (e as any).cause;
+    const causeMsg = cause ? " - Detalhes: " + (cause.message || cause.code || JSON.stringify(cause)) : "";
+    throw new Error(`Erro geral no InstarBase: ${(e as Error).message}` + causeMsg);
   }
 
   return resultados;

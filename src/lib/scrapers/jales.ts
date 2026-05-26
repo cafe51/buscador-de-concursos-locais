@@ -230,7 +230,11 @@ export async function buscarJales(): Promise<Edital[]> {
       }
     }
 
-  } catch (e: any) { throw new Error(`Erro geral ao buscar Jales` + ": " + (e as Error).message); }
+  } catch (e: any) {
+    const cause = (e as any).cause;
+    const causeMsg = cause ? " - Detalhes: " + (cause.message || cause.code || JSON.stringify(cause)) : "";
+    throw new Error(`Erro geral ao buscar Jales` + ": " + (e as Error).message + causeMsg);
+  }
 
   return resultados;
 }

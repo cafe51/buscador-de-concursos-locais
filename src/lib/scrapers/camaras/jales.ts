@@ -11,11 +11,13 @@ export async function buscarCamaraJales(): Promise<Edital[]> {
   const urlPagina = `${baseUrl}/concurso-publico`;
 
   try {
-    const res = await fetch(urlPagina, { headers: { 
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-        }, cache: 'no-store' });
+    const res = await fetch(urlPagina, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+      }, cache: 'no-store'
+    });
     if (!res.ok) return [];
 
     const html = await res.text();
@@ -170,7 +172,11 @@ export async function buscarCamaraJales(): Promise<Edital[]> {
       });
     }));
 
-  } catch (error: any) { throw new Error('Erro geral ao buscar Câmara Jales' + ": " + error.message); }
+  } catch (error: any) {
+    const cause = (error as any).cause;
+    const causeMsg = cause ? " - Detalhes: " + (cause.message || cause.code || JSON.stringify(cause)) : "";
+    throw new Error('Erro geral ao buscar Câmara Jales' + ": " + (error as Error).message + causeMsg);
+  }
 
   return resultados;
 }

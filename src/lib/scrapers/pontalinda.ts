@@ -195,10 +195,18 @@ export async function buscarPontalinda(): Promise<Edital[]> {
 
         });
 
-      } catch (error: any) { throw new Error(`Erro ao ler página interna de Pontalinda: ${pasta.linkCompletoPasta}` + ": " + error.message); }
+      } catch (error: any) {
+    const cause = (error as any).cause;
+    const causeMsg = cause ? " - Detalhes: " + (cause.message || cause.code || JSON.stringify(cause)) : "";
+    throw new Error(`Erro ao ler página interna de Pontalinda: ${pasta.linkCompletoPasta}` + ": " + (error as Error).message + causeMsg);
+  }
     }));
 
-  } catch (error: any) { throw new Error('Erro geral ao buscar Pontalinda' + ": " + error.message); }
+  } catch (error: any) {
+    const cause = (error as any).cause;
+    const causeMsg = cause ? " - Detalhes: " + (cause.message || cause.code || JSON.stringify(cause)) : "";
+    throw new Error('Erro geral ao buscar Pontalinda' + ": " + (error as Error).message + causeMsg);
+  }
 
   return resultados;
 }
