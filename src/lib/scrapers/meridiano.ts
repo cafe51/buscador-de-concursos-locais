@@ -2,6 +2,7 @@
 import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
 import { ehSujeira, extrairIdConcurso } from '../filtrosGlobais';
+import { fetchHtml, extrairData } from './utils';
 
 export async function buscarMeridiano(): Promise<Edital[]> {
   const resultados: Edital[] = [];
@@ -14,17 +15,10 @@ export async function buscarMeridiano(): Promise<Edital[]> {
     // 1. BUSCA CONCURSOS PÚBLICOS (2022 em diante)
     // ==============================================================
     const urlBaseConcurso = 'https://meridiano.sp.gov.br/concursos/?ces_tipo=concurso-publico';
-    const resBaseC = await fetch(urlBaseConcurso, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-      }, cache: 'no-store'
-    });
+    const resBaseC = await fetchHtml(urlBaseConcurso);
 
     if (resBaseC.ok) {
-      const htmlBaseC = await resBaseC.text();
-      const $baseC = cheerio.load(htmlBaseC);
+      const $baseC = cheerio.load(resBaseC.html);
       const linksAnosC: { url: string; ano: number }[] = [];
 
       $baseC('a.ces-card').each((_, el) => {
@@ -37,16 +31,8 @@ export async function buscarMeridiano(): Promise<Edital[]> {
       });
 
       const paginasAnosC = await Promise.all(linksAnosC.map(async (item) => {
-        try {
-          const res = await fetch(item.url, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-              'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-            }, cache: 'no-store'
-          });
-          return { ...item, html: res.ok ? await res.text() : '' };
-        } catch { return { ...item, html: '' }; }
+        const res = await fetchHtml(item.url);
+        return { ...item, html: res.ok ? res.html : '' };
       }));
 
       for (const pagAno of paginasAnosC) {
@@ -69,16 +55,8 @@ export async function buscarMeridiano(): Promise<Edital[]> {
     const urlsSeletivo = anosSeletivo.map(ano => ({ ano, url: `https://meridiano.sp.gov.br/concursos/?ces_tipo=processo-seletivo&ces_ano=${ano}` }));
 
     const paginasAnosS = await Promise.all(urlsSeletivo.map(async (item) => {
-      try {
-        const res = await fetch(item.url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-          }, cache: 'no-store'
-        });
-        return { ...item, html: res.ok ? await res.text() : '' };
-      } catch { return { ...item, html: '' }; }
+      const res = await fetchHtml(item.url);
+      return { ...item, html: res.ok ? res.html : '' };
     }));
 
     for (const pagAno of paginasAnosS) {
@@ -94,24 +72,16 @@ export async function buscarMeridiano(): Promise<Edital[]> {
     }
 
     // ==============================================================
-    // 3. FASE DE DETALHES (PARALELIZADO EM LOTES DE 10)
+    // 3. FASE DE DETALHES (PARALELIZADO EM LOTES DE 25)
     // ==============================================================
-    const TAMANHO_LOTE = 10;
+    const TAMANHO_LOTE = 25;
 
     for (let i = 0; i < todosOsConcursos.length; i += TAMANHO_LOTE) {
       const lote = todosOsConcursos.slice(i, i + TAMANHO_LOTE);
 
       const detalhesHtml = await Promise.all(lote.map(async (concurso) => {
-        try {
-          const res = await fetch(concurso.urlDetalhes, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-              'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-            }, cache: 'no-store'
-          });
-          return { ...concurso, html: res.ok ? await res.text() : '' };
-        } catch { return { ...concurso, html: '' }; }
+        const res = await fetchHtml(concurso.urlDetalhes);
+        return { ...concurso, html: res.ok ? res.html : '' };
       }));
 
       for (const detalhe of detalhesHtml) {
@@ -145,10 +115,10 @@ export async function buscarMeridiano(): Promise<Edital[]> {
           let dataFormatada = '';
           let dataTimestamp = 0;
 
-          const matchData = dataRaw.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-          if (matchData) {
-            dataFormatada = matchData[0];
-            dataTimestamp = new Date(`${matchData[3]}-${matchData[2]}-${matchData[1]}T00:00:00`).getTime();
+          const dataExtraida = extrairData(dataRaw);
+          if (dataExtraida) {
+            dataFormatada = dataExtraida.dataFormatada;
+            dataTimestamp = dataExtraida.dataTimestamp;
             datasEncontradas.add(dataFormatada);
           }
 
@@ -186,8 +156,6 @@ export async function buscarMeridiano(): Promise<Edital[]> {
             finalDataFormatada = `01/01/${anoConcurso}`;
 
             // 🕒 O PULO DO GATO: Subtrai 1 minuto (60000ms) para cada nível que descemos no HTML!
-            // O primeiro item (index 0) fica com 23:59. O segundo (index 1) fica com 23:58.
-            // O sort global vai colocar o 23:59 em cima do 23:58!
             finalDataTimestamp = timestampBaseSintetico - (index * 60000);
 
             let nomeArquivo = arq.href.split('/').pop() || '';

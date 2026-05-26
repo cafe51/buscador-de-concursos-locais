@@ -2,6 +2,7 @@
 import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
 import { ehSujeira, extrairIdConcurso, corrigirErrosDigitacao } from '../filtrosGlobais';
+import { fetchHtml, extrairData } from './utils';
 
 export async function buscarSantaSalete(): Promise<Edital[]> {
   const resultados: Edital[] = [];
@@ -10,17 +11,10 @@ export async function buscarSantaSalete(): Promise<Edital[]> {
   let ordemGlobal = 0;
 
   try {
-    const res = await fetch(mainUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-      }, cache: 'no-store'
-    });
+    const res = await fetchHtml(mainUrl);
     if (!res.ok) return [];
 
-    const html = await res.text();
-    const $ = cheerio.load(html);
+    const $ = cheerio.load(res.html);
     const pastas: any[] = [];
 
     // 1. Coletar as Pastas Anuais (2025, 2024, 2022)
@@ -33,9 +27,9 @@ export async function buscarSantaSalete(): Promise<Edital[]> {
       if (!href) return;
 
       let dataCapaTimestamp = 0;
-      const matchCapa = textoData.match(/\b(\d{2})[\/\.](\d{2})[\/\.](\d{4})\b/);
-      if (matchCapa) {
-        dataCapaTimestamp = new Date(`${matchCapa[3]}-${matchCapa[2]}-${matchCapa[1]}T00:00:00`).getTime();
+      const dataExtraida = extrairData(textoData);
+      if (dataExtraida) {
+        dataCapaTimestamp = dataExtraida.dataTimestamp;
       }
 
       pastas.push({
@@ -48,16 +42,9 @@ export async function buscarSantaSalete(): Promise<Edital[]> {
     // 2. Processar páginas internas (Com Leitura Linear Inteligente)
     await Promise.all(pastas.map(async (pasta) => {
       try {
-        const resInner = await fetch(pasta.linkCompleto, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-          }, cache: 'no-store'
-        });
+        const resInner = await fetchHtml(pasta.linkCompleto);
         if (!resInner.ok) return;
-        const htmlInner = await resInner.text();
-        const $inner = cheerio.load(htmlInner);
+        const $inner = cheerio.load(resInner.html);
 
         let $conteudo = $inner('.page-content');
         if ($conteudo.length === 0) $conteudo = $inner('main');
@@ -87,8 +74,6 @@ export async function buscarSantaSalete(): Promise<Edital[]> {
                 let idExtraido = extrairIdConcurso(corrigirErrosDigitacao(texto), '');
 
                 // 🚀 ADICIONADO: O desambiguador semântico de fallback
-                // Se a prefeitura esqueceu de pôr número na capa (ex: os estagiários de 2025),
-                // nós criamos o ID com a modalidade + ano da pasta mãe!
                 if (!idExtraido) {
                   const modalidade = textoUpper.includes('CONCURSO') ? 'Concurso Público' : 'Processo Seletivo';
                   const anoPasta = pasta.tituloPasta; // Ex: "2025"
@@ -100,7 +85,7 @@ export async function buscarSantaSalete(): Promise<Edital[]> {
                   idExtraido = idExtraido.replace('Concurso ', 'Concurso Público ');
                 }
 
-                // Exceção de Estagiário (Seguindo o precedente do Instar)
+                // Exceção de Estagiário
                 if (textoUpper.includes('ESTAGI')) {
                   if (!idExtraido.includes('(Estagiários)')) {
                     idExtraido += ' (Estagiários)';
@@ -136,11 +121,11 @@ export async function buscarSantaSalete(): Promise<Edital[]> {
             let docTimestamp = pasta.dataCapaTimestamp;
             let docDataFormatada = 'sem data';
 
-            const matchDataNome = tituloDoc.match(/\b(\d{2})[\.\/](\d{2})[\.\/](\d{4})\b/);
-            if (matchDataNome) {
-              docDataFormatada = `${matchDataNome[1]}/${matchDataNome[2]}/${matchDataNome[3]}`;
-              docTimestamp = new Date(`${matchDataNome[3]}-${matchDataNome[2]}-${matchDataNome[1]}T00:00:00`).getTime();
-              tituloDoc = tituloDoc.replace(matchDataNome[0], '').trim();
+            const dataExtraidaDoc = extrairData(tituloDoc);
+            if (dataExtraidaDoc) {
+              docDataFormatada = dataExtraidaDoc.dataFormatada;
+              docTimestamp = dataExtraidaDoc.dataTimestamp;
+              tituloDoc = tituloDoc.replace(/\b\d{2}[\/\.]\d{2}[\/\.]\d{4}\b/g, '').trim();
             } else if (pasta.dataCapaTimestamp > 0) {
               const d = new Date(pasta.dataCapaTimestamp);
               docDataFormatada = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;

@@ -2,6 +2,7 @@
 import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
 import { ehSujeira, extrairIdConcurso } from '../filtrosGlobais';
+import { fetchHtml, extrairData } from './utils';
 
 export async function buscarMacedonia(): Promise<Edital[]> {
   const resultados: Edital[] = [];
@@ -31,15 +32,8 @@ export async function buscarMacedonia(): Promise<Edital[]> {
     // Dispara 5 downloads simultâneos
     for (let pagina = loteInicio; pagina < loteInicio + 5 && pagina <= 30; pagina++) {
       promessasPaginas.push(
-        fetch(`https://www.macedonia.sp.gov.br/servicos/concursos?&pagina=${pagina}`, {
-          headers: { 
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-        },
-          cache: 'no-store'
-        })
-          .then(async (res) => ({ pagina, html: res.ok ? await res.text() : '' }))
+        fetchHtml(`https://www.macedonia.sp.gov.br/servicos/concursos?&pagina=${pagina}`)
+          .then((res) => ({ pagina, html: res.ok ? res.html : '' }))
           .catch(() => ({ pagina, html: '' }))
       );
     }
@@ -100,18 +94,30 @@ export async function buscarMacedonia(): Promise<Edital[]> {
       let dataEncontrada = false;
 
       // 1. Tentativa de Data no Título
-      const matchTitle = titulo.match(/\b(\d{2})[\.\/](\d{2})[\.\/](\d{4}|\d{2})\b/);
-      if (matchTitle) {
-        const dia = matchTitle[1];
-        const mes = matchTitle[2];
-        const anoStr = matchTitle[3];
-        const anoData = anoStr.length === 2 ? `20${anoStr}` : anoStr;
-
-        dataFormatada = `${dia}/${mes}/${anoData}`;
-        dataTimestamp = new Date(`${anoData}-${mes}-${dia}T00:00:00`).getTime();
+      const dataExtraida = extrairData(titulo);
+      if (dataExtraida) {
+        dataFormatada = dataExtraida.dataFormatada;
+        dataTimestamp = dataExtraida.dataTimestamp;
         dataEncontrada = true;
 
-        titulo = titulo.replace(/\b\d{2}[\.\/]\d{2}[\.\/](?:\d{4}|\d{2})\b/g, '').trim();
+        const matchTitle = titulo.match(/\b\d{1,2}[\.\/\-]\d{2}[\.\/\-]\d{4}\b/);
+        if (matchTitle) {
+          titulo = titulo.replace(matchTitle[0], '').trim();
+        }
+      } else {
+        // Fallback para datas com anos de 2 dígitos que extrairData não pega
+        const matchTitle2 = titulo.match(/\b(\d{2})[\.\/](\d{2})[\.\/](\d{2})\b/);
+        if (matchTitle2) {
+          const dia = matchTitle2[1];
+          const mes = matchTitle2[2];
+          const anoData = `20${matchTitle2[3]}`;
+
+          dataFormatada = `${dia}/${mes}/${anoData}`;
+          dataTimestamp = new Date(`${anoData}-${mes}-${dia}T00:00:00`).getTime();
+          dataEncontrada = true;
+
+          titulo = titulo.replace(matchTitle2[0], '').trim();
+        }
       }
 
       // 2. Tentativa de Chave de Concurso
@@ -121,14 +127,9 @@ export async function buscarMacedonia(): Promise<Edital[]> {
       // Fazemos UM único fetch para buscar as duas coisas ao mesmo tempo!
       if (!dataEncontrada || !idConcurso) {
         try {
-          const resPage = await fetch(item.linkCompleto, { headers: { 
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-        }, cache: 'force-cache' });
+          const resPage = await fetchHtml(item.linkCompleto, true); // Macedonia usa force-cache no resgate
           if (resPage.ok) {
-            const htmlPage = await resPage.text();
-            const $page = cheerio.load(htmlPage);
+            const $page = cheerio.load(resPage.html);
 
             // Resgate da Data
             if (!dataEncontrada) {

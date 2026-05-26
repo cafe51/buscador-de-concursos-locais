@@ -37,22 +37,40 @@ async function fetchCategoryPages(config: InstarConfig, endpoints: string[], det
   for (let i = 0; i < endpoints.length; i += TAMANHO_LOTE_ENDPOINTS) {
     const lote = endpoints.slice(i, i + TAMANHO_LOTE_ENDPOINTS);
     const respostas = await Promise.all(lote.map(async (url) => {
-      try {
-        const res = await fetch(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8'
-          }, cache: 'no-store'
-        });
-        if (!res.ok) {
-          detalhesFalhas.push(`[HTTP ${res.status}] Lista: ${url}`);
-          return '';
+      let tentativas = 0;
+      let sucesso = false;
+      let htmlContent = '';
+      let erroMsg = '';
+
+      while (tentativas < 3 && !sucesso) {
+        try {
+          const res = await fetch(url, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+              'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+            }, cache: 'no-store'
+          });
+          if (res.ok) {
+            htmlContent = await res.text();
+            sucesso = true;
+          } else {
+            erroMsg = `HTTP ${res.status}`;
+            tentativas++;
+            if (tentativas < 3) await new Promise(r => setTimeout(r, 800));
+          }
+        } catch (err: any) {
+          erroMsg = err.message || 'fetch failed';
+          tentativas++;
+          if (tentativas < 3) await new Promise(r => setTimeout(r, 800));
         }
-        return await res.text();
-      } catch (err: any) {
-        detalhesFalhas.push(`[REDE/TIMEOUT] Lista: ${url} -> ${err.message}`);
+      }
+
+      if (!sucesso) {
+        detalhesFalhas.push(`[REDE/TIMEOUT] Lista: ${url} -> ${erroMsg}`);
         return '';
       }
+      return htmlContent;
     }));
     htmlsCategorias.push(...respostas);
   }

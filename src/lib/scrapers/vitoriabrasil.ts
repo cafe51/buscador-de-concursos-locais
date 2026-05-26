@@ -3,6 +3,7 @@ import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
 import { ehSujeira, extrairIdConcurso, corrigirErrosDigitacao } from '../filtrosGlobais';
 import { extrairTextoBruto } from '../docParser';
+import { fetchHtml, extrairData } from './utils';
 
 type PastaExtraida = {
   idConcurso: string;
@@ -38,14 +39,8 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
       const lote = endpoints.slice(i, i + TAMANHO_LOTE_ENDPOINTS);
       const respostas = await Promise.all(lote.map(async (url) => {
         try {
-          const res = await fetch(url, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-              'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-            }, cache: 'no-store'
-          });
-          return res.ok ? await res.text() : '';
+          const res = await fetchHtml(url);
+          return res.ok ? res.html : '';
         } catch { return ''; }
       }));
       htmlsCategorias.push(...respostas);
@@ -73,14 +68,14 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
         let dataCertameTimestamp = 0;
         let anoPostagemDetectado: number | undefined = undefined;
 
-        const matchPostagem = postagemRaw.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-        if (matchPostagem) {
-          const anoPostagem = parseInt(matchPostagem[3], 10);
+        const dataExtraida = extrairData(postagemRaw);
+        if (dataExtraida) {
+          const anoPostagem = parseInt(dataExtraida.dataFormatada.split('/')[2], 10);
           if (anoPostagem < 2019) return;
           anoPostagemDetectado = anoPostagem;
 
-          dataCertameFormatada = matchPostagem[0];
-          dataCertameTimestamp = new Date(`${matchPostagem[3]}-${matchPostagem[2]}-${matchPostagem[1]}T00:00:00`).getTime();
+          dataCertameFormatada = dataExtraida.dataFormatada;
+          dataCertameTimestamp = dataExtraida.dataTimestamp;
         }
 
         const href = $(elemento).find('a').first().attr('href') || '';
@@ -149,16 +144,10 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
 
       await Promise.all(lote.map(async (concurso) => {
         try {
-          const resInner = await fetch(concurso.linkCompleto, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-              'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-            }, cache: 'no-store'
-          });
+          const resInner = await fetchHtml(concurso.linkCompleto);
           if (!resInner.ok) return;
 
-          const htmlInner = await resInner.text();
+          const htmlInner = resInner.html;
           const $inner = cheerio.load(htmlInner);
 
           const $abaDetalhesClone = $inner('#detalhes_edital').clone();
@@ -202,26 +191,16 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
               let linkDoc = hrefDoc.startsWith('http') ? hrefDoc : `${baseUrl}${hrefDoc}`;
 
               // 🚀 BUSCA DO LINK VERDADEIRO IMEDIATA
-              // Resolve links dinâmicos ANTES de extrair o texto do PDF para evitar 
-              // duplicar requisições e sofrer rate-limit da prefeitura
               if (linkDoc.includes('/download/')) {
                 let tentativas = 0;
                 let sucesso = false;
 
                 while (tentativas < 2 && !sucesso) {
                   try {
-                    const resLink = await fetch(linkDoc, {
-                      headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-                      },
-                      cache: 'no-store'
-                    });
+                    const resLink = await fetchHtml(linkDoc);
 
                     if (resLink.ok) {
-                      const textLink = await resLink.text();
-                      const match = textLink.match(/<meta\s+http-equiv=["']refresh["']\s+content=["']0;\s*url=([^"']+)["']/i);
+                      const match = resLink.html.match(/<meta\s+http-equiv=["']refresh["']\s+content=["']0;\s*url=([^"']+)["']/i);
                       if (match && match[1]) {
                         let trueUrl = match[1];
                         if (trueUrl.startsWith('/')) {
@@ -279,7 +258,6 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
                 const partes = idResolvido.split('|');
                 let fallbackName = `${partes[1]} ${partes[2] === 'Anterior' ? '' : partes[2]}`.trim();
 
-                // Tenta extrair o ID diretamente da URL verdadeira (ex: cp-01-22_03035010.pdf)
                 const regexLink = /(?:^|[\W_])(cp|ps|concurso|processo seletivo)[\W_]{0,3}?(\d{1,3})[\W_]+(\d{2}|\d{4})[\W_]/i;
                 const matchLink = linkDoc.match(regexLink);
                 if (matchLink) {
@@ -289,7 +267,6 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
                   if (anoLink.length === 2) anoLink = `20${anoLink}`;
                   idResolvido = `${tipoLink} ${numeroLink}/${anoLink}`;
                 } else {
-                  // Se não encontrou na URL, lê o PDF (mas NÃO faz cache global que contamina outros arquivos)
                   try {
                     const textoPdf = await extrairTextoBruto(linkDoc);
                     if (textoPdf) {
@@ -298,7 +275,7 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
                       // 1. Tenta o filtro global
                       let idExtraido = extrairIdConcurso(corrigirErrosDigitacao(cleanTexto), '');
 
-                      // 2. 🚀 FALLBACK RÚSTICO: Puxa à força bruta o padrão de Vitória Brasil
+                      // 2. Fallback Rústico
                       if (!idExtraido) {
                         const matchRustico = cleanTexto.match(/(Processo\s*Seletivo|Concurso\s*P[uú]blico)[^\d]{0,80}?(\d{1,3})\s*[\/\-]\s*(\d{4})/i);
                         if (matchRustico) {
@@ -329,10 +306,10 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
               let dataFormatada = 'sem data';
               let dataTimestamp = 0;
 
-              const matchData = dataSpan.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-              if (matchData) {
-                dataFormatada = matchData[0];
-                dataTimestamp = new Date(`${matchData[3]}-${matchData[2]}-${matchData[1]}T00:00:00`).getTime();
+              const dataExtraidaDoc = extrairData(dataSpan);
+              if (dataExtraidaDoc) {
+                dataFormatada = dataExtraidaDoc.dataFormatada;
+                dataTimestamp = dataExtraidaDoc.dataTimestamp;
               } else if (concurso.dataCertameTimestamp > 0) {
                 dataFormatada = concurso.dataCertameFormatada;
                 dataTimestamp = concurso.dataCertameTimestamp;
@@ -354,7 +331,6 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
           }
 
           if (concursoContaminado) return;
-
 
           const idParaAglutinacao = documentosTemporarios[0]?.finalIdConcurso || concurso.idConcurso;
 
@@ -419,7 +395,7 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
                   // 1. Tenta o filtro global normal
                   let idExtraido = extrairIdConcurso(corrigirErrosDigitacao(cleanTexto), '');
 
-                  // 2. Fallback Rústico Padrão
+                  // 2. Fallback Rústico
                   if (!idExtraido) {
                     const matchRustico = cleanTexto.match(/(Processo\s*Seletivo|Concurso\s*P[uú]blico)[^\d]{0,80}?(\d{1,3})\s*[\/\-]\s*(\d{4})/i);
                     if (matchRustico) {
@@ -428,7 +404,7 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
                     }
                   }
 
-                  // 3. 🚀 NOVO: FALLBACK ESPAÇADO (Combate o C O N C U R S O   P Ú B L I C O)
+                  // 3. Fallback Espaçado
                   if (!idExtraido) {
                     const textoSemEspacos = cleanTexto.replace(/\s+/g, '');
                     const matchEspacado = textoSemEspacos.match(/(PROCESSOSELETIVO|CONCURSOP[UÚ]BLICO)[^\d]{0,50}?(\d{1,3})[\/\.\-](\d{4})/i);

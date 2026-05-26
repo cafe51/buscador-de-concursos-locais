@@ -2,6 +2,7 @@
 import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
 import { ehSujeira, extrairIdConcurso } from '../filtrosGlobais';
+import { fetchHtml, extrairData } from './utils';
 
 export async function buscarPontalinda(): Promise<Edital[]> {
   const resultados: Edital[] = [];
@@ -19,14 +20,7 @@ export async function buscarPontalinda(): Promise<Edital[]> {
 
       const urlLista = pagina === 1 ? `${baseUrl}${basePath}` : `${baseUrl}${basePath}?pagina=${pagina}`;
 
-      // 🚀 Disfarce de Navegador Real para evitar Firewall da prefeitura
-      const res = await fetch(urlLista, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-        },
-        cache: 'no-store'
-      });
+      const res = await fetchHtml(urlLista);
 
       if (!res.ok) {
         console.log(`\n🛑 [PONTALINDA] Falha de acesso à lista (Status ${res.status}): ${urlLista}`);
@@ -34,23 +28,19 @@ export async function buscarPontalinda(): Promise<Edital[]> {
         break;
       }
 
-      const html = await res.text();
-      const $ = cheerio.load(html);
+      const $ = cheerio.load(res.html);
 
-      // 🚀 SELETORES RESILIENTES: Tenta múltiplas formas de lista
+      // 🚀 SELETORES RESILIENTES
       let itensLista = $('ul.list li.list-item').toArray();
       if (itensLista.length === 0) itensLista = $('.list-item').toArray();
       if (itensLista.length === 0) itensLista = $('article').toArray();
 
       if (itensLista.length === 0) {
-        console.log(`\n🕵️ [PONTALINDA DETETIVE] Nenhuma pasta encontrada na página ${pagina}! Estrutura do HTML retornada pelo servidor:`);
-        console.log(html.substring(0, 500).replace(/\s+/g, ' '));
         chegouNoFim = true;
         break;
       }
 
       for (const el of itensLista) {
-        // Tenta achar o título de várias formas
         let $link = $(el).find('h3.list-item__title a');
         if ($link.length === 0) $link = $(el).find('h3 a, h2 a, h4 a, .card-title a');
         if ($link.length === 0) $link = $(el).find('a').first();
@@ -65,13 +55,10 @@ export async function buscarPontalinda(): Promise<Edital[]> {
         let dataCapaFormatada = 'sem data';
         let dataCapaTimestamp = 0;
 
-        const matchCapa = textoPublicado.match(/\b(\d{1,2})[\/\.](\d{2})[\/\.](\d{4})\b/);
-        if (matchCapa) {
-          const dia = matchCapa[1].padStart(2, '0');
-          const mes = matchCapa[2];
-          const ano = matchCapa[3];
-          dataCapaFormatada = `${dia}/${mes}/${ano}`;
-          dataCapaTimestamp = new Date(`${ano}-${mes}-${dia}T00:00:00`).getTime();
+        const dataExtraida = extrairData(textoPublicado);
+        if (dataExtraida) {
+          dataCapaFormatada = dataExtraida.dataFormatada;
+          dataCapaTimestamp = dataExtraida.dataTimestamp;
         }
 
         const linkCompletoPasta = hrefPasta.startsWith('http') ? hrefPasta : `${baseUrl}${hrefPasta}`;
@@ -103,14 +90,10 @@ export async function buscarPontalinda(): Promise<Edital[]> {
 
     await Promise.all(pastasParaProcessar.map(async (pasta) => {
       try {
-        const resInner = await fetch(pasta.linkCompletoPasta, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-          cache: 'no-store'
-        });
+        const resInner = await fetchHtml(pasta.linkCompletoPasta);
         if (!resInner.ok) return;
 
-        const htmlInner = await resInner.text();
-        const $inner = cheerio.load(htmlInner);
+        const $inner = cheerio.load(resInner.html);
 
         let $conteudo = $inner('article');
         if ($conteudo.length === 0) $conteudo = $inner('main');
@@ -128,7 +111,6 @@ export async function buscarPontalinda(): Promise<Edital[]> {
 
           if (!hrefDoc || hrefDoc.startsWith('#') || hrefDoc.includes('javascript:') || hrefDoc.includes('mailto:')) return;
 
-          // 🚀 Ajuste: Usa .includes para não falhar em links com Query String (Ex: arquivo.pdf?v=2)
           const hrefDocLower = hrefDoc.toLowerCase();
           const isDoc = hrefDocLower.includes('.pdf') ||
             hrefDocLower.includes('.doc') ||
@@ -161,13 +143,10 @@ export async function buscarPontalinda(): Promise<Edital[]> {
           let dataDocFormatada = pasta.dataCapaFormatada;
           let dataDocTimestamp = pasta.dataCapaTimestamp;
 
-          const matchDataDoc = textoPai.match(/\b(\d{1,2})[\/\.](\d{2})[\/\.](\d{4})\b/);
-          if (matchDataDoc) {
-            const dia = matchDataDoc[1].padStart(2, '0');
-            const mes = matchDataDoc[2];
-            const ano = matchDataDoc[3];
-            dataDocFormatada = `${dia}/${mes}/${ano}`;
-            dataDocTimestamp = new Date(`${ano}-${mes}-${dia}T00:00:00`).getTime();
+          const dataExtraidaDoc = extrairData(textoPai);
+          if (dataExtraidaDoc) {
+            dataDocFormatada = dataExtraidaDoc.dataFormatada;
+            dataDocTimestamp = dataExtraidaDoc.dataTimestamp;
           }
 
           if (dataDocTimestamp === 0 && anoConcurso) {
@@ -196,10 +175,10 @@ export async function buscarPontalinda(): Promise<Edital[]> {
         });
 
       } catch (error: any) {
-    const cause = (error as any).cause;
-    const causeMsg = cause ? " - Detalhes: " + (cause.message || cause.code || JSON.stringify(cause)) : "";
-    throw new Error(`Erro ao ler página interna de Pontalinda: ${pasta.linkCompletoPasta}` + ": " + (error as Error).message + causeMsg);
-  }
+        const cause = (error as any).cause;
+        const causeMsg = cause ? " - Detalhes: " + (cause.message || cause.code || JSON.stringify(cause)) : "";
+        throw new Error(`Erro ao ler página interna de Pontalinda: ${pasta.linkCompletoPasta}` + ": " + (error as Error).message + causeMsg);
+      }
     }));
 
   } catch (error: any) {

@@ -4,7 +4,14 @@
  * Faz uma requisição HTTP com os headers padrão para simular um navegador real,
  * retornando o HTML da página ou vazio em caso de erro.
  */
-export async function fetchHtml(url: string, forceCache: boolean = false): Promise<{ ok: boolean, html: string, status: number }> {
+export async function fetchHtml(
+  url: string, 
+  forceCache: boolean = false, 
+  timeoutMs: number = 15000
+): Promise<{ ok: boolean, html: string, status: number }> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
     const res = await fetch(url, {
       headers: {
@@ -12,8 +19,11 @@ export async function fetchHtml(url: string, forceCache: boolean = false): Promi
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
         'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
       },
-      cache: forceCache ? 'force-cache' : 'no-store'
+      cache: forceCache ? 'force-cache' : 'no-store',
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
 
     if (!res.ok) {
       return { ok: false, html: '', status: res.status };
@@ -22,6 +32,7 @@ export async function fetchHtml(url: string, forceCache: boolean = false): Promi
     const html = await res.text();
     return { ok: true, html, status: res.status };
   } catch (err: any) {
+    clearTimeout(timeoutId);
     return { ok: false, html: '', status: 0 };
   }
 }

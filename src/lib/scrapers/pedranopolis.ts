@@ -3,6 +3,7 @@ import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
 import { extrairDataDoArquivo } from '../docParser';
 import { ehSujeira, extrairIdConcurso } from '../filtrosGlobais';
+import { fetchHtml, extrairData } from './utils';
 
 export async function buscarPedranopolis(): Promise<Edital[]> {
   const resultados: Edital[] = [];
@@ -16,17 +17,10 @@ export async function buscarPedranopolis(): Promise<Edital[]> {
 
   for (const endpoint of endpoints) {
     try {
-      const response = await fetch(endpoint.url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-        }, cache: 'no-store'
-      });
+      const response = await fetchHtml(endpoint.url);
       if (!response.ok) continue;
 
-      const html = await response.text();
-      const $ = cheerio.load(html);
+      const $ = cheerio.load(response.html);
       const linksAnos: { ano: string; url: string }[] = [];
 
       $('a').each((_, el) => {
@@ -41,17 +35,10 @@ export async function buscarPedranopolis(): Promise<Edital[]> {
 
       for (const itemAno of linksAnos) {
         try {
-          const resAno = await fetch(itemAno.url, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-              'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-            }, cache: 'no-store'
-          });
+          const resAno = await fetchHtml(itemAno.url);
           if (!resAno.ok) continue;
 
-          const htmlAno = await resAno.text();
-          const $ano = cheerio.load(htmlAno);
+          const $ano = cheerio.load(resAno.html);
           const headersCards = $ano('.card-header').toArray();
 
           for (const headerEl of headersCards) {
@@ -75,10 +62,10 @@ export async function buscarPedranopolis(): Promise<Edital[]> {
               let dataFormatadaHtml = '';
               let dataTimestampHtml = 0;
 
-              const matchDataTexto = textoLinkInteiro.match(/\b(\d{2})[\/\.](\d{2})[\/\.](\d{4})\b/);
-              if (matchDataTexto) {
-                dataFormatadaHtml = `${matchDataTexto[1]}/${matchDataTexto[2]}/${matchDataTexto[3]}`;
-                dataTimestampHtml = new Date(`${matchDataTexto[3]}-${matchDataTexto[2]}-${matchDataTexto[1]}T00:00:00`).getTime();
+              const dataExtraida = extrairData(textoLinkInteiro);
+              if (dataExtraida) {
+                dataFormatadaHtml = dataExtraida.dataFormatada;
+                dataTimestampHtml = dataExtraida.dataTimestamp;
                 dataAchadaNoHtml = true;
               }
 
@@ -113,7 +100,6 @@ export async function buscarPedranopolis(): Promise<Edital[]> {
               if (item.dataAchadaNoHtml) {
                 dataFinal = item.dataFormatadaHtml;
                 timestampFinal = item.dataTimestampHtml;
-                // Atualiza o fallback mantendo a hora em 00:00:00
                 dataFallback = { formatada: dataFinal, timestamp: timestampFinal };
               } else if (item.dataPdf) {
                 dataFinal = item.dataPdf.formatada;
@@ -130,7 +116,6 @@ export async function buscarPedranopolis(): Promise<Edital[]> {
               let offsetMinutos = 30; // Padrão fica no meio do dia
               const tituloUpper = item.tituloLimpo.toUpperCase();
 
-              // A ordem dos Ifs importa! "Edital de Convocação" tem que cair no primeiro IF!
               if (tituloUpper.includes('CONVOCA')) {
                 offsetMinutos = 50;
               } else if (tituloUpper.includes('HOMOLOGA')) {
@@ -143,7 +128,6 @@ export async function buscarPedranopolis(): Promise<Edital[]> {
                 offsetMinutos = 0; // Fica como o mais antigo!
               }
 
-              // Adiciona os minutos convertidos em milissegundos
               timestampFinal += (offsetMinutos * 60000);
 
               const idConcurso = extrairIdConcurso(item.metadadoRaw, '', true, false);
@@ -169,16 +153,16 @@ export async function buscarPedranopolis(): Promise<Edital[]> {
             }
           }
         } catch (e: any) {
-    const cause = (e as any).cause;
-    const causeMsg = cause ? " - Detalhes: " + (cause.message || cause.code || JSON.stringify(cause)) : "";
-    throw new Error(`Erro ao raspar ano ${itemAno.ano} de Pedranópolis` + ": " + (e as Error).message + causeMsg);
-  }
+          const cause = (e as any).cause;
+          const causeMsg = cause ? " - Detalhes: " + (cause.message || cause.code || JSON.stringify(cause)) : "";
+          throw new Error(`Erro ao raspar ano ${itemAno.ano} de Pedranópolis` + ": " + (e as Error).message + causeMsg);
+        }
       }
     } catch (e: any) {
-    const cause = (e as any).cause;
-    const causeMsg = cause ? " - Detalhes: " + (cause.message || cause.code || JSON.stringify(cause)) : "";
-    throw new Error(`Erro ao buscar Pedranópolis na url: ${endpoint.url}` + ": " + (e as Error).message + causeMsg);
-  }
+      const cause = (e as any).cause;
+      const causeMsg = cause ? " - Detalhes: " + (cause.message || cause.code || JSON.stringify(cause)) : "";
+      throw new Error(`Erro ao buscar Pedranópolis na url: ${endpoint.url}` + ": " + (e as Error).message + causeMsg);
+    }
   }
   return resultados;
 }

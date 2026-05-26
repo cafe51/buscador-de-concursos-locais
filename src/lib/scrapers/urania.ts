@@ -3,23 +3,17 @@ import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
 import { ehSujeira, extrairIdConcurso } from '../filtrosGlobais';
 import { extrairDataDoArquivo } from '../docParser';
+import { fetchHtml, extrairData } from './utils';
 
 export async function buscarUrania(): Promise<Edital[]> {
   const resultados: Edital[] = [];
   const linkPagina = 'https://www.urania.sp.gov.br/transparencia/concursos-e-editais/concursos-publicos-editais-processo-seletivo';
 
   try {
-    const res = await fetch(linkPagina, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-      }, cache: 'no-store'
-    });
+    const res = await fetchHtml(linkPagina);
     if (!res.ok) return [];
 
-    const html = await res.text();
-    const $ = cheerio.load(html);
+    const $ = cheerio.load(res.html);
 
     // 🚀 FOCO CIRÚRGICO: Apenas os links dentro da div de conteúdo
     const elementosTagA = $('div[data-id="19ba033"] a').toArray();
@@ -42,12 +36,15 @@ export async function buscarUrania(): Promise<Edital[]> {
       let dataTimestamp = 0;
 
       // 2. Tenta extrair a data diretamente do título
-      const matchDataTitulo = tituloLimpo.match(/\b(\d{2})[\.\/](\d{2})[\.\/](\d{4})\b/);
-      if (matchDataTitulo) {
-        dataFormatada = `${matchDataTitulo[1]}/${matchDataTitulo[2]}/${matchDataTitulo[3]}`;
-        dataTimestamp = new Date(`${matchDataTitulo[3]}-${matchDataTitulo[2]}-${matchDataTitulo[1]}T00:00:00`).getTime();
+      const dataExtraida = extrairData(tituloLimpo);
+      if (dataExtraida) {
+        dataFormatada = dataExtraida.dataFormatada;
+        dataTimestamp = dataExtraida.dataTimestamp;
 
-        tituloLimpo = tituloLimpo.replace(matchDataTitulo[0], '').trim();
+        const matchDataTitulo = tituloLimpo.match(/\b\d{2}[\.\/\-]\d{2}[\.\/\-]\d{4}\b/);
+        if (matchDataTitulo) {
+          tituloLimpo = tituloLimpo.replace(matchDataTitulo[0], '').trim();
+        }
       } else {
         // Se não tem data no título, o DocParser lê o arquivo!
         const dataDoc = await extrairDataDoArquivo(item.href);
@@ -75,7 +72,7 @@ export async function buscarUrania(): Promise<Edital[]> {
         }
       }
 
-      // 🟢 PADRONIZAÇÃO EXIGIDA (Com trava de proteção contra dupla substituição)
+      // 🟢 PADRONIZAÇÃO EXIGIDA
       if (idConcurso && idConcurso.startsWith('Concurso ') && !idConcurso.includes('Público')) {
         idConcurso = idConcurso.replace('Concurso ', 'Concurso Público ');
       }

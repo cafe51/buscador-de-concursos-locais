@@ -3,6 +3,7 @@ import * as cheerio from 'cheerio';
 import { Edital } from '../../types';
 import { extrairDataDoArquivo } from '../docParser';
 import { ehSujeira, extrairIdConcurso } from '../filtrosGlobais';
+import { fetchHtml, extrairData } from './utils';
 
 export async function buscarSaoJoao(): Promise<Edital[]> {
   const resultados: Edital[] = [];
@@ -18,14 +19,8 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
   try {
     const htmlsCategorias = await Promise.all(endpoints.map(async (ep) => {
       try {
-        const res = await fetch(ep.url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-          }, cache: 'no-store'
-        });
-        return res.ok ? await res.text() : '';
+        const res = await fetchHtml(ep.url);
+        return res.ok ? res.html : '';
       } catch { return ''; }
     }));
 
@@ -49,14 +44,8 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
 
     const paginasAnosBaixadas = await Promise.all(linksAnosUnicos.map(async (item) => {
       try {
-        const res = await fetch(item.url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-          }, cache: 'no-store'
-        });
-        return { ...item, html: res.ok ? await res.text() : '' };
+        const res = await fetchHtml(item.url);
+        return { ...item, html: res.ok ? res.html : '' };
       } catch { return { ...item, html: '' }; }
     }));
 
@@ -87,10 +76,10 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
           let dataFormatadaHtml = '';
           let dataTimestampHtml = 0;
 
-          const matchDataTexto = textoLinkInteiro.match(/\b(\d{2})[\/\.](\d{2})[\/\.](\d{4})\b/);
-          if (matchDataTexto) {
-            dataFormatadaHtml = `${matchDataTexto[1]}/${matchDataTexto[2]}/${matchDataTexto[3]}`;
-            dataTimestampHtml = new Date(`${matchDataTexto[3]}-${matchDataTexto[2]}-${matchDataTexto[1]}T00:00:00`).getTime();
+          const dataExtraida = extrairData(textoLinkInteiro);
+          if (dataExtraida) {
+            dataFormatadaHtml = dataExtraida.dataFormatada;
+            dataTimestampHtml = dataExtraida.dataTimestamp;
             dataAchadaNoHtml = true;
           }
 
@@ -118,9 +107,7 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
           timestamp: new Date(`${itemAno.ano}-01-01T00:00:00`).getTime()
         };
 
-        // Passada 1: Propagação de baixo para cima (do mais antigo para o mais novo)
-        // Como o site normalmente exibe do mais novo (topo) pro mais antigo (fundo),
-        // iterar de baixo pra cima permite que um item sem data herde a data do item anterior a ele no tempo.
+        // Passada 1: Propagação de baixo para cima
         for (let i = itensBrutos.length - 1; i >= 0; i--) {
           const item = itensBrutos[i];
           if (item.dataAchadaNoHtml) {
