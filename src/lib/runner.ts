@@ -40,8 +40,9 @@ export async function rodarComProtecao(nomeCidade: string, funcaoScraper: () => 
 
     const nomeFormatado = `[${nomeCidade}]`.padEnd(tamanhoFixoNome, ' ');
     const tempoFormatado = tempoGasto.padEnd(tamanhoFixoTempo, ' ');
+    const statusFormatado = 'OK'.padEnd(6, ' ');
 
-    console.log(`🟢 ${nomeFormatado} OK \t| Tempo: ${tempoFormatado}s \t| Itens extraídos: ${dados.length}`);
+    console.log(`🟢 ${nomeFormatado} ${statusFormatado} \t| Tempo: ${tempoFormatado}s \t| Itens extraídos: ${dados.length}`);
 
     return { sucesso: true, cidade: nomeCidade, dados, tempoGasto: Number(tempoGasto) };
   } catch (e: any) {
@@ -60,11 +61,13 @@ export async function rodarComProtecao(nomeCidade: string, funcaoScraper: () => 
     const tempoFormatado = tempoGasto.padEnd(tamanhoFixoTempo, ' ');
 
     if (e.dadosParciais) {
-      console.log(`🟡 ${nomeFormatado} AVISO \t| Tempo: ${tempoFormatado}s \t| Itens extraídos: ${e.dadosParciais.length} \t| Motivo: ${motivo}`);
+      const statusFormatado = 'AVISO'.padEnd(6, ' ');
+      console.log(`🟡 ${nomeFormatado} ${statusFormatado} \t| Tempo: ${tempoFormatado}s \t| Itens extraídos: ${e.dadosParciais.length} \t| Motivo: ${motivo}`);
       return { sucesso: false, cidade: nomeCidade, dados: e.dadosParciais, motivo, tempoGasto: Number(tempoGasto), aviso: true };
     }
 
-    console.error(`🔴 ${nomeFormatado} FALHOU \t| Tempo: ${tempoFormatado}s \t| Motivo: ${motivo}`);
+    const statusFormatadoFalha = 'FALHOU'.padEnd(6, ' ');
+    console.error(`🔴 ${nomeFormatado} ${statusFormatadoFalha} \t| Tempo: ${tempoFormatado}s \t| Motivo: ${motivo}`);
 
     return { sucesso: false, cidade: nomeCidade, dados: [], motivo, tempoGasto: Number(tempoGasto) };
   }

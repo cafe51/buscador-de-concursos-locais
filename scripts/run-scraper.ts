@@ -63,8 +63,8 @@ async function main() {
       await wait(RETRY_DELAY_MS);
 
       const nomesCidades = cidadesComFalha.map(falha => {
-        const match = falha.match(/(.+)\s+\([^)]+\)$/);
-        return match ? match[1].trim() : falha.trim();
+        const cidadeEncontrada = CIDADES_ATIVAS.find(c => falha.startsWith(c + ' ('));
+        return cidadeEncontrada || falha.trim();
       });
 
       cidadesComFalha = [];
