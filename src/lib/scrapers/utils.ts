@@ -1,6 +1,7 @@
 // src/lib/scrapers/utils.ts
 
 import { HttpsProxyAgent } from 'https-proxy-agent';
+import nodeFetch from 'node-fetch';
 
 const DOMINIOS_COM_PROXY = [
   'jales.sp.gov.br',
@@ -74,7 +75,18 @@ export async function fetchHtml(
           console.log(`🛡️ [PROXY] Túnel ativado e blindado para: ${urlObj.hostname}`);
           proxiesLogados.add(urlObj.hostname);
         }
-        fetchOptions.dispatcher = agent;
+        
+        // Uso do node-fetch isolado para contornar memory leak do Node 24 native fetch + custom dispatcher
+        const nfOptions: any = {
+          headers: fetchOptions.headers,
+          agent: agent,
+          signal: controller.signal
+        };
+        const nfRes = await nodeFetch(url, nfOptions);
+        clearTimeout(timeoutId);
+        
+        if (!nfRes.ok) return { ok: false, html: '', status: nfRes.status };
+        return { ok: true, html: await nfRes.text(), status: nfRes.status };
       }
     }
 
