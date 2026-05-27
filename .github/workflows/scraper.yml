@@ -25,9 +25,14 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
+      - name: Set up Cloudflare WARP
+        uses: fscarmen/warp-on-actions@v1.4
+        with:
+          stack: dual
+          mode: wireguard
+
       - name: Executar scraper e atualizar banco de dados
         env:
           # Injeta o token da Vercel nos processos do Node
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
-          WEBSHARE_PROXY_LIST: ${{ secrets.WEBSHARE_PROXY_LIST }}
         run: npx tsx scripts/run-scraper.ts

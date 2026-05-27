@@ -1,3 +1,7 @@
+import { loadEnvConfig } from '@next/env';
+// Carrega as variáveis de ambiente do .env e .env.local antes de qualquer coisa
+loadEnvConfig(process.cwd());
+
 import { buscarTodosEditais, buscarEditaisPorCidade } from '../src/app/actions';
 import { sincronizarBanco, adicionarScrapingLog, LogCidadeDetail, DatabaseSyncLog } from '../src/lib/storage';
 import { CIDADES_ATIVAS } from '../src/lib/scrapers/registry';

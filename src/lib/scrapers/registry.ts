@@ -76,32 +76,10 @@ export const MAPA_SCRAPERS: Record<string, () => Promise<Edital[]>> = {
 // ==============================================================
 // 🚀 TAREFAS ORDENADAS PARA BUSCA TOTAL
 // ==============================================================
-export const CIDADES_ATIVAS = [
-  'Fernandópolis',
-  'Fernandópolis (Câmara)',
-  'Jales',
-  'Jales (Câmara)',
-  'Macedônia',
-  "Estrela d'Oeste",
-  "Guarani d'Oeste",
-  'Meridiano',
-  'Meridiano (Câmara)',
+export const CIDADES_ATIVAS: string[] = [
   'São João das Duas Pontes',
   'Pedranópolis',
-  'Votuporanga',
-  'Votuporanga (Câmara)',
-  'Ouroeste',
-  'Mira Estrela',
-  'Mira Estrela (Câmara)',
-  'Indiaporã',
-  'Indiaporã (Câmara)',
-  'Álvares Florence',
-  'Parisi',
-  'Parisi (Câmara)',
-  'Valentim Gentil',
-  'Vitória Brasil',
   'Urânia',
-  'Dolcinópolis',
   'Pontalinda',
   'Santa Salete'
 ];
