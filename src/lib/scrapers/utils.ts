@@ -66,6 +66,8 @@ export async function fetchHtml(
     if (forceProxy || isBloqueado) {
       const proxyUrl = getRandomProxyUrl();
       if (proxyUrl) {
+        // Log sutil para sabermos que passou pelo túnel
+        console.log(`[PROXY] Ativado para: ${urlObj.hostname}`);
         fetchOptions.dispatcher = new HttpsProxyAgent(proxyUrl);
       }
     }
