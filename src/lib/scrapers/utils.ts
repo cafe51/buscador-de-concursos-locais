@@ -11,13 +11,13 @@ const DOMINIOS_COM_PROXY = [
   'santasalete.sp.gov.br'
 ];
 
-let proxyPoolCache: string[] | null = null;
+let proxyAgentsCache: any[] | null = null;
 const proxiesLogados = new Set<string>();
 
-function getRandomProxyUrl(): string | null {
-  if (proxyPoolCache === null) {
+function getRandomProxyAgent(): any | null {
+  if (proxyAgentsCache === null) {
     const rawList = process.env.WEBSHARE_PROXY_LIST || '';
-    proxyPoolCache = rawList
+    const urls = rawList
       .split('\n')
       .map(line => line.trim())
       .filter(line => line.length > 0)
@@ -29,10 +29,12 @@ function getRandomProxyUrl(): string | null {
         }
         return line;
       });
+      
+    proxyAgentsCache = urls.map(url => new HttpsProxyAgent(url));
   }
   
-  if (proxyPoolCache.length === 0) return null;
-  return proxyPoolCache[Math.floor(Math.random() * proxyPoolCache.length)];
+  if (proxyAgentsCache.length === 0) return null;
+  return proxyAgentsCache[Math.floor(Math.random() * proxyAgentsCache.length)];
 }
 
 /**
@@ -65,14 +67,14 @@ export async function fetchHtml(
     const isBloqueado = DOMINIOS_COM_PROXY.some(d => urlObj.hostname.includes(d));
 
     if (forceProxy || isBloqueado) {
-      const proxyUrl = getRandomProxyUrl();
-      if (proxyUrl) {
+      const agent = getRandomProxyAgent();
+      if (agent) {
         // Exibe o log do proxy apenas uma vez por domínio na execução
         if (!proxiesLogados.has(urlObj.hostname)) {
           console.log(`🛡️ [PROXY] Túnel ativado e blindado para: ${urlObj.hostname}`);
           proxiesLogados.add(urlObj.hostname);
         }
-        fetchOptions.dispatcher = new HttpsProxyAgent(proxyUrl);
+        fetchOptions.dispatcher = agent;
       }
     }
 
