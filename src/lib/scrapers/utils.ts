@@ -12,6 +12,7 @@ const DOMINIOS_COM_PROXY = [
 ];
 
 let proxyPoolCache: string[] | null = null;
+const proxiesLogados = new Set<string>();
 
 function getRandomProxyUrl(): string | null {
   if (proxyPoolCache === null) {
@@ -66,8 +67,11 @@ export async function fetchHtml(
     if (forceProxy || isBloqueado) {
       const proxyUrl = getRandomProxyUrl();
       if (proxyUrl) {
-        // Log sutil para sabermos que passou pelo túnel
-        console.log(`[PROXY] Ativado para: ${urlObj.hostname}`);
+        // Exibe o log do proxy apenas uma vez por domínio na execução
+        if (!proxiesLogados.has(urlObj.hostname)) {
+          console.log(`🛡️ [PROXY] Túnel ativado e blindado para: ${urlObj.hostname}`);
+          proxiesLogados.add(urlObj.hostname);
+        }
         fetchOptions.dispatcher = new HttpsProxyAgent(proxyUrl);
       }
     }
