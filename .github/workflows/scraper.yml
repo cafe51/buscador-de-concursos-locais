@@ -10,7 +10,7 @@ on:
 
 jobs:
   scrape-and-update:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Checkout do repositório
@@ -24,12 +24,6 @@ jobs:
 
       - name: Instalar dependências
         run: npm ci
-
-      - name: Set up Cloudflare WARP
-        uses: fscarmen/warp-on-actions@v1.4
-        with:
-          stack: dual
-          mode: wireguard
 
       - name: Executar scraper e atualizar banco de dados
         env:
