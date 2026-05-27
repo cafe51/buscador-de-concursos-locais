@@ -27,6 +27,10 @@ export async function rodarComProtecao(nomeCidade: string, funcaoScraper: () => 
       cronometro
     ]);
 
+    if (dados.length === 0) {
+      throw new Error('0 itens extraídos (possível bloqueio de IP ou falha de layout da página)');
+    }
+
     const tempoFim = performance.now();
     const tempoGasto = ((tempoFim - tempoInicio) / 1000).toFixed(2);
 
