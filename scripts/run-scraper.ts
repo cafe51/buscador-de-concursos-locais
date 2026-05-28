@@ -10,7 +10,7 @@ import { randomUUID } from 'crypto';
 // ==============================================================
 // ⏱️ CONFIGURAÇÕES DE RETENTATIVA
 // ==============================================================
-const RETRY_DELAY_MINUTES = 1;
+const RETRY_DELAY_MINUTES = 10;
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = RETRY_DELAY_MINUTES * 60 * 1000;
 
