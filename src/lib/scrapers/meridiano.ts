@@ -99,8 +99,7 @@ export async function buscarMeridiano(): Promise<Edital[]> {
           if (matchAno) anoConcurso = parseInt(matchAno[1], 10);
         }
 
-        const arquivosDesteConcurso: any[] = [];
-        const datasEncontradas = new Set<string>();
+        let arquivosDesteConcurso: any[] = [];
 
         $det('#ces-arquivos .ces-timeline-item').each((_, el) => {
           const dataRaw = $det(el).find('.ces-timeline-date').text().trim();
@@ -119,10 +118,32 @@ export async function buscarMeridiano(): Promise<Edital[]> {
           if (dataExtraida) {
             dataFormatada = dataExtraida.dataFormatada;
             dataTimestamp = dataExtraida.dataTimestamp;
-            datasEncontradas.add(dataFormatada);
           }
 
           arquivosDesteConcurso.push({ titulo: tituloOriginal, href, dataFormatada, dataTimestamp });
+        });
+
+        // Remover duplicatas de link (mesmo arquivo publicado de novo por engano), mantendo o mais antigo
+        const arquivosDedup = new Map<string, any>();
+        for (const arq of arquivosDesteConcurso) {
+          const existente = arquivosDedup.get(arq.href);
+          if (!existente) {
+            arquivosDedup.set(arq.href, arq);
+          } else {
+            // Se o atual for mais antigo (ou igual, mas aparece mais abaixo na página), substitui
+            if (arq.dataTimestamp > 0 && (existente.dataTimestamp === 0 || arq.dataTimestamp <= existente.dataTimestamp)) {
+              arquivosDedup.delete(arq.href);
+              arquivosDedup.set(arq.href, arq);
+            }
+          }
+        }
+        arquivosDesteConcurso = Array.from(arquivosDedup.values());
+
+        const datasEncontradas = new Set<string>();
+        arquivosDesteConcurso.forEach(arq => {
+          if (arq.dataFormatada) {
+            datasEncontradas.add(arq.dataFormatada);
+          }
         });
 
         // ==============================================================
