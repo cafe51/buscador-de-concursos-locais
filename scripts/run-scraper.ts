@@ -37,7 +37,7 @@ async function main() {
   try {
     // 1. Roda a raspagem completa de todas as cidades (Primeira etapa do bloco)
     let { editais, falhas, resultadosDetalhes } = await buscarTodosEditais();
-    const todosEditais = [...editais];
+    let todosEditais = [...editais];
     let cidadesComFalha = [...falhas];
 
     // Processar resultados detalhados da tentativa inicial (Pega tempo, aviso, erros)
@@ -67,7 +67,9 @@ async function main() {
       await wait(RETRY_DELAY_MS);
 
       const nomesCidades = cidadesComFalha.map(falha => {
-        const cidadeEncontrada = CIDADES_ATIVAS.find(c => falha.startsWith(c + ' ('));
+        // Ordena por tamanho para garantir que "Meridiano (Câmara)" seja testado antes de "Meridiano"
+        const ordenadas = [...CIDADES_ATIVAS].sort((a, b) => b.length - a.length);
+        const cidadeEncontrada = ordenadas.find(c => falha.startsWith(c + ' ('));
         return cidadeEncontrada || falha.trim();
       });
 
@@ -111,6 +113,11 @@ async function main() {
     } else {
       console.log(`\n✅ Bloco de raspagem finalizado com SUCESSO TOTAL para todas as cidades!`);
     }
+
+    // Deduplica todosEditais antes de contar o total consolidado para remover clones e não confundir logs
+    const mapaUnicos = new Map();
+    todosEditais.forEach(e => mapaUnicos.set(e.link, e));
+    todosEditais = Array.from(mapaUnicos.values());
 
     console.log(`📊 Total consolidado de editais extraídos no bloco: ${todosEditais.length}`);
 

@@ -115,7 +115,7 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
 
     console.log("===================================================");
     console.log(`✅ RASPAGEM TOTAL CONCLUÍDA EM ${tempoGasto} SEGUNDOS!`);
-    console.log(`📊 Total de editais extraídos: ${listaLimpa.length}`);
+    console.log(`📊 Total de editais extraídos (após remover duplicações): ${listaLimpa.length}`);
     if (cidadesComFalha.length > 0) {
       console.log(`⚠️ Falhas detectadas em: ${cidadesComFalha.join(', ')}`);
     }
