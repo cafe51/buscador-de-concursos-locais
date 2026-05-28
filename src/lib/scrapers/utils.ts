@@ -1,43 +1,5 @@
 // src/lib/scrapers/utils.ts
 
-import { HttpsProxyAgent } from 'https-proxy-agent';
-import nodeFetch from 'node-fetch';
-
-const DOMINIOS_COM_PROXY = [
-  'jales.sp.gov.br',
-  'saojoaodasduaspontes.sp.gov.br',
-  'pedranopolis.sp.gov.br',
-  'urania.sp.gov.br',
-  'pontalinda.sp.gov.br',
-  'santasalete.sp.gov.br'
-];
-
-let proxyAgentsCache: any[] | null = null;
-const proxiesLogados = new Set<string>();
-
-function getRandomProxyAgent(): any | null {
-  if (proxyAgentsCache === null) {
-    const rawList = process.env.WEBSHARE_PROXY_LIST || '';
-    const urls = rawList
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0)
-      .map(line => {
-        const parts = line.split(':');
-        // Formato esperado: IP:PORT:USER:PASS
-        if (parts.length === 4) {
-          return `http://${parts[2]}:${parts[3]}@${parts[0]}:${parts[1]}`;
-        }
-        return line;
-      });
-      
-    proxyAgentsCache = urls.map(url => new HttpsProxyAgent(url));
-  }
-  
-  if (proxyAgentsCache.length === 0) return null;
-  return proxyAgentsCache[Math.floor(Math.random() * proxyAgentsCache.length)];
-}
-
 /**
  * Faz uma requisição HTTP com os headers padrão para simular um navegador real,
  * retornando o HTML da página ou vazio em caso de erro.
@@ -45,14 +7,13 @@ function getRandomProxyAgent(): any | null {
 export async function fetchHtml(
   url: string, 
   forceCache: boolean = false, 
-  timeoutMs: number = 15000,
-  forceProxy: boolean = false
+  timeoutMs: number = 15000
 ): Promise<{ ok: boolean, html: string, status: number }> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const fetchOptions: RequestInit & { dispatcher?: any } = {
+    const fetchOptions: RequestInit = {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
@@ -62,35 +23,7 @@ export async function fetchHtml(
       signal: controller.signal
     };
 
-    let urlObj;
-    try { urlObj = new URL(url); } catch { urlObj = { hostname: '' }; }
-    
-    const isBloqueado = DOMINIOS_COM_PROXY.some(d => urlObj.hostname.includes(d));
-
-    if (forceProxy || isBloqueado) {
-      const agent = getRandomProxyAgent();
-      if (agent) {
-        // Exibe o log do proxy apenas uma vez por domínio na execução
-        if (!proxiesLogados.has(urlObj.hostname)) {
-          console.log(`🛡️ [PROXY] Túnel ativado e blindado para: ${urlObj.hostname}`);
-          proxiesLogados.add(urlObj.hostname);
-        }
-        
-        // Uso do node-fetch isolado para contornar memory leak do Node 24 native fetch + custom dispatcher
-        const nfOptions: any = {
-          headers: fetchOptions.headers,
-          agent: agent,
-          signal: controller.signal
-        };
-        const nfRes = await nodeFetch(url, nfOptions);
-        clearTimeout(timeoutId);
-        
-        if (!nfRes.ok) return { ok: false, html: '', status: nfRes.status };
-        return { ok: true, html: await nfRes.text(), status: nfRes.status };
-      }
-    }
-
-    const res = await fetch(url, fetchOptions as RequestInit);
+    const res = await fetch(url, fetchOptions);
 
     clearTimeout(timeoutId);
 
