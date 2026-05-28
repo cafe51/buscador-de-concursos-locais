@@ -2,9 +2,9 @@ name: Raspagem Automática de Editais
 
 on:
   schedule:
-    # Roda todos os dias às 08:00 e 20:00 (UTC)
-    # Isso corresponde às 05:00 e 17:00 no horário de Brasília (BRT)
-    - cron: '0 8,20 * * *'
+    # Roda todos os dias às 08:00, 16:00 e 23:00 (UTC)
+    # Isso corresponde aproximadamente às 05:00, 13:00 e 20:00 no horário de Brasília (BRT)
+    - cron: '0 8,16,23 * * *'
   # O workflow_dispatch permite que você ative a execução manualmente no GitHub
   workflow_dispatch: 
 
