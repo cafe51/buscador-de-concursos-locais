@@ -458,7 +458,7 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-4 sm:p-6 md:p-8 text-gray-800 relative">
+    <main className="min-h-screen bg-neutral-950 p-4 sm:p-6 md:p-8 text-neutral-200 relative">
       <div className="max-w-4xl mx-auto">
         <Header
           loading={loading}
@@ -469,12 +469,12 @@ export default function Home() {
         />
 
         {alertas.length > 0 && !loading && (
-          <div className="bg-orange-50 border-l-4 border-orange-500 text-orange-800 p-4 rounded-lg mb-6 shadow-md flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="bg-amber-500/10 border border-amber-500/40 text-amber-300 p-4 rounded-xl mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <p className="font-bold flex items-center gap-2 text-sm sm:text-base">
                 ⚠️ Atenção: Problemas na raspagem das seguintes fontes:
               </p>
-              <ul className="list-disc list-inside text-xs mt-1.5 text-orange-700 pl-2 space-y-0.5">
+              <ul className="list-disc list-inside text-xs mt-1.5 text-amber-400/80 pl-2 space-y-0.5">
                 {alertas.map((alerta, idx) => (
                   <li key={idx} className="font-medium">{alerta}</li>
                 ))}
@@ -483,7 +483,7 @@ export default function Home() {
             <button
               onClick={refazerCidadesComFalha}
               disabled={isRefleshingFailed}
-              className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs px-4 py-2.5 rounded-lg shadow transition-colors flex items-center justify-center gap-2 disabled:bg-gray-400 self-start sm:self-center shrink-0 animate-pulse"
+              className="bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow transition-colors flex items-center justify-center gap-2 disabled:opacity-50 self-start sm:self-center shrink-0 animate-pulse"
             >
               {isRefleshingFailed ? (
                 <>
@@ -505,7 +505,7 @@ export default function Home() {
           palavrasIgnoradas={palavrasIgnoradas} setPalavrasIgnoradas={setPalavrasIgnoradas}
         />
 
-        {erroFatal && <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-6 text-center">{erroFatal}</div>}
+        {erroFatal && <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-4 rounded-xl mb-6 text-center">{erroFatal}</div>}
 
         <ControlsBar
           modoVisualizacao={modoVisualizacao} setModoVisualizacao={setModoVisualizacao}
@@ -516,9 +516,9 @@ export default function Home() {
         />
 
         {loading ? (
-          <div className="text-center p-8 text-gray-500 animate-pulse">Carregando dados da nuvem...</div>
+          <div className="text-center p-8 text-neutral-400 animate-pulse">Carregando dados da nuvem...</div>
         ) : editaisFiltrados.length === 0 ? (
-          <div className="bg-white p-6 rounded-lg shadow text-center text-gray-500 border border-gray-100">Nenhum edital encontrado com esses filtros.</div>
+          <div className="bg-neutral-900/50 backdrop-blur-xl border border-neutral-800 p-6 rounded-xl text-center text-neutral-400">Nenhum edital encontrado com esses filtros.</div>
         ) : modoVisualizacao === 'lista' ? (
           <ListView
             editais={editaisDaPaginaLista}

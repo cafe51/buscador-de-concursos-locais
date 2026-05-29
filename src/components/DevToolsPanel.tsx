@@ -95,7 +95,7 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
     return (
       <button
         onClick={() => setIsMinimized(false)}
-        className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white p-4 rounded-full shadow-2xl hover:bg-black transition-all hover:scale-110 flex items-center justify-center border border-gray-700 group"
+        className="fixed bottom-6 right-6 z-50 bg-neutral-900/80 backdrop-blur-md text-white p-4 rounded-full shadow-2xl hover:bg-neutral-800 transition-all hover:scale-110 flex items-center justify-center border border-neutral-700 group"
         title="Abrir DevTools"
       >
         <span className="text-2xl leading-none group-hover:rotate-90 transition-transform duration-300">⚙️</span>
@@ -104,34 +104,34 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
   }
 
   return (
-    <div className="fixed inset-0 sm:inset-auto sm:bottom-6 sm:right-6 z-50 flex flex-col items-center sm:items-end gap-4 p-4 sm:p-0 bg-gray-900/40 sm:bg-transparent backdrop-blur-sm sm:backdrop-blur-none overflow-y-auto">
+    <div className="fixed inset-0 sm:inset-auto sm:bottom-6 sm:right-6 z-50 flex flex-col items-center sm:items-end gap-4 p-4 sm:p-0 bg-neutral-950/60 sm:bg-transparent backdrop-blur-md sm:backdrop-blur-none overflow-y-auto">
       <div className="w-full sm:w-auto flex justify-end mb-2 mt-4 sm:mt-0">
         <button
           onClick={() => setIsMinimized(true)}
-          className="bg-gray-800 text-white px-6 py-2 rounded-full text-sm font-bold shadow-xl hover:bg-black transition-colors border border-gray-700 flex items-center gap-2"
+          className="bg-neutral-900 text-white px-6 py-2 rounded-full text-sm font-bold shadow-xl hover:bg-neutral-800 transition-colors border border-neutral-700 flex items-center gap-2"
         >
           <span>Fechar DevTools</span> ✖
         </button>
       </div>
 
       {/* ☁️ NUVEM VERCEL BLOB */}
-      <div className="bg-white border-2 border-blue-500 p-4 rounded-lg shadow-xl w-full max-w-md sm:w-96 animate-fade-in flex flex-col gap-3">
+      <div className="bg-neutral-900/80 backdrop-blur-xl border border-sky-500/50 p-4 rounded-2xl shadow-xl w-full max-w-md sm:w-96 animate-fade-in flex flex-col gap-3">
         <div>
-          <h3 className="font-bold text-blue-700 mb-2">☁️ Atualizar Nuvem</h3>
-          <p className="text-xs text-gray-500 mb-3">Raspa TODAS as cidades e faz o upload (Upsert) para o banco de dados da Vercel (Pode levar 2 minutos).</p>
+          <h3 className="font-bold text-sky-400 mb-2">☁️ Atualizar Nuvem</h3>
+          <p className="text-xs text-neutral-400 mb-3">Raspa TODAS as cidades e faz o upload (Upsert) para o banco de dados da Vercel (Pode levar 2 minutos).</p>
           <button
             onClick={onScrapeAndSave} disabled={isSavingToCloud || isCreatingNewDb}
-            className="bg-blue-600 text-white w-full py-3 rounded text-sm font-bold disabled:bg-gray-400 hover:bg-blue-700 transition-colors shadow-lg"
+            className="bg-sky-600 text-white w-full py-3 rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-sky-500 transition-colors shadow-lg"
           >
             {isSavingToCloud ? '⏳ Raspando e Salvando...' : '🚀 Raspar TUDO e Atualizar Nuvem'}
           </button>
         </div>
-        <div className="border-t border-gray-200 pt-3">
+        <div className="border-t border-neutral-800 pt-3">
           <h3 className="font-bold text-red-600 mb-2">🛑 Criar Novo Banco</h3>
-          <p className="text-xs text-gray-500 mb-3">Zera a nuvem atual e recria o banco APENAS com os dados encontrados agora (Destrutivo).</p>
+          <p className="text-xs text-neutral-400 mb-3">Zera a nuvem atual e recria o banco APENAS com os dados encontrados agora (Destrutivo).</p>
           <button
             onClick={onCreateNewDb} disabled={isSavingToCloud || isCreatingNewDb}
-            className="bg-red-600 text-white w-full py-2 rounded text-sm font-bold disabled:bg-gray-400 hover:bg-red-700 transition-colors shadow-lg"
+            className="bg-red-600/20 border border-red-500/50 text-red-400 w-full py-2 rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-red-500/30 transition-colors shadow-lg"
           >
             {isCreatingNewDb ? '⏳ Recriando Banco...' : '💥 Zerar e Criar Novo Banco'}
           </button>
@@ -139,36 +139,36 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
       </div>
 
       {/* RASPAGEM INDIVIDUAL */}
-      <div className="bg-white border-2 border-green-500 p-4 rounded-lg shadow-xl w-full max-w-md sm:w-96 animate-fade-in">
-        <h3 className="font-bold text-green-700 mb-2">⚡ Testar Cidade Única</h3>
-        <p className="text-xs text-gray-500 mb-3">Atualiza a cidade selecionada e salva as modificações diretamente no servidor.</p>
+      <div className="bg-neutral-900/80 backdrop-blur-xl border border-emerald-500/50 p-4 rounded-2xl shadow-xl w-full max-w-md sm:w-96 animate-fade-in">
+        <h3 className="font-bold text-emerald-400 mb-2">⚡ Testar Cidade Única</h3>
+        <p className="text-xs text-neutral-400 mb-3">Atualiza a cidade selecionada e salva as modificações diretamente no servidor.</p>
         <select
           value={cidadeAlvoDev}
           onChange={(e) => setCidadeAlvoDev(e.target.value)}
-          className="border border-green-200 p-2 w-full text-xs font-bold rounded mb-2 outline-none focus:border-green-600"
+          className="bg-neutral-950 border border-neutral-800 text-emerald-400 p-2 w-full text-xs font-bold rounded-xl mb-2 outline-none focus:border-emerald-500"
         >
           {todasCidades.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <button
           onClick={rodarAtualizacaoIndividual} disabled={isRefreshingCity}
-          className="bg-green-600 text-white w-full py-2 rounded text-sm font-bold disabled:bg-gray-400 hover:bg-green-700 transition-colors shadow-lg"
+          className="bg-emerald-600 text-white w-full py-2 rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-emerald-500 transition-colors shadow-lg"
         >
           {isRefreshingCity ? '⏳ Raspando e Sincronizando...' : `Atualizar ${cidadeAlvoDev} na Nuvem`}
         </button>
       </div>
 
       {/* RAW SCRAPER */}
-      <div className="bg-white border-2 border-purple-500 p-4 rounded-lg shadow-xl w-full max-w-md sm:w-96 animate-fade-in">
-        <h3 className="font-bold text-purple-700 mb-2">🛠️ Raio-X Instar (Raw)</h3>
+      <div className="bg-neutral-900/80 backdrop-blur-xl border border-purple-500/50 p-4 rounded-2xl shadow-xl w-full max-w-md sm:w-96 animate-fade-in">
+        <h3 className="font-bold text-purple-400 mb-2">🛠️ Raio-X Instar (Raw)</h3>
         <input
           type="text"
           placeholder="Ex: https://.../numero-ano-processo-decrescente/0"
           value={urlRaw} onChange={(e) => setUrlRaw(e.target.value)}
-          className="border border-purple-200 p-2 w-full text-xs rounded mb-2 outline-none focus:border-purple-600"
+          className="bg-neutral-950 text-white border border-neutral-800 p-2 w-full text-xs rounded-xl mb-2 outline-none focus:border-purple-500"
         />
         <button
           onClick={rodarRawScraper} disabled={isRawScraping || !urlRaw}
-          className="bg-purple-600 text-white w-full py-2 rounded text-sm font-bold disabled:bg-gray-400 hover:bg-purple-700 transition-colors"
+          className="bg-purple-600 text-white w-full py-2 rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-purple-500 transition-colors"
         >
           {isRawScraping ? '⏳ Extraindo...' : 'Extrair JSON'}
         </button>
@@ -177,21 +177,21 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
       {/* AUDITOR */}
       <div className="flex flex-col items-center sm:items-end w-full max-w-md sm:w-auto">
         {resultadoAuditoria && (
-          <div className="bg-white border-2 border-red-500 p-4 rounded-lg shadow-xl mb-4 w-full sm:w-96 max-h-[50vh] overflow-y-auto animate-fade-in">
+          <div className="bg-neutral-900/80 backdrop-blur-xl border border-rose-500/50 p-4 rounded-2xl shadow-xl mb-4 w-full sm:w-96 max-h-[50vh] overflow-y-auto animate-fade-in">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-red-700">🕵️ Relatório</h3>
-              <button onClick={() => setResultadoAuditoria(null)} className="text-gray-400 hover:text-black">✖</button>
+              <h3 className="font-bold text-rose-400">🕵️ Relatório</h3>
+              <button onClick={() => setResultadoAuditoria(null)} className="text-neutral-500 hover:text-white">✖</button>
             </div>
             {resultadoAuditoria.length === 0 ? (
-              <p className="text-sm text-green-600 font-bold">Tudo perfeito!</p>
+              <p className="text-sm text-emerald-400 font-bold">Tudo perfeito!</p>
             ) : (
               <div className="space-y-4">
                 {resultadoAuditoria.map((disc, idx) => (
-                  <div key={idx} className="bg-red-50 p-3 rounded border border-red-100 text-sm">
-                    <p className="font-bold text-red-900">{disc.cidade} - {disc.concurso}</p>
+                  <div key={idx} className="bg-rose-500/10 p-3 rounded-xl border border-rose-500/30 text-sm">
+                    <p className="font-bold text-rose-300">{disc.cidade} - {disc.concurso}</p>
                     <div className="flex justify-between mt-2 font-medium">
-                      <span className="text-green-700">Nós: {disc.qtdNossa}</span>
-                      <span className="text-blue-700">Site: {disc.qtdSite}</span>
+                      <span className="text-emerald-400">Nós: {disc.qtdNossa}</span>
+                      <span className="text-sky-400">Site: {disc.qtdSite}</span>
                     </div>
                   </div>
                 ))}
@@ -201,7 +201,7 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
         )}
         <button
           onClick={rodarAuditoria} disabled={auditando || concursosAgrupados.length === 0}
-          className={`px-6 py-3 rounded-full font-bold shadow-xl flex items-center gap-2 transition-all w-full sm:w-auto justify-center ${auditando ? 'bg-gray-300 text-gray-600' : 'bg-black text-white hover:bg-gray-800 hover:-translate-y-1'}`}
+          className={`px-6 py-3 rounded-full font-bold shadow-xl flex items-center gap-2 transition-all w-full sm:w-auto justify-center ${auditando ? 'bg-neutral-800 text-neutral-500' : 'bg-neutral-900 text-white border border-neutral-700 hover:bg-neutral-800 hover:-translate-y-1'}`}
         >
           {auditando ? '⏳ Auditando...' : '🕵️ Auditar Instar'}
         </button>
