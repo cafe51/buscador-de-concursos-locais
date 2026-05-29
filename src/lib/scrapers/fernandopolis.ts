@@ -22,9 +22,9 @@ function deveExcluirPorAno(idConcurso: string | undefined): boolean {
   return false;
 }
 
-async function buscarDetalhesFernandopolis(url: string): Promise<{ dataCorreta: string | null, descricaoExtra: string, urlPrimeiroPdf: string | null }> {
+async function buscarDetalhesFernandopolis(url: string): Promise<{ sucesso: boolean, dataCorreta: string | null, descricaoExtra: string, urlPrimeiroPdf: string | null }> {
   const res = await fetchHtml(url, true);
-  if (!res.ok) return { dataCorreta: null, descricaoExtra: '', urlPrimeiroPdf: null };
+  if (!res.ok) return { sucesso: false, dataCorreta: null, descricaoExtra: '', urlPrimeiroPdf: null };
 
   const $ = cheerio.load(res.html);
   let dataCorreta: string | null = null;
@@ -60,15 +60,21 @@ async function buscarDetalhesFernandopolis(url: string): Promise<{ dataCorreta: 
   });
 
   return {
+    sucesso: true,
     dataCorreta,
     descricaoExtra: nomesDosLinks.join(' | '),
     urlPrimeiroPdf
   };
 }
 
-async function processarLoteDetalhes(lote: any[], resultados: Edital[]) {
+async function processarLoteDetalhes(lote: any[], resultados: Edital[], detalhesFalhas: string[]) {
   await Promise.all(lote.map(async (item) => {
     const detalhes = await buscarDetalhesFernandopolis(item.linkCompleto);
+    
+    if (!detalhes.sucesso) {
+      detalhesFalhas.push(`[DETALHE FALHOU] ${item.linkCompleto}`);
+      return;
+    }
 
     let timestamp = 0;
     if (detalhes.dataCorreta) {
@@ -127,12 +133,13 @@ export async function buscarFernandopolis(): Promise<Edital[]> {
   let ordemGlobal = 0;
   let encontrouAlvoDeParada = false;
   const itensBrutos: { titulo: string, linkCompleto: string, textoAoRedor: string, ordem: number }[] = [];
+  const detalhesFalhas: string[] = [];
 
-  for (let loteInicio = 1; loteInicio <= 50; loteInicio += 5) {
+  for (let loteInicio = 1; loteInicio <= 50; loteInicio += 2) {
     if (encontrouAlvoDeParada) break;
 
     const promessasPaginas = [];
-    for (let pagina = loteInicio; pagina < loteInicio + 5 && pagina <= 50; pagina++) {
+    for (let pagina = loteInicio; pagina < loteInicio + 2 && pagina <= 50; pagina++) {
       promessasPaginas.push(
         fetchHtml(`https://fernandopolis.sp.gov.br/publicacoes/?categoria=concurso&pagina=${pagina}`)
           .then(res => ({ pagina, html: res.ok ? res.html : '' }))
@@ -143,7 +150,11 @@ export async function buscarFernandopolis(): Promise<Edital[]> {
     paginasBaixadas.sort((a, b) => a.pagina - b.pagina);
 
     for (const pag of paginasBaixadas) {
-      if (!pag.html || encontrouAlvoDeParada) continue;
+      if (!pag.html) {
+        if (!encontrouAlvoDeParada) detalhesFalhas.push(`[PÁGINA FALHOU] Pagina ${pag.pagina}`);
+        continue;
+      }
+      if (encontrouAlvoDeParada) continue;
 
       const $ = cheerio.load(pag.html);
       $('h3 a').each((_, elemento) => {
@@ -177,10 +188,16 @@ export async function buscarFernandopolis(): Promise<Edital[]> {
     }
   }
 
-  const TAMANHO_LOTE = 5;
+  const TAMANHO_LOTE = 3;
   for (let i = 0; i < itensBrutos.length; i += TAMANHO_LOTE) {
     const lote = itensBrutos.slice(i, i + TAMANHO_LOTE);
-    await processarLoteDetalhes(lote, resultados);
+    await processarLoteDetalhes(lote, resultados, detalhesFalhas);
+  }
+
+  if (detalhesFalhas.length > 0) {
+    const msg = `Conexão instável (${detalhesFalhas.length} falhas em Fernandópolis)`;
+    if (resultados.length === 0) throw new Error(msg);
+    else throw Object.assign(new Error(msg), { dadosParciais: resultados });
   }
 
   return resultados;

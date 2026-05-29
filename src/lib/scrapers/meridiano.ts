@@ -7,6 +7,7 @@ import { fetchHtml, extrairData } from './utils';
 export async function buscarMeridiano(): Promise<Edital[]> {
   const resultados: Edital[] = [];
   let ordemGlobal = 0;
+  const detalhesFalhas: string[] = [];
 
   try {
     const todosOsConcursos: { metadado: string, urlDetalhes: string, anoOriginal: number }[] = [];
@@ -36,7 +37,10 @@ export async function buscarMeridiano(): Promise<Edital[]> {
       }));
 
       for (const pagAno of paginasAnosC) {
-        if (!pagAno.html) continue;
+        if (!pagAno.html) {
+          detalhesFalhas.push(`[PÁGINA ANO FALHOU] ${pagAno.url}`);
+          continue;
+        }
         const $ano = cheerio.load(pagAno.html);
         $ano('.ces-card-item').each((_, el) => {
           const metadado = $ano(el).find('h3.ces-item-title').text().replace(/\s+/g, ' ').trim();
@@ -60,7 +64,10 @@ export async function buscarMeridiano(): Promise<Edital[]> {
     }));
 
     for (const pagAno of paginasAnosS) {
-      if (!pagAno.html) continue;
+      if (!pagAno.html) {
+        detalhesFalhas.push(`[PÁGINA ANO FALHOU] ${pagAno.url}`);
+        continue;
+      }
       const $ano = cheerio.load(pagAno.html);
       $ano('.ces-card-item').each((_, el) => {
         const metadado = $ano(el).find('h3.ces-item-title').text().replace(/\s+/g, ' ').trim();
@@ -72,9 +79,9 @@ export async function buscarMeridiano(): Promise<Edital[]> {
     }
 
     // ==============================================================
-    // 3. FASE DE DETALHES (PARALELIZADO EM LOTES DE 25)
+    // 3. FASE DE DETALHES (PARALELIZADO EM LOTES DE 5)
     // ==============================================================
-    const TAMANHO_LOTE = 25;
+    const TAMANHO_LOTE = 5;
 
     for (let i = 0; i < todosOsConcursos.length; i += TAMANHO_LOTE) {
       const lote = todosOsConcursos.slice(i, i + TAMANHO_LOTE);
@@ -85,7 +92,10 @@ export async function buscarMeridiano(): Promise<Edital[]> {
       }));
 
       for (const detalhe of detalhesHtml) {
-        if (!detalhe.html) continue;
+        if (!detalhe.html) {
+          detalhesFalhas.push(`[DETALHE FALHOU] ${detalhe.urlDetalhes}`);
+          continue;
+        }
 
         const $det = cheerio.load(detalhe.html);
 
@@ -203,9 +213,16 @@ export async function buscarMeridiano(): Promise<Edital[]> {
     }
 
   } catch (e: any) {
+    if (e.dadosParciais || detalhesFalhas.length > 0) throw e;
     const cause = (e as any).cause;
     const causeMsg = cause ? " - Detalhes: " + (cause.message || cause.code || JSON.stringify(cause)) : "";
     throw new Error('Erro geral ao buscar Meridiano' + ": " + (e as Error).message + causeMsg);
+  }
+
+  if (detalhesFalhas.length > 0) {
+    const msg = `Conexão instável (${detalhesFalhas.length} falhas em Meridiano)`;
+    if (resultados.length === 0) throw new Error(msg);
+    else throw Object.assign(new Error(msg), { dadosParciais: resultados });
   }
 
   return resultados;

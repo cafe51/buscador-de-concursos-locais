@@ -32,7 +32,7 @@ type ConcursoInfo = {
 
 async function fetchCategoryPages(config: InstarConfig, endpoints: string[], detalhesFalhas: string[]): Promise<string[]> {
   const htmlsCategorias: string[] = [];
-  const TAMANHO_LOTE_ENDPOINTS = 20;
+  const TAMANHO_LOTE_ENDPOINTS = 5;
 
   for (let i = 0; i < endpoints.length; i += TAMANHO_LOTE_ENDPOINTS) {
     const lote = endpoints.slice(i, i + TAMANHO_LOTE_ENDPOINTS);
@@ -57,12 +57,12 @@ async function fetchCategoryPages(config: InstarConfig, endpoints: string[], det
           } else {
             erroMsg = `HTTP ${res.status}`;
             tentativas++;
-            if (tentativas < 3) await new Promise(r => setTimeout(r, 800));
+            if (tentativas < 3) await new Promise(r => setTimeout(r, 10000));
           }
         } catch (err: any) {
           erroMsg = err.message || 'fetch failed';
           tentativas++;
-          if (tentativas < 3) await new Promise(r => setTimeout(r, 800));
+          if (tentativas < 3) await new Promise(r => setTimeout(r, 10000));
         }
       }
 
@@ -208,11 +208,11 @@ async function resolveTrueDownloadLink(docLink: string, baseUrl: string): Promis
         sucesso = true;
       } else {
         tentativas++;
-        await new Promise(r => setTimeout(r, 800));
+        await new Promise(r => setTimeout(r, 10000));
       }
     } catch (e) {
       tentativas++;
-      await new Promise(r => setTimeout(r, 800));
+      await new Promise(r => setTimeout(r, 10000));
     }
   }
   return resolvedLink;
@@ -246,7 +246,7 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
     const htmlsCategorias = await fetchCategoryPages(config, endpoints, detalhesFalhas);
     const concursosParaBaixar = parseConcursosList(htmlsCategorias, config);
 
-    const TAMANHO_LOTE = 5;
+    const TAMANHO_LOTE = 3;
 
     for (let i = 0; i < concursosParaBaixar.length; i += TAMANHO_LOTE) {
       const lote = concursosParaBaixar.slice(i, i + TAMANHO_LOTE);
@@ -267,11 +267,11 @@ export async function buscarInstarBase(config: InstarConfig): Promise<Edital[]> 
               if (resInner.ok) pastaSucesso = true;
               else {
                 tentativasPasta++;
-                await new Promise(r => setTimeout(r, 1000));
+                await new Promise(r => setTimeout(r, 10000));
               }
             } catch (e) {
               tentativasPasta++;
-              await new Promise(r => setTimeout(r, 1000));
+              await new Promise(r => setTimeout(r, 10000));
             }
           }
 

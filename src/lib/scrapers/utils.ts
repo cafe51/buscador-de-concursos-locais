@@ -9,34 +9,43 @@ export async function fetchHtml(
   forceCache: boolean = false, 
   timeoutMs: number = 15000
 ): Promise<{ ok: boolean, html: string, status: number }> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let tentativas = 0;
+  let ultimoStatus = 0;
 
-  try {
-    const fetchOptions: RequestInit = {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-      },
-      cache: forceCache ? 'force-cache' : 'no-store',
-      signal: controller.signal
-    };
+  while (tentativas < 3) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    const res = await fetch(url, fetchOptions);
+    try {
+      const fetchOptions: RequestInit = {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+        },
+        cache: forceCache ? 'force-cache' : 'no-store',
+        signal: controller.signal
+      };
 
-    clearTimeout(timeoutId);
+      const res = await fetch(url, fetchOptions);
+      clearTimeout(timeoutId);
+      ultimoStatus = res.status;
 
-    if (!res.ok) {
-      return { ok: false, html: '', status: res.status };
+      if (res.ok) {
+        const html = await res.text();
+        return { ok: true, html, status: res.status };
+      }
+    } catch (err: any) {
+      clearTimeout(timeoutId);
     }
 
-    const html = await res.text();
-    return { ok: true, html, status: res.status };
-  } catch (err: any) {
-    clearTimeout(timeoutId);
-    return { ok: false, html: '', status: 0 };
+    tentativas++;
+    if (tentativas < 3) {
+      await new Promise(r => setTimeout(r, 10000));
+    }
   }
+
+  return { ok: false, html: '', status: ultimoStatus };
 }
 
 /**
