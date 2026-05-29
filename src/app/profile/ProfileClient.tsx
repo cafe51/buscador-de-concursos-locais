@@ -51,26 +51,26 @@ export default function ProfileClient({ user }: { user: User }) {
       
       {/* Left Column: User Info Card */}
       <div className="md:col-span-1 space-y-6">
-        <div className="bg-neutral-900/50 backdrop-blur-xl border border-neutral-800 p-6 rounded-2xl shadow-xl">
+        <div className="bg-white/80 backdrop-blur-xl border border-slate-200 p-6 rounded-2xl shadow-sm">
           <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold mb-4">
             {(user.user_metadata?.username?.charAt(0) || user.email?.charAt(0))?.toUpperCase()}
           </div>
-          <h2 className="text-xl font-semibold text-white mb-1">
+          <h2 className="text-xl font-semibold text-indigo-900 mb-1">
             {user.user_metadata?.username ? `@${user.user_metadata.username}` : 'Seu Perfil'}
           </h2>
-          <p className="text-neutral-400 text-sm mb-6 flex items-center gap-2">
-            <ShieldCheck size={16} className="text-emerald-500" /> Conta Verificada
+          <p className="text-slate-500 text-sm mb-6 flex items-center gap-2">
+            <ShieldCheck size={16} className="text-emerald-600" /> Conta Verificada
           </p>
 
-          <div className="pt-4 border-t border-neutral-800">
-            <p className="text-xs text-neutral-500 mb-1">E-mail atual</p>
-            <p className="text-sm text-neutral-200 font-medium truncate" title={user.email}>{user.email}</p>
+          <div className="pt-4 border-t border-slate-200">
+            <p className="text-xs text-slate-500 mb-1">E-mail atual</p>
+            <p className="text-sm text-slate-800 font-medium truncate" title={user.email}>{user.email}</p>
           </div>
 
-          <div className="pt-6 mt-6 border-t border-neutral-800">
+          <div className="pt-6 mt-6 border-t border-slate-200">
             <button 
               onClick={handleLogout}
-              className="flex items-center gap-2 text-sm text-neutral-400 hover:text-white transition-colors w-full"
+              className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 transition-colors w-full"
             >
               <LogOut size={16} /> Sair da conta
             </button>
@@ -82,32 +82,32 @@ export default function ProfileClient({ user }: { user: User }) {
       <div className="md:col-span-2 space-y-6">
         
         {/* Email Settings */}
-        <div className="bg-neutral-900/50 backdrop-blur-xl border border-neutral-800 p-6 rounded-2xl shadow-xl">
-          <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2">
-            <Mail size={18} className="text-indigo-400" /> Alterar E-mail
+        <div className="bg-white/80 backdrop-blur-xl border border-slate-200 p-6 rounded-2xl shadow-sm">
+          <h3 className="text-lg font-medium text-indigo-900 mb-4 flex items-center gap-2">
+            <Mail size={18} className="text-indigo-600" /> Alterar E-mail
           </h3>
-          <p className="text-sm text-neutral-400 mb-6">
+          <p className="text-sm text-slate-500 mb-6">
             O link de confirmação será enviado para o novo e-mail. Seu e-mail antigo só será desassociado após você clicar no link.
           </p>
 
           {!isEditingEmail ? (
             <button
               onClick={() => setIsEditingEmail(true)}
-              className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg text-sm font-medium transition-colors"
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 rounded-lg text-sm font-medium transition-colors"
             >
               Mudar E-mail
             </button>
           ) : (
             <form id="update-email-form" action={updateEmail} onSubmit={handleUpdateEmail} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-neutral-400 mb-1">Novo E-mail</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Novo E-mail</label>
                 <input
                   type="email"
                   name="email"
                   required
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
-                  className="w-full px-4 py-3 bg-neutral-950/50 border border-neutral-800 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all duration-200 text-white"
+                  className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all duration-200 text-slate-800"
                   placeholder="novo@email.com"
                 />
               </div>
@@ -115,14 +115,14 @@ export default function ProfileClient({ user }: { user: User }) {
                 <button
                   type="submit"
                   disabled={isSubmittingEmail || !newEmail || newEmail === user.email}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
                 >
                   {isSubmittingEmail ? 'Enviando...' : 'Enviar link de confirmação'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsEditingEmail(false)}
-                  className="px-4 py-2 text-neutral-400 hover:text-white rounded-lg text-sm font-medium transition-colors"
+                  className="px-4 py-2 text-slate-500 hover:text-slate-800 rounded-lg text-sm font-medium transition-colors"
                 >
                   Cancelar
                 </button>
@@ -132,17 +132,17 @@ export default function ProfileClient({ user }: { user: User }) {
         </div>
 
         {/* Password Settings */}
-        <div className="bg-neutral-900/50 backdrop-blur-xl border border-neutral-800 p-6 rounded-2xl shadow-xl">
+        <div className="bg-white/80 backdrop-blur-xl border border-slate-200 p-6 rounded-2xl shadow-sm">
           <div className="flex justify-between items-center">
             <div>
-              <h3 className="text-lg font-medium text-white mb-1">Segurança</h3>
-              <p className="text-sm text-neutral-400">
+              <h3 className="text-lg font-medium text-indigo-900 mb-1">Segurança</h3>
+              <p className="text-sm text-slate-500">
                 Gerencie sua senha de acesso.
               </p>
             </div>
             <Link 
               href="/update-password"
-              className="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg text-sm font-medium transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 rounded-lg text-sm font-medium transition-colors"
             >
               Alterar Senha <ArrowRight size={16} />
             </Link>
@@ -150,24 +150,24 @@ export default function ProfileClient({ user }: { user: User }) {
         </div>
 
         {/* Danger Zone */}
-        <div className="bg-red-950/10 border border-red-900/50 p-6 rounded-2xl shadow-xl mt-12">
-          <h3 className="text-lg font-medium text-red-500 mb-2 flex items-center gap-2">
+        <div className="bg-red-50 border border-red-200 p-6 rounded-2xl shadow-sm mt-12">
+          <h3 className="text-lg font-medium text-red-600 mb-2 flex items-center gap-2">
             <AlertTriangle size={18} /> Zona de Perigo
           </h3>
-          <p className="text-sm text-neutral-400 mb-6">
+          <p className="text-sm text-slate-600 mb-6">
             A exclusão da conta é permanente e não poderá ser desfeita. Todos os seus dados serão apagados.
           </p>
 
           {!isDeleting ? (
             <button
               onClick={() => setIsDeleting(true)}
-              className="px-4 py-2 bg-red-900/30 hover:bg-red-900/50 border border-red-900/50 text-red-400 rounded-lg text-sm font-medium transition-colors"
+              className="px-4 py-2 bg-red-100 hover:bg-red-200 border border-red-300 text-red-700 rounded-lg text-sm font-medium transition-colors"
             >
               Excluir minha conta
             </button>
           ) : (
             <form onSubmit={handleDeleteAccount} className="space-y-4 max-w-sm">
-              <div className="p-3 bg-red-900/20 border border-red-900/30 rounded-lg text-red-400 text-xs mb-4">
+              <div className="p-3 bg-red-100 border border-red-200 rounded-lg text-red-700 text-xs mb-4">
                 Para confirmar a exclusão, digite sua senha de acesso atual abaixo:
               </div>
               
@@ -181,7 +181,7 @@ export default function ProfileClient({ user }: { user: User }) {
                   required
                   value={deletePassword}
                   onChange={(e) => setDeletePassword(e.target.value)}
-                  className="w-full px-4 py-2 bg-neutral-950/50 border border-red-900/30 rounded-xl focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all duration-200 text-white placeholder-neutral-600"
+                  className="w-full px-4 py-2 bg-white border border-red-300 rounded-xl focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all duration-200 text-slate-800 placeholder-slate-400"
                   placeholder="Sua senha atual"
                 />
               </div>
@@ -189,7 +189,7 @@ export default function ProfileClient({ user }: { user: User }) {
                 <button
                   type="submit"
                   disabled={isSubmittingDelete || !deletePassword}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
                 >
                   {isSubmittingDelete ? 'Excluindo...' : 'Confirmar Exclusão'}
                 </button>
@@ -200,7 +200,7 @@ export default function ProfileClient({ user }: { user: User }) {
                     setDeletePassword('')
                     setDeleteError('')
                   }}
-                  className="px-4 py-2 text-neutral-400 hover:text-white rounded-lg text-sm font-medium transition-colors"
+                  className="px-4 py-2 text-slate-500 hover:text-slate-800 rounded-lg text-sm font-medium transition-colors"
                 >
                   Cancelar
                 </button>

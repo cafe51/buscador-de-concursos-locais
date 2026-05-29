@@ -35,7 +35,7 @@ import { Suspense } from 'react'
 
 export default function SignupPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-neutral-950 flex items-center justify-center text-white">Carregando...</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-900">Carregando...</div>}>
       <SignupContent />
     </Suspense>
   )
@@ -95,20 +95,20 @@ function SignupContent() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
       {/* Background gradients for aesthetics */}
       <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-indigo-600/30 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-purple-600/30 rounded-full blur-[120px] pointer-events-none" />
 
-      <div className="w-full max-w-md bg-neutral-900/50 backdrop-blur-xl border border-neutral-800 p-8 rounded-2xl shadow-2xl z-10 relative">
+      <div className="w-full max-w-md bg-white/80 backdrop-blur-xl border border-slate-200 p-8 rounded-2xl shadow-xl z-10 relative">
         
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-2">Crie sua Conta</h1>
-          <p className="text-neutral-400">Junte-se para receber notificações de concursos.</p>
+          <h1 className="text-3xl font-bold text-indigo-900 text-center tracking-tight mb-2">Crie sua Conta</h1>
+          <p className="text-slate-500 text-center">Junte-se para receber notificações de concursos.</p>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-lg text-red-500 text-sm text-center">
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm text-center">
             {error}
           </div>
         )}
@@ -122,13 +122,13 @@ function SignupContent() {
         <form id="signup-form" action={signup} className="space-y-5">
           {/* Username Field */}
           <div>
-            <label className="block text-sm font-medium text-neutral-300 mb-1">Nome de Usuário</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Nome de Usuário</label>
             <input
               {...register('username')}
               name="username"
               type="text"
-              className={`w-full px-4 py-3 bg-neutral-950/50 border rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 text-white
-                ${errors.username ? 'border-red-500 focus:ring-red-500/20' : 'border-neutral-800 focus:border-indigo-500 focus:ring-indigo-500/20'}
+              className={`w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all shadow-sm
+                ${errors.username ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-500/20'}
               `}
               placeholder="ex: joao_silva"
             />
@@ -146,13 +146,13 @@ function SignupContent() {
 
           {/* Email Field */}
           <div>
-            <label className="block text-sm font-medium text-neutral-300 mb-1">E-mail</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">E-mail</label>
             <input
               {...register('email')}
               name="email"
               type="email"
-              className={`w-full px-4 py-3 bg-neutral-950/50 border rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 text-white
-                ${errors.email ? 'border-red-500 focus:ring-red-500/20' : 'border-neutral-800 focus:border-indigo-500 focus:ring-indigo-500/20'}
+              className={`w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all shadow-sm
+                ${errors.email ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-500/20'}
               `}
               placeholder="seu@email.com"
             />
@@ -170,14 +170,14 @@ function SignupContent() {
 
           {/* Password Field */}
           <div>
-            <label className="block text-sm font-medium text-neutral-300 mb-1">Senha</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Senha</label>
             <div className="relative">
               <input
                 {...register('password')}
                 name="password"
                 type={showPassword ? 'text' : 'password'}
-                className={`w-full px-4 py-3 bg-neutral-950/50 border rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 text-white pr-10
-                  ${errors.password ? 'border-red-500 focus:ring-red-500/20' : 'border-neutral-800 focus:border-indigo-500 focus:ring-indigo-500/20'}
+                className={`w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all shadow-sm pr-10
+                  ${errors.password ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-500/20'}
                 `}
                 placeholder="Crie uma senha forte"
               />
@@ -212,12 +212,12 @@ function SignupContent() {
 
           {/* Confirm Password Field */}
           <div>
-            <label className="block text-sm font-medium text-neutral-300 mb-1">Confirmar Senha</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Confirmar Senha</label>
             <input
               {...register('confirmPassword')}
               type={showPassword ? 'text' : 'password'}
-              className={`w-full px-4 py-3 bg-neutral-950/50 border rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 text-white
-                ${errors.confirmPassword ? 'border-red-500 focus:ring-red-500/20' : 'border-neutral-800 focus:border-indigo-500 focus:ring-indigo-500/20'}
+              className={`w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all shadow-sm
+                ${errors.confirmPassword ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-500/20'}
               `}
               placeholder="Digite a senha novamente"
             />
@@ -232,7 +232,7 @@ function SignupContent() {
             type="button"
             onClick={handleSubmit(onSubmit)}
             disabled={!isValid || isSubmitting}
-            className="w-full py-3 px-4 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white rounded-xl font-medium transition-all duration-300 transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none mt-4 flex items-center justify-center gap-2"
+            className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md rounded-xl font-medium transition-all duration-300 transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none mt-4 flex items-center justify-center gap-2"
           >
             {isSubmitting ? (
               <>
@@ -245,9 +245,9 @@ function SignupContent() {
           </button>
         </form>
 
-        <p className="text-center text-sm text-neutral-400 mt-6">
+        <p className="text-center text-sm text-slate-500 mt-6">
           Já tem uma conta?{' '}
-          <Link href="/login" className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors">
+          <Link href="/login" className="text-indigo-600 hover:text-indigo-700 font-medium transition-colors">
             Faça login
           </Link>
         </p>

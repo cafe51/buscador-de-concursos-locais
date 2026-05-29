@@ -20,7 +20,7 @@ import { Suspense } from 'react'
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-neutral-950 flex items-center justify-center text-white">Carregando...</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-900">Carregando...</div>}>
       <LoginContent />
     </Suspense>
   )
@@ -50,20 +50,20 @@ function LoginContent() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
       {/* Background gradients */}
       <div className="absolute top-[-10%] right-[-10%] w-96 h-96 bg-indigo-600/30 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] left-[-10%] w-96 h-96 bg-purple-600/30 rounded-full blur-[120px] pointer-events-none" />
 
-      <div className="w-full max-w-md bg-neutral-900/50 backdrop-blur-xl border border-neutral-800 p-8 rounded-2xl shadow-2xl z-10 relative">
+      <div className="w-full max-w-md bg-white/80 backdrop-blur-xl border border-slate-200 p-8 rounded-2xl shadow-xl z-10 relative">
         
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-2">Bem-vindo de volta</h1>
-          <p className="text-neutral-400">Acesse sua conta para ver os últimos editais.</p>
+          <h1 className="text-3xl font-bold text-indigo-900 text-center tracking-tight mb-2">Bem-vindo de volta</h1>
+          <p className="text-slate-500 text-center">Acesse sua conta para ver os últimos editais.</p>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-lg text-red-500 text-sm text-center">
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm text-center">
             {error === 'Invalid login credentials' ? 'Email ou senha incorretos' : error}
           </div>
         )}
@@ -71,13 +71,13 @@ function LoginContent() {
         <form id="login-form" action={login} className="space-y-5">
           {/* Email */}
           <div>
-            <label className="block text-sm font-medium text-neutral-300 mb-1">E-mail</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">E-mail</label>
             <input
               {...register('email')}
               name="email"
               type="email"
-              className={`w-full px-4 py-3 bg-neutral-950/50 border rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 text-white
-                ${errors.email ? 'border-red-500 focus:ring-red-500/20' : 'border-neutral-800 focus:border-indigo-500 focus:ring-indigo-500/20'}
+              className={`w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all shadow-sm
+                ${errors.email ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-500/20'}
               `}
               placeholder="seu@email.com"
             />
@@ -91,8 +91,8 @@ function LoginContent() {
           {/* Password */}
           <div>
             <div className="flex justify-between items-center mb-1">
-              <label className="block text-sm font-medium text-neutral-300">Senha</label>
-              <Link href="/reset-password" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
+              <label className="block text-sm font-medium text-slate-700">Senha</label>
+              <Link href="/reset-password" className="text-xs text-indigo-600 hover:text-indigo-700 transition-colors">
                 Esqueceu a senha?
               </Link>
             </div>
@@ -101,8 +101,8 @@ function LoginContent() {
                 {...register('password')}
                 name="password"
                 type={showPassword ? 'text' : 'password'}
-                className={`w-full px-4 py-3 bg-neutral-950/50 border rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 text-white pr-10
-                  ${errors.password ? 'border-red-500 focus:ring-red-500/20' : 'border-neutral-800 focus:border-indigo-500 focus:ring-indigo-500/20'}
+                className={`w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all shadow-sm pr-10
+                  ${errors.password ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-500/20'}
                 `}
                 placeholder="Sua senha"
               />
@@ -120,7 +120,7 @@ function LoginContent() {
             type="button"
             onClick={handleSubmit(onSubmit)}
             disabled={!isValid || isSubmitting}
-            className="w-full py-3 px-4 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white rounded-xl font-medium transition-all duration-300 transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none mt-4 flex items-center justify-center gap-2"
+            className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md rounded-xl font-medium transition-all duration-300 transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none mt-4 flex items-center justify-center gap-2"
           >
             {isSubmitting ? (
               <>
@@ -135,7 +135,7 @@ function LoginContent() {
 
         <p className="text-center text-sm text-neutral-400 mt-6">
           Não tem uma conta?{' '}
-          <Link href="/signup" className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors">
+          <Link href="/signup" className="text-indigo-600 hover:text-indigo-700 font-medium transition-colors">
             Cadastre-se
           </Link>
         </p>

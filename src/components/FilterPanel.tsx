@@ -49,11 +49,11 @@ export default function FilterPanel({ palavrasDesejadas, setPalavrasDesejadas, p
   }
 
   return (
-    <section className="bg-neutral-900/50 backdrop-blur-xl border border-neutral-800 p-6 rounded-2xl shadow-xl mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+    <section className="bg-white/80 backdrop-blur-xl border border-slate-200 p-6 rounded-2xl shadow-sm mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
 
       {/* PAINEL DE DESEJADAS */}
       <div>
-        <h3 className="font-semibold text-emerald-400 mb-2">✅ Palavras Desejadas</h3>
+        <h3 className="font-semibold text-emerald-600 mb-2">✅ Palavras Desejadas</h3>
         <div className="flex flex-col sm:flex-row gap-2 mb-3">
           <input
             type="text"
@@ -61,9 +61,9 @@ export default function FilterPanel({ palavrasDesejadas, setPalavrasDesejadas, p
             onChange={(e) => setInputDesejada(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && adicionarDesejada()}
             placeholder="Ex: processo seletivo, edital, concurso"
-            className="bg-neutral-950/50 border border-neutral-700 p-2 rounded-xl flex-1 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 text-white placeholder-neutral-500 transition-all"
+            className="bg-white border border-slate-300 p-2 rounded-xl flex-1 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 text-slate-800 placeholder-slate-400 transition-all shadow-sm"
           />
-          <button onClick={adicionarDesejada} className="bg-emerald-600 text-white px-6 py-2 sm:py-0 rounded-xl hover:bg-emerald-500 transition-colors font-semibold">Add</button>
+          <button onClick={adicionarDesejada} className="bg-emerald-600 text-white px-6 py-2 sm:py-0 rounded-xl hover:bg-emerald-700 transition-colors font-semibold shadow-sm">Add</button>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -72,9 +72,9 @@ export default function FilterPanel({ palavrasDesejadas, setPalavrasDesejadas, p
               key={p}
               onClick={() => setPalavrasDesejadas(palavrasDesejadas.filter(item => item !== p))}
               title="Clique para remover"
-              className="bg-emerald-500/10 text-emerald-400 text-xs px-3 py-1.5 rounded-full flex items-center gap-2 hover:bg-red-500/10 hover:text-red-400 hover:line-through transition-colors cursor-pointer group border border-emerald-500/30 hover:border-red-500/30"
+              className="bg-emerald-50 text-emerald-700 text-xs px-3 py-1.5 rounded-full flex items-center gap-2 hover:bg-red-50 hover:text-red-700 hover:line-through transition-colors cursor-pointer group border border-emerald-200 hover:border-red-300"
             >
-              {p} <span className="font-bold text-emerald-500 group-hover:text-red-400">x</span>
+              {p} <span className="font-bold text-emerald-600 group-hover:text-red-600">x</span>
             </button>
           ))}
         </div>
@@ -82,7 +82,7 @@ export default function FilterPanel({ palavrasDesejadas, setPalavrasDesejadas, p
 
       {/* PAINEL DE IGNORADAS */}
       <div>
-        <h3 className="font-semibold text-red-400 mb-2">❌ Palavras Ignoradas</h3>
+        <h3 className="font-semibold text-red-600 mb-2">❌ Palavras Ignoradas</h3>
         <div className="flex flex-col sm:flex-row gap-2 mb-3">
           <input
             type="text"
@@ -90,9 +90,9 @@ export default function FilterPanel({ palavrasDesejadas, setPalavrasDesejadas, p
             onChange={(e) => setInputIgnorada(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && adicionarIgnorada()}
             placeholder="Ex: convocacao, homologacao, gabarito"
-            className="bg-neutral-950/50 border border-neutral-700 p-2 rounded-xl flex-1 text-sm outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/20 text-white placeholder-neutral-500 transition-all"
+            className="bg-white border border-slate-300 p-2 rounded-xl flex-1 text-sm outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/20 text-slate-800 placeholder-slate-400 transition-all shadow-sm"
           />
-          <button onClick={adicionarIgnorada} className="bg-red-600 text-white px-6 py-2 sm:py-0 rounded-xl hover:bg-red-500 transition-colors font-semibold">Add</button>
+          <button onClick={adicionarIgnorada} className="bg-red-600 text-white px-6 py-2 sm:py-0 rounded-xl hover:bg-red-700 transition-colors font-semibold shadow-sm">Add</button>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -101,9 +101,9 @@ export default function FilterPanel({ palavrasDesejadas, setPalavrasDesejadas, p
               key={p}
               onClick={() => setPalavrasIgnoradas(palavrasIgnoradas.filter(item => item !== p))}
               title="Clique para remover"
-              className="bg-red-500/10 text-red-400 text-xs px-3 py-1.5 rounded-full flex items-center gap-2 hover:bg-red-500/20 hover:text-red-300 hover:line-through transition-colors cursor-pointer group border border-red-500/30 hover:border-red-500/50"
+              className="bg-red-50 text-red-700 text-xs px-3 py-1.5 rounded-full flex items-center gap-2 hover:bg-red-100 hover:text-red-800 hover:line-through transition-colors cursor-pointer group border border-red-200 hover:border-red-300"
             >
-              {p} <span className="font-bold text-red-500 group-hover:text-red-300">x</span>
+              {p} <span className="font-bold text-red-600 group-hover:text-red-800">x</span>
             </button>
           ))}
         </div>

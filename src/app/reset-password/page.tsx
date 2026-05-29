@@ -10,7 +10,7 @@ import { Suspense } from 'react'
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-neutral-950 flex items-center justify-center text-white">Carregando...</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-900">Carregando...</div>}>
       <ResetPasswordContent />
     </Suspense>
   )
@@ -29,22 +29,22 @@ function ResetPasswordContent() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
       <div className="absolute top-[10%] right-[10%] w-96 h-96 bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none" />
 
-      <div className="w-full max-w-md bg-neutral-900/50 backdrop-blur-xl border border-neutral-800 p-8 rounded-2xl shadow-2xl z-10 relative">
+      <div className="w-full max-w-md bg-white/80 backdrop-blur-xl border border-slate-200 p-8 rounded-2xl shadow-xl z-10 relative">
         
-        <Link href="/login" className="inline-flex items-center gap-2 text-sm text-neutral-400 hover:text-white transition-colors mb-6">
+        <Link href="/login" className="inline-flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700 transition-colors mb-6">
           <ArrowLeft size={16} /> Voltar para o login
         </Link>
 
-        <div className="text-left mb-8">
-          <h1 className="text-2xl font-bold text-white tracking-tight mb-2">Recuperar Senha</h1>
-          <p className="text-sm text-neutral-400">Digite o seu e-mail de cadastro. Enviaremos um link para você criar uma nova senha.</p>
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-bold text-indigo-900 tracking-tight mb-2">Recuperar Senha</h1>
+          <p className="text-sm text-slate-500">Digite o seu e-mail de cadastro. Enviaremos um link para você criar uma nova senha.</p>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-lg text-red-500 text-sm text-center">
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm text-center">
             {error}
           </div>
         )}
@@ -57,12 +57,12 @@ function ResetPasswordContent() {
 
         <form id="reset-form" action={requestPasswordReset} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-neutral-300 mb-1">E-mail</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">E-mail</label>
             <input
               name="email"
               type="email"
               required
-              className="w-full px-4 py-3 bg-neutral-950/50 border border-neutral-800 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all duration-200 text-white"
+              className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all shadow-sm"
               placeholder="seu@email.com"
             />
           </div>
@@ -71,7 +71,7 @@ function ResetPasswordContent() {
             type="button"
             onClick={onSubmit}
             disabled={isSubmitting}
-            className="w-full py-3 px-4 bg-neutral-100 hover:bg-white text-neutral-900 rounded-xl font-medium transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md rounded-xl font-medium transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {isSubmitting ? (
               <>

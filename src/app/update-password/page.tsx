@@ -29,7 +29,7 @@ import { Suspense } from 'react'
 
 export default function UpdatePasswordPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-neutral-950 flex items-center justify-center text-white">Carregando...</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-900">Carregando...</div>}>
       <UpdatePasswordContent />
     </Suspense>
   )
@@ -59,18 +59,18 @@ function UpdatePasswordContent() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
       <div className="absolute bottom-[10%] left-[10%] w-96 h-96 bg-purple-600/20 rounded-full blur-[120px] pointer-events-none" />
 
-      <div className="w-full max-w-md bg-neutral-900/50 backdrop-blur-xl border border-neutral-800 p-8 rounded-2xl shadow-2xl z-10 relative">
+      <div className="w-full max-w-md bg-white/80 backdrop-blur-xl border border-slate-200 p-8 rounded-2xl shadow-xl z-10 relative">
         
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-white tracking-tight mb-2">Criar Nova Senha</h1>
-          <p className="text-sm text-neutral-400">Digite sua nova senha de acesso.</p>
+          <h1 className="text-2xl font-bold text-indigo-900 text-center tracking-tight mb-2">Criar Nova Senha</h1>
+          <p className="text-sm text-slate-500 text-center">Digite sua nova senha de acesso.</p>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-lg text-red-500 text-sm text-center">
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm text-center">
             {error}
           </div>
         )}
@@ -78,14 +78,14 @@ function UpdatePasswordContent() {
         <form id="update-password-form" action={updatePassword} className="space-y-5">
           {/* Password Field */}
           <div>
-            <label className="block text-sm font-medium text-neutral-300 mb-1">Nova Senha</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Nova Senha</label>
             <div className="relative">
               <input
                 {...register('password')}
                 name="password"
                 type={showPassword ? 'text' : 'password'}
-                className={`w-full px-4 py-3 bg-neutral-950/50 border rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 text-white pr-10
-                  ${errors.password ? 'border-red-500 focus:ring-red-500/20' : 'border-neutral-800 focus:border-indigo-500 focus:ring-indigo-500/20'}
+                className={`w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all shadow-sm pr-10
+                  ${errors.password ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-500/20'}
                 `}
                 placeholder="Crie uma senha forte"
               />
@@ -119,12 +119,12 @@ function UpdatePasswordContent() {
 
           {/* Confirm Password Field */}
           <div>
-            <label className="block text-sm font-medium text-neutral-300 mb-1">Confirmar Nova Senha</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Confirmar Nova Senha</label>
             <input
               {...register('confirmPassword')}
               type={showPassword ? 'text' : 'password'}
-              className={`w-full px-4 py-3 bg-neutral-950/50 border rounded-xl focus:outline-none focus:ring-2 transition-all duration-200 text-white
-                ${errors.confirmPassword ? 'border-red-500 focus:ring-red-500/20' : 'border-neutral-800 focus:border-indigo-500 focus:ring-indigo-500/20'}
+              className={`w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all shadow-sm
+                ${errors.confirmPassword ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-500/20'}
               `}
               placeholder="Digite a senha novamente"
             />
@@ -139,7 +139,7 @@ function UpdatePasswordContent() {
             type="button"
             onClick={onSubmit}
             disabled={!isValid || isSubmitting}
-            className="w-full py-3 px-4 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white rounded-xl font-medium transition-all duration-300 disabled:opacity-50 mt-4 flex items-center justify-center gap-2"
+            className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md rounded-xl font-medium transition-all duration-300 disabled:opacity-50 mt-4 flex items-center justify-center gap-2"
           >
             {isSubmitting ? (
               <>
