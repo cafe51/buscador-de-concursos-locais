@@ -3,8 +3,31 @@
 import { useState } from 'react'
 import { User } from '@supabase/supabase-js'
 import { logout, updateEmail, deleteAccount } from '@/app/auth/actions'
-import { Mail, LogOut, ArrowRight, ShieldCheck, AlertTriangle } from 'lucide-react'
+import { Mail, LogOut, ArrowRight, ShieldCheck, AlertTriangle, Bell } from 'lucide-react'
 import Link from 'next/link'
+
+const CIDADES_DISPONIVEIS = [
+  'Álvares Florence',
+  'Dolcinópolis',
+  "Estrela d'Oeste",
+  'Fernandópolis',
+  "Guarani d'Oeste",
+  'Indiaporã',
+  'Jales',
+  'Macedônia',
+  'Meridiano',
+  'Mira Estrela',
+  'Ouroeste',
+  'Parisi',
+  'Pedranópolis',
+  'Pontalinda',
+  'Santa Salete',
+  'São João das Duas Pontes',
+  'Urânia',
+  'Valentim Gentil',
+  'Vitória Brasil',
+  'Votuporanga'
+].sort();
 
 export default function ProfileClient({ user }: { user: User }) {
   const [isEditingEmail, setIsEditingEmail] = useState(false)
@@ -15,6 +38,14 @@ export default function ProfileClient({ user }: { user: User }) {
   const [deletePassword, setDeletePassword] = useState('')
   const [isSubmittingDelete, setIsSubmittingDelete] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+
+  // Notificações
+  const [notificationsEnabled, setNotificationsEnabled] = useState(user.user_metadata?.notifications?.enabled ?? false)
+  const [organsOption, setOrgansOption] = useState<'todos' | 'prefeitura' | 'camara'>(user.user_metadata?.notifications?.organs ?? 'todos')
+  const [selectedCities, setSelectedCities] = useState<string[]>(user.user_metadata?.notifications?.cities ?? ['todas'])
+  const [isSavingNotifications, setIsSavingNotifications] = useState(false)
+  const [notificationsMessage, setNotificationsMessage] = useState('')
+  const [notificationsError, setNotificationsError] = useState('')
 
   const handleLogout = async () => {
     await logout()
@@ -44,6 +75,37 @@ export default function ProfileClient({ user }: { user: User }) {
       setIsSubmittingDelete(false)
     }
     // se não houver erro, a action fará o redirect!
+  }
+
+  const handleToggleCity = (city: string) => {
+    if (selectedCities.includes(city)) {
+      const newCities = selectedCities.filter(c => c !== city);
+      setSelectedCities(newCities.length === 0 ? ['todas'] : newCities);
+    } else {
+      setSelectedCities([...selectedCities.filter(c => c !== 'todas'), city]);
+    }
+  }
+
+  const handleSaveNotifications = async () => {
+    setIsSavingNotifications(true)
+    setNotificationsMessage('')
+    setNotificationsError('')
+
+    const { updateNotificationSettings } = await import('@/app/auth/actions')
+
+    const res = await updateNotificationSettings({
+      enabled: notificationsEnabled,
+      organs: organsOption,
+      cities: selectedCities
+    })
+
+    if (res?.error) {
+      setNotificationsError(res.error)
+    } else {
+      setNotificationsMessage('Configurações salvas com sucesso!')
+      setTimeout(() => setNotificationsMessage(''), 4000)
+    }
+    setIsSavingNotifications(false)
   }
 
   return (
@@ -129,6 +191,154 @@ export default function ProfileClient({ user }: { user: User }) {
               </div>
             </form>
           )}
+        </div>
+
+        {/* Notification Settings */}
+        <div className="bg-white/80 backdrop-blur-xl border border-slate-200 p-6 rounded-2xl shadow-sm space-y-6">
+          <div className="flex justify-between items-center pb-4 border-b border-slate-200">
+            <div>
+              <h3 className="text-lg font-medium text-indigo-900 mb-1 flex items-center gap-2">
+                <Bell size={18} className="text-indigo-600" /> Notificações por E-mail
+              </h3>
+              <p className="text-sm text-slate-500">
+                Receba alertas em tempo real quando novos editais de concursos e seleções forem publicados.
+              </p>
+            </div>
+            <div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={notificationsEnabled} 
+                  onChange={(e) => setNotificationsEnabled(e.target.checked)} 
+                  className="sr-only peer" 
+                />
+                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+              </label>
+            </div>
+          </div>
+
+          {notificationsEnabled && (
+            <div className="space-y-6">
+              {/* Órgãos filter */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Filtrar por Órgão</label>
+                <div className="flex flex-wrap gap-3">
+                  {(['todos', 'prefeitura', 'camara'] as const).map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setOrgansOption(opt)}
+                      className={`px-4 py-2 border rounded-xl text-sm font-medium transition-all ${
+                        organsOption === opt 
+                          ? 'bg-indigo-50 border-indigo-500 text-indigo-700 font-semibold' 
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {opt === 'todos' ? 'Todos os Órgãos' : opt === 'prefeitura' ? 'Apenas Prefeitura' : 'Apenas Câmara'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Cidades filter */}
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Filtrar por Cidade</label>
+                
+                <div className="flex items-center gap-2 mb-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                  <input
+                    type="checkbox"
+                    id="city-all"
+                    checked={selectedCities.includes('todas')}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedCities(['todas']);
+                      } else {
+                        setSelectedCities([]);
+                      }
+                    }}
+                    className="w-4 h-4 text-indigo-600 bg-white border-slate-300 rounded focus:ring-indigo-500"
+                  />
+                  <label htmlFor="city-all" className="text-sm font-medium text-slate-800 cursor-pointer w-full">
+                    Todas as Cidades (Receber notificações de toda a região)
+                  </label>
+                </div>
+
+                {!selectedCities.includes('todas') && (
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Selecionar Cidades Específicas</span>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCities(CIDADES_DISPONIVEIS)}
+                          className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                        >
+                          Marcar Todas
+                        </button>
+                        <span className="text-slate-300">|</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCities([])}
+                          className="text-xs text-slate-500 hover:text-slate-800 font-medium"
+                        >
+                          Desmarcar Todas
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                      {CIDADES_DISPONIVEIS.map((city) => {
+                        const isChecked = selectedCities.includes(city);
+                        return (
+                          <label 
+                            key={city} 
+                            className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                              isChecked 
+                                ? 'bg-white border-indigo-400 shadow-sm text-indigo-900 font-medium' 
+                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50/80'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleToggleCity(city)}
+                              className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                            />
+                            <span className="text-sm">{city}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    
+                    {selectedCities.length === 0 && (
+                      <p className="text-xs text-amber-600 font-medium">
+                        ⚠️ Atenção: Nenhuma cidade selecionada. Você não receberá alertas até marcar ao menos uma cidade.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              {notificationsMessage && (
+                <p className="text-sm text-emerald-600 font-medium">{notificationsMessage}</p>
+              )}
+              {notificationsError && (
+                <p className="text-sm text-red-500 font-medium">{notificationsError}</p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={handleSaveNotifications}
+              disabled={isSavingNotifications || (notificationsEnabled && !selectedCities.includes('todas') && selectedCities.length === 0)}
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
+            >
+              {isSavingNotifications ? 'Salvando...' : 'Salvar Preferências'}
+            </button>
+          </div>
         </div>
 
         {/* Password Settings */}

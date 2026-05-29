@@ -172,3 +172,25 @@ export async function deleteAccount(formData: FormData) {
   revalidatePath('/', 'layout')
   redirect('/login?message=Conta+excluida+com+sucesso')
 }
+
+export async function updateNotificationSettings(settings: {
+  enabled: boolean;
+  organs: 'todos' | 'prefeitura' | 'camara';
+  cities: string[];
+}) {
+  const supabase = await createClient()
+
+  const { error } = await supabase.auth.updateUser({
+    data: {
+      notifications: settings
+    }
+  })
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidatePath('/profile')
+  return { success: true }
+}
+

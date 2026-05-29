@@ -79,7 +79,10 @@ export async function sincronizarBanco(novosEditais: Edital[], substituirTudo: b
         relatorioAdicoes.push({
           cidade: novo.cidade,
           titulo: novo.titulo,
-          link: novo.link
+          link: novo.link,
+          orgao: novo.orgao,
+          dataPublicacao: novo.dataPublicacao,
+          concurso: novo.concurso
         });
       }
 
@@ -183,6 +186,9 @@ export type SyncLogAddition = {
   cidade: string;
   titulo: string;
   link: string;
+  orgao?: string;
+  dataPublicacao?: string;
+  concurso?: string;
 };
 
 export type SyncLogUpdate = {

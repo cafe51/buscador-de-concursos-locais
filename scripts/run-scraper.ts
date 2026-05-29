@@ -6,6 +6,7 @@ import { buscarTodosEditais, buscarEditaisPorCidade } from '../src/app/actions';
 import { sincronizarBanco, adicionarScrapingLog, LogCidadeDetail, DatabaseSyncLog } from '../src/lib/storage';
 import { CIDADES_ATIVAS } from '../src/lib/scrapers/registry';
 import { randomUUID } from 'crypto';
+import { processarNotificacoes } from '../src/lib/notifications';
 
 // ==============================================================
 // ⏱️ CONFIGURAÇÕES DE RETENTATIVA
@@ -149,6 +150,16 @@ async function main() {
           relatorioAtualizacoes: resultadoSync.atualizados // No backend o log vem cru aqui
         };
         console.log("✅ Sincronização concluída com sucesso!");
+
+        // Disparar notificações por e-mail para usuários configurados
+        if (resultadoSync.adicionados > 0) {
+          console.log("\n=====================================================================");
+          console.log("📢 [DISPARADOR] INICIANDO ENVIO DE ALERTAS PARA NOVOS EDITAIS");
+          console.log("=====================================================================");
+          await processarNotificacoes(resultadoSync.relatorioAdicoes);
+        } else {
+          console.log("\n🔔 [DISPARADOR] Nenhuma nova adição registrada na sincronização. Processamento de alertas ignorado.");
+        }
       } else {
         console.error("❌ Falha na sincronização com o banco de dados.");
         process.exit(1);
