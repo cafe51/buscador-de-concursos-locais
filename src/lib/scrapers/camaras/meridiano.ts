@@ -2,6 +2,7 @@
 import * as cheerio from 'cheerio';
 import { Edital } from '../../../types';
 import { ehSujeira, extrairIdConcurso } from '../../filtrosGlobais';
+import { fetchHtml } from '../utils';
 
 export async function buscarCamaraMeridiano(): Promise<Edital[]> {
   const resultados: Edital[] = [];
@@ -13,16 +14,10 @@ export async function buscarCamaraMeridiano(): Promise<Edital[]> {
   const palavrasLocais = ['licitacao', 'dispensa', 'sentenca', 'contrato'];
 
   try {
-    const res = await fetch(urlLista, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-      }, cache: 'no-store'
-    });
+    const res = await fetchHtml(urlLista, false, 15000);
     if (!res.ok) return [];
 
-    const html = await res.text();
+    const html = res.html;
     const $ = cheerio.load(html);
 
     const itensParaProcessar: any[] = [];
@@ -57,18 +52,17 @@ export async function buscarCamaraMeridiano(): Promise<Edital[]> {
     });
 
     // 🚀 Entra nas páginas internas para buscar a Data de Publicação Oficial
-    await Promise.all(itensParaProcessar.map(async (item, index) => {
-      try {
-        const resInner = await fetch(item.linkInner, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-          }, cache: 'no-store'
-        });
-        if (!resInner.ok) return;
-        const htmlInner = await resInner.text();
-        const $inner = cheerio.load(htmlInner);
+    const TAMANHO_LOTE = 5;
+    for (let i = 0; i < itensParaProcessar.length; i += TAMANHO_LOTE) {
+      const lote = itensParaProcessar.slice(i, i + TAMANHO_LOTE);
+
+      await Promise.all(lote.map(async (item, loteIndex) => {
+        const index = i + loteIndex;
+        try {
+          const resInner = await fetchHtml(item.linkInner, false, 15000);
+          if (!resInner.ok) return;
+          const htmlInner = resInner.html;
+          const $inner = cheerio.load(htmlInner);
 
         // Extrai a data limpa (ex: "12/06/2024")
         const dateText = $inner('.meta-date time').text().trim();
@@ -117,10 +111,11 @@ export async function buscarCamaraMeridiano(): Promise<Edital[]> {
           ordemOriginal: ordemGlobal,
           linkOrigem: urlLista
         });
-      } catch (e: any) {
-        throw new Error(`Erro ao buscar detalhes da Câmara Meridiano: ${item.linkInner}`);
-      }
-    }));
+        } catch (e: any) {
+          throw new Error(`Erro ao buscar detalhes da Câmara Meridiano: ${item.linkInner}`);
+        }
+      }));
+    }
 
   } catch (e) {
     console.error('Erro geral ao buscar Câmara Meridiano' + ": " + (e as Error).message);
