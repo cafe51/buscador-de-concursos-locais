@@ -7,19 +7,24 @@ type HeaderProps = {
   ultimaAtualizacao?: string;
 };
 
+import ProfileButton from './ProfileButton';
+
 export default function Header({ loading, hasData, onExport, onUpdate, ultimaAtualizacao }: HeaderProps) {
   const showDevTools = process.env.NODE_ENV === 'development';
 
   return (
     <header className="mb-6 flex flex-col md:flex-row md:justify-between md:items-center bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-100 gap-4">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-blue-900">Radar de Concursos 🎯</h1>
-        <p className="text-sm md:text-base text-gray-500 mt-1">Monitorando Órgãos Locais e Região</p>
-        {ultimaAtualizacao && (
-          <p className="text-xs text-emerald-600 mt-1.5 font-medium flex items-center gap-1.5">
-            <span>⏰</span> Última atualização automática: {ultimaAtualizacao}
-          </p>
-        )}
+      <div className="flex justify-between items-start w-full">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-blue-900">Radar de Concursos 🎯</h1>
+          <p className="text-sm md:text-base text-gray-500 mt-1">Monitorando Órgãos Locais e Região</p>
+          {ultimaAtualizacao && (
+            <p className="text-xs text-emerald-600 mt-1.5 font-medium flex items-center gap-1.5">
+              <span>⏰</span> Última atualização automática: {ultimaAtualizacao}
+            </p>
+          )}
+        </div>
+        <ProfileButton />
       </div>
       {showDevTools && (
         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
