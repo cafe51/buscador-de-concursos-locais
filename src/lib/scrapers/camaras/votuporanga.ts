@@ -2,6 +2,7 @@
 import * as cheerio from 'cheerio';
 import { Edital } from '../../../types';
 import { ehSujeira, extrairIdConcurso } from '../../filtrosGlobais';
+import { fetchHtml } from '../utils';
 
 export async function buscarCamaraVotuporanga(): Promise<Edital[]> {
   const resultados: Edital[] = [];
@@ -11,28 +12,20 @@ export async function buscarCamaraVotuporanga(): Promise<Edital[]> {
 
   try {
     // 🚀 INJEÇÃO DE HEADERS: Disfarça a requisição para não ser bloqueada pelo Cloudflare/Firewall
-    const res = await fetch(urlPagina, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
-      },
-      cache: 'no-store'
-    });
+    const res = await fetchHtml(urlPagina, false, 20000);
 
     if (!res.ok) {
-      console.log(`🛑 [Câmara Votuporanga] Erro HTTP ${res.status}`);
-      return [];
+      throw new Error(`Erro HTTP ${res.status} ao acessar Câmara Votuporanga`);
     }
 
-    const html = await res.text();
+    const html = res.html;
     const $ = cheerio.load(html);
 
     // 🚀 CAÇA A DIV CORRETA: Tenta pegar pela classe de texto do tema Newspaper
     const $blocosTexto = $('.tdb_single_content .tdb-block-inner.td-fix-index');
 
     if ($blocosTexto.length === 0) {
-      console.log('🛑 [Câmara Votuporanga] Nenhuma div de conteúdo encontrada.');
-      return [];
+      throw new Error('Nenhuma div de conteúdo encontrada na Câmara Votuporanga (possível mudança de layout)');
     }
 
     let currentContestId = '';
