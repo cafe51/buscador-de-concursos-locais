@@ -33,9 +33,10 @@ export async function processarNotificacoes(novasAdicoes: SyncLogAddition[]) {
 
   // 1. Passa a adição de documentos pelo filtro das 41 palavras primeiro (Passo mais leve e rápido)
   const adicoesFiltradas = novasAdicoes.filter(edital => {
-    const tituloNorm = removerAcentos(edital.titulo);
+    const tituloNormalizado = edital.tituloIA ? removerAcentos(edital.tituloIA) : removerAcentos(edital.titulo);
+    const descricaoNormalizada = edital.descricaoIA ? removerAcentos(edital.descricaoIA) : '';
     const concursoNorm = edital.concurso ? removerAcentos(edital.concurso) : '';
-    const textoCompleto = `${tituloNorm} ${concursoNorm}`;
+    const textoCompleto = `${tituloNormalizado} ${descricaoNormalizada} ${concursoNorm}`;
 
     const contemBurocracia = PALAVRAS_IGNORADAS_PADRAO.some(palavra => {
       const palavraNorm = removerAcentos(palavra);
@@ -200,9 +201,14 @@ export async function processarNotificacoes(novasAdicoes: SyncLogAddition[]) {
         const badgeColor = isCamara ? '#7c3aed' : '#2563eb'; // Roxo para Câmara, Azul para Prefeitura
         const labelOrgao = item.orgao ? (isCamara ? 'Câmara' : 'Prefeitura') : 'Geral';
 
+        const tituloFinal = item.tituloIA || item.titulo;
+        const badgeIA = item.tituloIA ? `<span style="display: inline-block; padding: 4px 10px; background-color: #f59e0b; color: #ffffff; font-size: 11px; font-weight: bold; border-radius: 9999px; text-transform: uppercase; margin-right: 6px;">✨ Resumo IA</span>` : '';
+        const descricaoHtml = item.descricaoIA ? `<p style="margin: 0 0 12px 0; color: #475569; font-size: 14px; line-height: 1.5;">${item.descricaoIA}</p>` : '';
+
         return `
           <div style="margin-bottom: 24px; padding: 20px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; font-family: sans-serif;">
             <div style="margin-bottom: 8px;">
+              ${badgeIA}
               <span style="display: inline-block; padding: 4px 10px; background-color: #f1f5f9; color: #334155; font-size: 11px; font-weight: bold; border-radius: 9999px; text-transform: uppercase; margin-right: 6px;">
                 📍 ${item.cidade}
               </span>
@@ -212,8 +218,10 @@ export async function processarNotificacoes(novasAdicoes: SyncLogAddition[]) {
             </div>
             
             <h4 style="margin: 0 0 10px 0; color: #1e1b4b; font-size: 16px; font-weight: 600; line-height: 1.4;">
-              ${item.titulo}
+              ${tituloFinal}
             </h4>
+            
+            ${descricaoHtml}
             
             ${item.concurso ? `<p style="margin: 0 0 12px 0; color: #64748b; font-size: 13px;"><strong>Referência:</strong> ${item.concurso}</p>` : ''}
             

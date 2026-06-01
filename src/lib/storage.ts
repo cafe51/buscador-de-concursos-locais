@@ -26,79 +26,93 @@ export async function carregarDoBanco(): Promise<Edital[]> {
   }
 }
 
-export async function sincronizarBanco(novosEditais: Edital[], substituirTudo: boolean = false): Promise<{ sucesso: boolean, adicionados: number, atualizados: SyncLogUpdate[], relatorioAdicoes: SyncLogAddition[] }> {
-  try {
-    console.log("\n===================================================");
-    if (substituirTudo) {
-      console.log("🍃 CRIANDO NOVO BANCO NO MONGODB (SUBSTITUIÇÃO TOTAL)...");
-    } else {
-      console.log("🍃 SINCRONIZANDO COM O MONGODB...");
-    }
-    console.log("===================================================");
+export async function identificarMudancas(novosEditais: Edital[], substituirTudo: boolean = false) {
+  await connectToDatabase();
 
-    await connectToDatabase();
+  const editaisAntigos = substituirTudo ? [] : await EditalModel.find().lean();
+  const mapaAntigos = new Map<string, any>();
+  editaisAntigos.forEach(e => mapaAntigos.set(e.link, e));
 
-    const editaisAntigos = substituirTudo ? [] : await EditalModel.find().lean();
-    const mapaAntigos = new Map<string, any>();
-    editaisAntigos.forEach(e => mapaAntigos.set(e.link, e));
+  const relatorioAtualizacoes: SyncLogUpdate[] = [];
+  const relatorioAdicoes: SyncLogAddition[] = [];
+  const novasAdicoesReferencias: Edital[] = [];
+  let qtdeAdicionados = 0;
 
-    const relatorioAtualizacoes: SyncLogUpdate[] = [];
-    const relatorioAdicoes: SyncLogAddition[] = [];
-    let qtdeAdicionados = 0;
+  const operations: any[] = [];
 
-    const operations: any[] = [];
+  novosEditais.forEach(novo => {
+    const antigo = mapaAntigos.get(novo.link);
 
-    novosEditais.forEach(novo => {
-      const antigo = mapaAntigos.get(novo.link);
+    if (antigo) {
+      const alteracoes: string[] = [];
+      const chavesParaIgnorar = ['ordemOriginal', 'dataTimestamp', '_id', '__v', 'createdAt', 'updatedAt'];
 
-      if (antigo) {
-        const alteracoes: string[] = [];
-        const chavesParaIgnorar = ['ordemOriginal', 'dataTimestamp', '_id', '__v', 'createdAt', 'updatedAt'];
+      (Object.keys(novo) as Array<keyof Edital>).forEach(key => {
+        if (!chavesParaIgnorar.includes(key)) {
+          const valNovo = JSON.stringify(novo[key] || '');
+          const valAntigo = JSON.stringify(antigo[key] || '');
 
-        (Object.keys(novo) as Array<keyof Edital>).forEach(key => {
-          if (!chavesParaIgnorar.includes(key)) {
-            const valNovo = JSON.stringify(novo[key] || '');
-            const valAntigo = JSON.stringify(antigo[key] || '');
-
-            if (valNovo !== valAntigo) {
-              alteracoes.push(`${key}: '${antigo[key] || 'vazio'}' ➔ '${novo[key] || 'vazio'}'`);
-            }
+          if (valNovo !== valAntigo) {
+            alteracoes.push(`${key}: '${antigo[key] || 'vazio'}' ➔ '${novo[key] || 'vazio'}'`);
           }
-        });
-
-        if (alteracoes.length > 0) {
-          relatorioAtualizacoes.push({
-            cidade: novo.cidade,
-            titulo: novo.titulo,
-            link: novo.link,
-            mudancas: alteracoes
-          });
-          
-          operations.push({
-            updateOne: {
-              filter: { link: novo.link },
-              update: { $set: novo }
-            }
-          });
         }
-      } else {
-        qtdeAdicionados++;
-        relatorioAdicoes.push({
+      });
+
+      if (alteracoes.length > 0) {
+        relatorioAtualizacoes.push({
           cidade: novo.cidade,
           titulo: novo.titulo,
           link: novo.link,
-          orgao: novo.orgao,
-          dataPublicacao: novo.dataPublicacao,
-          concurso: novo.concurso
+          mudancas: alteracoes
         });
         
         operations.push({
-          insertOne: {
-            document: novo
+          updateOne: {
+            filter: { link: novo.link },
+            update: { $set: novo }
           }
         });
       }
-    });
+    } else {
+      qtdeAdicionados++;
+      relatorioAdicoes.push({
+        cidade: novo.cidade,
+        titulo: novo.titulo,
+        link: novo.link,
+        orgao: novo.orgao,
+        dataPublicacao: novo.dataPublicacao,
+        concurso: novo.concurso,
+        tituloIA: novo.tituloIA,
+        descricaoIA: novo.descricaoIA
+      });
+      novasAdicoesReferencias.push(novo);
+      
+      operations.push({
+        insertOne: {
+          document: novo
+        }
+      });
+    }
+  });
+
+  return {
+    adicionados: qtdeAdicionados,
+    atualizados: relatorioAtualizacoes,
+    relatorioAdicoes,
+    novasAdicoesReferencias,
+    operations
+  };
+}
+
+export async function persistirSincronizacao(
+  operations: any[], 
+  substituirTudo: boolean = false, 
+  novosEditais: Edital[] = [],
+  relatorioAdicoes: SyncLogAddition[] = [],
+  relatorioAtualizacoes: SyncLogUpdate[] = []
+) {
+  try {
+    await connectToDatabase();
 
     if (substituirTudo) {
       await EditalModel.deleteMany({});
@@ -111,13 +125,13 @@ export async function sincronizarBanco(novosEditais: Edital[], substituirTudo: b
     }
 
     console.log(`✅ Sincronização MongoDB concluída!`);
-    console.log(`📈 Novos Editais Adicionados: ${qtdeAdicionados}`);
+    console.log(`📈 Novos Editais Adicionados: ${relatorioAdicoes.length}`);
     console.log(`🔄 Editais Atualizados: ${relatorioAtualizacoes.length}`);
 
     if (relatorioAdicoes.length > 0 && !substituirTudo) {
       console.log("\n🆕 Relatório de Adições:");
       relatorioAdicoes.forEach(log => {
-        console.log(`\n   ✨ [${log.cidade}] 📄 "${log.titulo}"\n   🔗 Link: ${log.link}`);
+        console.log(`\n   ✨ [${log.cidade}] 📄 "${log.tituloIA || log.titulo}"\n   🔗 Link: ${log.link}`);
       });
     }
 
@@ -132,7 +146,32 @@ export async function sincronizarBanco(novosEditais: Edital[], substituirTudo: b
     // Salva a data do momento como a última atualização do banco
     await salvarMetadata(new Date().toISOString());
 
-    return { sucesso: true, adicionados: qtdeAdicionados, atualizados: relatorioAtualizacoes, relatorioAdicoes };
+    return { sucesso: true };
+  } catch (e) {
+    console.error("Erro na persistência com MongoDB:", e);
+    return { sucesso: false };
+  }
+}
+
+export async function sincronizarBanco(novosEditais: Edital[], substituirTudo: boolean = false): Promise<{ sucesso: boolean, adicionados: number, atualizados: SyncLogUpdate[], relatorioAdicoes: SyncLogAddition[] }> {
+  try {
+    console.log("\n===================================================");
+    if (substituirTudo) {
+      console.log("🍃 CRIANDO NOVO BANCO NO MONGODB (SUBSTITUIÇÃO TOTAL)...");
+    } else {
+      console.log("🍃 SINCRONIZANDO COM O MONGODB...");
+    }
+    console.log("===================================================");
+
+    const resultado = await identificarMudancas(novosEditais, substituirTudo);
+    
+    // Para manter compatibilidade com quem chamava sincronizarBanco e esperava persistência
+    if (resultado.adicionados > 0 || resultado.atualizados.length > 0 || substituirTudo) {
+      const persist = await persistirSincronizacao(resultado.operations, substituirTudo, novosEditais, resultado.relatorioAdicoes, resultado.atualizados);
+      if (!persist.sucesso) throw new Error("Falha na persistência");
+    }
+
+    return { sucesso: true, adicionados: resultado.adicionados, atualizados: resultado.atualizados, relatorioAdicoes: resultado.relatorioAdicoes };
   } catch (e) {
     console.error("Erro na sincronização com MongoDB:", e);
     return { sucesso: false, adicionados: 0, atualizados: [], relatorioAdicoes: [] };
@@ -187,6 +226,8 @@ export type SyncLogAddition = {
   orgao?: string;
   dataPublicacao?: string;
   concurso?: string;
+  tituloIA?: string;
+  descricaoIA?: string;
 };
 
 export type SyncLogUpdate = {

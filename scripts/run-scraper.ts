@@ -3,10 +3,11 @@ import { loadEnvConfig } from '@next/env';
 loadEnvConfig(process.cwd());
 
 import { buscarTodosEditais, buscarEditaisPorCidade } from '../src/app/actions';
-import { sincronizarBanco, adicionarScrapingLog, LogCidadeDetail, DatabaseSyncLog } from '../src/lib/storage';
+import { identificarMudancas, persistirSincronizacao, adicionarScrapingLog, LogCidadeDetail, DatabaseSyncLog } from '../src/lib/storage';
 import { CIDADES_ATIVAS } from '../src/lib/scrapers/registry';
 import { randomUUID } from 'crypto';
 import { processarNotificacoes } from '../src/lib/notifications';
+import { processarComIA } from '../src/lib/aiAnalysis';
 
 // ==============================================================
 // ⏱️ CONFIGURAÇÕES DE RETENTATIVA
@@ -139,30 +140,58 @@ async function main() {
 
     // Sincroniza com o Vercel Blob e captura o Relatório Detalhado
     if (todosEditais.length > 0) {
-      console.log("\nIniciando sincronização principal com o banco de dados...");
-      const resultadoSync = await sincronizarBanco(todosEditais, false);
+      console.log("\nIniciando Fase 1: Identificação de mudanças com o banco de dados...");
+      const resultadoSync = await identificarMudancas(todosEditais, false);
 
-      if (resultadoSync.sucesso) {
-        syncInfo = {
-          adicionados: resultadoSync.adicionados,
-          atualizados: resultadoSync.atualizados.length,
-          relatorioAdicoes: resultadoSync.relatorioAdicoes,
-          relatorioAtualizacoes: resultadoSync.atualizados // No backend o log vem cru aqui
-        };
-        console.log("✅ Sincronização concluída com sucesso!");
-
-        // Disparar notificações por e-mail para usuários configurados
+      if (resultadoSync.adicionados > 0 || resultadoSync.atualizados.length > 0) {
+        
+        // PASSO 0: IA apenas nas Adições
         if (resultadoSync.adicionados > 0) {
-          console.log("\n=====================================================================");
-          console.log("📢 [DISPARADOR] INICIANDO ENVIO DE ALERTAS PARA NOVOS EDITAIS");
-          console.log("=====================================================================");
-          await processarNotificacoes(resultadoSync.relatorioAdicoes);
+          await processarComIA(resultadoSync.novasAdicoesReferencias);
+          // A função acima muta as referências dentro de novasAdicoesReferencias in-place.
+          // O array operations já contém referências para esses mesmos objetos,
+          // logo a mutação será persistida no bulkWrite da Fase 2.
+        }
+
+        console.log("\nIniciando Fase 2: Persistência no banco de dados...");
+        const persistResult = await persistirSincronizacao(
+          resultadoSync.operations,
+          false,
+          todosEditais,
+          resultadoSync.relatorioAdicoes,
+          resultadoSync.atualizados
+        );
+
+        if (persistResult.sucesso) {
+          syncInfo = {
+            adicionados: resultadoSync.adicionados,
+            atualizados: resultadoSync.atualizados.length,
+            relatorioAdicoes: resultadoSync.relatorioAdicoes,
+            relatorioAtualizacoes: resultadoSync.atualizados
+          };
+          console.log("✅ Sincronização concluída com sucesso!");
+
+          // Disparar notificações por e-mail para usuários configurados
+          if (resultadoSync.adicionados > 0) {
+            console.log("\n=====================================================================");
+            console.log("📢 [DISPARADOR] INICIANDO ENVIO DE ALERTAS PARA NOVOS EDITAIS");
+            console.log("=====================================================================");
+            await processarNotificacoes(resultadoSync.relatorioAdicoes);
+          } else {
+            console.log("\n🔔 [DISPARADOR] Nenhuma nova adição registrada na sincronização. Processamento de alertas ignorado.");
+          }
         } else {
-          console.log("\n🔔 [DISPARADOR] Nenhuma nova adição registrada na sincronização. Processamento de alertas ignorado.");
+          console.error("❌ Falha na persistência com o banco de dados.");
+          process.exit(1);
         }
       } else {
-        console.error("❌ Falha na sincronização com o banco de dados.");
-        process.exit(1);
+        console.log("✅ Nenhuma adição ou atualização necessária. O banco já está sincronizado.");
+        syncInfo = {
+          adicionados: 0,
+          atualizados: 0,
+          relatorioAdicoes: [],
+          relatorioAtualizacoes: []
+        };
       }
     } else {
       console.log("⚠️ Nenhum edital encontrado no bloco. O banco de dados não foi atualizado.");

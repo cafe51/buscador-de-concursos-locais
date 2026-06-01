@@ -53,12 +53,12 @@ export default function EditalCard({ edital }: { edital: Edital }) {
       </div>
 
       <h2 className="text-lg font-semibold text-slate-800 pr-4 group-hover:text-indigo-700 transition-colors">
-        {edital.titulo}
+        {edital.tituloIA || edital.titulo}
       </h2>
 
-      {edital.descricao && (
+      {(edital.descricaoIA || edital.descricao) && (
         <p className="mt-2 text-sm text-slate-500 line-clamp-2 leading-relaxed">
-          {edital.descricao}
+          {edital.descricaoIA || edital.descricao}
         </p>
       )}
 

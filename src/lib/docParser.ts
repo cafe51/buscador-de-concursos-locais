@@ -2,6 +2,7 @@
 // @ts-ignore
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import * as mammoth from 'mammoth';
+import * as cheerio from 'cheerio';
 import { PDFs_IGNORADOS } from './blacklist';
 
 process.noDeprecation = true;
@@ -70,7 +71,14 @@ export async function extrairTextoBruto(url: string, depth = 0, tentativas = 2):
 
       if (novaUrl) {
         const urlAbsoluta = novaUrl.startsWith('http') ? novaUrl : new URL(novaUrl, url).href;
-        return extrairTextoBruto(urlAbsoluta, depth + 1);
+        return extrairTextoBruto(urlAbsoluta, depth + 1, tentativas);
+      }
+
+      const $ = cheerio.load(htmlText);
+      $('script, style, nav, header, footer, aside').remove();
+      const textoLimpo = $('body').text().replace(/\s+/g, ' ').trim();
+      if (textoLimpo.length > 50) {
+        return textoLimpo;
       }
 
       urlsParaBlacklist.add(url);

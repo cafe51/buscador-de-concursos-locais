@@ -15,6 +15,8 @@ const editalSchema = new mongoose.Schema({
   dataPublicacao: { type: String },
   ordemOriginal: { type: Number },
   linkOrigem: { type: String },
+  tituloIA: { type: String },
+  descricaoIA: { type: String },
 }, {
   timestamps: true
 });

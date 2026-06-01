@@ -375,7 +375,9 @@ export default function Home() {
       if (filtroOrgao !== 'todos' && edital.orgao !== filtroOrgao) return false;
 
       const valoresTextuais = [
-        edital.cidade, edital.orgao, edital.titulo, edital.descricao,
+        edital.cidade, edital.orgao, 
+        edital.tituloIA || edital.titulo, 
+        edital.descricaoIA || edital.descricao,
         edital.metadados, edital.statusGeral, edital.dataPublicacao
       ].filter(Boolean).join(" ");
 
