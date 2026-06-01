@@ -34,4 +34,5 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: npx tsx scripts/run-scraper.ts
