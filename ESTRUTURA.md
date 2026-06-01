@@ -2,7 +2,7 @@
 
 Este documento apresenta a organização e a estrutura de pastas do projeto **Achador de Editais** (Buscador de Concursos Locais), detalhando a função de cada arquivo para guiar desenvolvedores e leitores no entendimento técnico da arquitetura da aplicação.
 
-O projeto é construído sobre o ecossistema moderno do **Next.js** (App Router, Server Actions, React 19) estilizado com **Tailwind CSS v4** (PostCSS), integrado ao **Supabase Auth + SSR** para gerenciamento de contas, **Vercel Blob Storage** como banco de dados JSON leve de alta performance, e **Resend** para fluxos de e-mail e notificações.
+O projeto é construído sobre o ecossistema moderno do **Next.js** (App Router, Server Actions, React 19) estilizado com **Tailwind CSS v4** (PostCSS), integrado ao **Supabase Auth + SSR** para gerenciamento de contas, **MongoDB** como banco de dados NoSQL de alta performance, e **Resend** para fluxos de e-mail e notificações.
 
 ---
 
@@ -72,8 +72,9 @@ achadordeeditais/
     │   ├── email.ts           # Integração com serviço Resend para despachar e-mails de alertas e recuperação
     │   ├── filtrosGlobais.ts  # Regras globais de filtragem e heurística anti-ruído (eliminação de compras públicas)
     │   ├── mockScrapingLogs.ts # Gerador de registros realistas de logs de scraping para testes em desenvolvimento
+    │   ├── mongodb.ts         # Módulo gerenciador de conexões com o MongoDB (Connection Caching)
     │   ├── runner.ts          # Executor resiliente de scrapers com proteção contra timeouts (290s por cidade)
-    │   ├── storage.ts         # Módulo de persistência e sincronização de dados (editais, logs) no Vercel Blob Storage
+    │   ├── storage.ts         # Módulo de persistência e sincronização de dados (editais, logs) no MongoDB
     │   └── scrapers/
     │       ├── alvaresflorence.ts # Scraper para Álvares Florence
     │       ├── dolcinopolis.ts   # Scraper para Dolcinópolis
@@ -106,6 +107,10 @@ achadordeeditais/
     │           ├── miraestrela.ts   # Scraper para a Câmara de Mira Estrela
     │           ├── parisi.ts        # Scraper para a Câmara de Parisi
     │           └── votuporanga.ts   # Scraper para a Câmara de Votuporanga
+    ├── models/
+    │   ├── Edital.ts          # Schema do Mongoose para os Editais
+    │   ├── Metadata.ts        # Schema do Mongoose para variáveis globais do sistema
+    │   └── ScrapingLog.ts     # Schema do Mongoose para registro de histórico do scraper
     ├── types/
     │   └── index.ts           # Definição e tipagem central do objeto TypeScript `Edital`
     └── utils/
@@ -128,7 +133,7 @@ achadordeeditais/
 *   **`AGENTS.md` / `CLAUDE.md`**: Manuais e atalhos contendo instruções especiais para agentes autônomos que realizam tarefas de engenharia no projeto.
 
 ### ⚙️ 2. Diretório `scripts/` (Rotinas do Servidor / Actions)
-*   **`run-scraper.ts`**: Script disparado automaticamente em intervalos programados (três vezes ao dia) pela pipeline do GitHub Actions. Ele executa a raspagem geral de todas as prefeituras e câmaras com um mecanismo inteligente de **até 3 retentativas** (separadas por 10 minutos) para recuperar dados de portais municipais lentos ou instáveis. No final, consolida os resultados, sincroniza o banco central no Vercel Blob e registra os logs de execução.
+*   **`run-scraper.ts`**: Script disparado automaticamente em intervalos programados (três vezes ao dia) pela pipeline do GitHub Actions. Ele executa a raspagem geral de todas as prefeituras e câmaras com um mecanismo inteligente de **até 3 retentativas** (separadas por 10 minutos) para recuperar dados de portais municipais lentos ou instáveis. No final, consolida os resultados, sincroniza o banco central no MongoDB e registra os logs de execução.
 
 ### 🕷️ 3. Módulo `src/proxy.ts` e Diretório `src/utils/supabase/` (Middlewares & Sessões)
 *   **`src/proxy.ts`**: Atua como o middleware global do Next.js. Ele intercepta as chamadas a páginas e recursos estáticos do sistema para renovar a sessão do Supabase (através de `updateSession`), garantindo autenticação persistente.
@@ -164,8 +169,8 @@ achadordeeditais/
 *   **`blacklist.ts`**: Armazena links diretos (especialmente PDFs) catalogados como impróprios, vazios ou sem valor que devem ser cortados da renderização.
 *   **`docParser.ts`**: Biblioteca que baixa temporariamente PDFs/DOCX em buffers locais na memória e varre seu conteúdo de texto com Regex para decifrar a data de publicação original contida no documento.
 *   **`filtrosGlobais.ts`**: Central de heurísticas anti-ruído. Garante que apenas concursos de contratação de pessoas (servidores públicos) passem pela triagem, descartando editais comerciais de licitação, compras de insumos e leilões.
-*   **`email.ts`**: Biblioteca de comunicação que orquestra a integração e a chamada à API do Resend para envio automático de e-mails do sistema.
-*   **`storage.ts`**: Fornece toda a lógica de comunicação com o Vercel Blob Storage para gravar e ler o JSON mestre de editais (`editais.json`), os logs de execuções (`scraping-logs.json`) e metadados (`metadata.json`).
+*   **`mongodb.ts`**: Gerenciador de conexão com o banco de dados que previne estouro de pool no ambiente serverless (Next.js) através de Connection Caching.
+*   **`storage.ts`**: Fornece a lógica de persistência e comunicação com o MongoDB usando Mongoose, controlando inserções otimizadas em lote (bulkWrite) e consultas dos editais, logs e metadados.
 *   **`runner.ts`**: Controla a execução individual de scrapers com tratamentos de erros e timeouts por cidade (limite flexível de 290 segundos) para impedir que a lentidão de um único portal comprometa toda a raspagem.
 *   **`diagnostics.ts`**: Fornece motores de auditoria que fazem requisições diretas e rápidas aos portais das cidades, lêem o número indicado nas badges de documentos e comparam com a contagem armazenada, alertando sobre possíveis falhas ou perdas de arquivos.
 
@@ -179,7 +184,13 @@ Contém os scripts raspadores específicos para prefeituras e câmaras.
 *   **Scrapers Específicos por Cidade**: `votuporanga.ts`, `fernandopolis.ts`, `jales.ts`, `meridiano.ts`, `pedranopolis.ts`, `saojoao.ts`, `estrela.ts`, `macedonia.ts`, `urania.ts`, `dolcinopolis.ts`, `alvaresflorence.ts`, `santasalete.ts`, `vitoriabrasil.ts`, `valentimgentil.ts`, `guaranidoeste.ts`, `indiapora.ts`, `miraestrela.ts`, `parisi.ts`, `pontalinda.ts`.
 *   **Scrapers de Câmaras Municipais (`camaras/`)**: Coletam os editais publicados especificamente pelas Câmaras de Vereadores dos municípios da região: `fernandopolis.ts`, `indiapora.ts`, `jales.ts`, `meridiano.ts`, `miraestrela.ts`, `parisi.ts`, `votuporanga.ts`.
 
-### 📐 8. Diretório `src/types/` (Tipos e Modelagem de Dados)
+### 🧱 8. Diretório `src/models/` (Modelagem do Banco de Dados)
+Contém as definições estritas (Schemas) do Mongoose para garantir consistência dos dados que entram no MongoDB.
+*   **`Edital.ts`**: Schema das publicações e editais, garantindo que os links sejam únicos para impedir duplicatas.
+*   **`ScrapingLog.ts`**: Schema focado em registrar as métricas e resumos diários de sucesso e falhas do motor de raspagem.
+*   **`Metadata.ts`**: Schema simples de chave-valor para guardar a data da última atualização do sistema.
+
+### 📐 9. Diretório `src/types/` (Tipos e Modelagem de Dados)
 *   **`index.ts`**: Define a interface `Edital`, padronizando todas as propriedades que compõem o objeto manipulado na aplicação inteira:
     ```typescript
     export type Edital = {
@@ -198,6 +209,6 @@ Contém os scripts raspadores específicos para prefeituras e câmaras.
     };
     ```
 
-### 💾 9. Diretório `src/utils/` (Funções Auxiliares Comuns)
+### 💾 10. Diretório `src/utils/` (Funções Auxiliares Comuns)
 *   **`exportJson.ts`**: Utilitário que converte a matriz de editais exibidos em tela para um arquivo `.json` estruturado, gerando uma URL temporária em memória para download instantâneo no navegador do usuário.
 

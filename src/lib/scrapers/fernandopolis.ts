@@ -42,7 +42,7 @@ async function buscarDetalhesFernandopolis(url: string): Promise<{ sucesso: bool
 
   $main.find('a').each((_, el) => {
     const href = $(el).attr('href') || '';
-    if (href && href.toLowerCase().endsWith('.pdf') && !urlPrimeiroPdf) {
+    if (href && href.match(/\.(pdf|docx?)$/i) && !urlPrimeiroPdf) {
       urlPrimeiroPdf = href.startsWith('http') ? href : `https://fernandopolis.sp.gov.br${href}`;
     }
 

@@ -21,6 +21,7 @@ export const PALAVRAS_IGNORADAS_GLOBAIS = [
   'atletas', 'desportivos amadores', 'auxilio financeiro a atletas', 'bom de escola bom de esporte',
   'atribuicao online',
   'concurso de remocao',
+  'filhos da terra',
 
   // 🛑 A BALA DE PRATA: Contratos de educação por tempo determinado
   'ano letivo',
@@ -108,5 +109,9 @@ export function corrigirErrosDigitacao(texto: string): string {
   let textoCorrigido = texto;
   textoCorrigido = textoCorrigido.replace(/\b(CONCUR[A-Z]*)\s+(P[UÚ]L?[B]+[IÍ]?[C]+O?|P[UÚ]L[IÍ]CO)\b/gi, 'CONCURSO PÚBLICO');
   textoCorrigido = textoCorrigido.replace(/\b(PROCES[A-Z]*|PROC)\s+(SELET[A-Z]*)\b/gi, 'PROCESSO SELETIVO');
+  
+  // Corrige erro onde esquecem a barra no número do concurso (Ex: PROCESSO SELETIVO 0032023 -> 003/2023)
+  textoCorrigido = textoCorrigido.replace(/\b(PROCESSO SELETIVO|CONCURSO(?: PÚBLICO)?)[^\d]*(\d{1,3})(\d{4})\b/ig, (m, tipo, num, ano) => m.replace(num + ano, num + '/' + ano));
+  
   return textoCorrigido;
 }
