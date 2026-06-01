@@ -49,11 +49,24 @@ export async function identificarMudancas(novosEditais: Edital[], substituirTudo
 
       (Object.keys(novo) as Array<keyof Edital>).forEach(key => {
         if (!chavesParaIgnorar.includes(key)) {
-          const valNovo = JSON.stringify(novo[key] || '');
-          const valAntigo = JSON.stringify(antigo[key] || '');
+          const normalizarVazio = (val: any) => {
+            if (val === null || val === undefined || val === '') return null;
+            if (Array.isArray(val) && val.length === 0) return null;
+            return JSON.stringify(val);
+          };
+
+          const valNovo = normalizarVazio(novo[key]);
+          const valAntigo = normalizarVazio(antigo[key]);
 
           if (valNovo !== valAntigo) {
-            alteracoes.push(`${key}: '${antigo[key] || 'vazio'}' ➔ '${novo[key] || 'vazio'}'`);
+            const formatarParaLog = (val: any) => {
+              if (val === null || val === undefined || val === '') return 'vazio';
+              if (Array.isArray(val) && val.length === 0) return 'vazio';
+              if (Array.isArray(val)) return `[${val.join(', ')}]`;
+              return String(val);
+            };
+            
+            alteracoes.push(`${key}: '${formatarParaLog(antigo[key])}' ➔ '${formatarParaLog(novo[key])}'`);
           }
         }
       });
