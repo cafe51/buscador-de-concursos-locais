@@ -89,7 +89,7 @@ export const CIDADES_ATIVAS: string[] = [
   'São João das Duas Pontes',
   'Pedranópolis',
   'Votuporanga',
-  'Votuporanga (Câmara)',
+  // 'Votuporanga (Câmara)',
   'Ouroeste',
   'Mira Estrela',
   'Mira Estrela (Câmara)',
