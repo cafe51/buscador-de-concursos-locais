@@ -23,7 +23,7 @@ const MESES: Record<string, string> = {
 // ==============================================================
 // 📄 EXTRATOR DE TEXTO BRUTO (Módulo Genérico)
 // ==============================================================
-export async function extrairTextoBruto(url: string, depth = 0): Promise<string | null> {
+export async function extrairTextoBruto(url: string, depth = 0, tentativas = 2): Promise<string | null> {
   if (depth > 2) return null; // Limite de 2 saltos de redirecionamento
   if (PDFs_IGNORADOS.includes(url)) return null;
 
@@ -40,7 +40,13 @@ export async function extrairTextoBruto(url: string, depth = 0): Promise<string 
     });
     clearTimeout(timeoutId);
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      if (tentativas > 0) {
+        await new Promise(r => setTimeout(r, 3000));
+        return extrairTextoBruto(url, depth, tentativas - 1);
+      }
+      return null;
+    }
 
     const arrayBuffer = await res.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
@@ -95,7 +101,11 @@ export async function extrairTextoBruto(url: string, depth = 0): Promise<string 
     urlsParaBlacklist.add(url);
     return null;
 
-  } catch (error: any) {
+  } catch (err) {
+    if (tentativas > 0) {
+      await new Promise(r => setTimeout(r, 3000));
+      return extrairTextoBruto(url, depth, tentativas - 1);
+    }
     return null;
   }
 }

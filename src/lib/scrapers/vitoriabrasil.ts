@@ -267,11 +267,6 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
                 } else {
                   try {
                     let textoPdf = await extrairTextoBruto(linkDoc);
-                    // Retentativa em caso de falha de rede/timeout
-                    if (!textoPdf) {
-                      await new Promise(r => setTimeout(r, 1000));
-                      textoPdf = await extrairTextoBruto(linkDoc);
-                    }
                     if (textoPdf) {
                       const cleanTexto = textoPdf.replace(/\s+/g, ' ');
                       // Normaliza texto espaçado letra por letra (ex: "C O N C U R S O" → "CONCURSO")
@@ -406,11 +401,6 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
             if (doc.link.endsWith('.pdf') || doc.link.includes('download')) {
               try {
                 let textoPdf = await extrairTextoBruto(doc.link);
-                // Retentativa em caso de falha de rede/timeout
-                if (!textoPdf) {
-                  await new Promise(r => setTimeout(r, 1000));
-                  textoPdf = await extrairTextoBruto(doc.link);
-                }
                 if (textoPdf) {
                   const cleanTexto = textoPdf.replace(/\s+/g, ' ');
                   // Normaliza texto espaçado letra por letra (ex: "C O N C U R S O" → "CONCURSO")

@@ -84,10 +84,6 @@ export async function buscarPedranopolis(): Promise<Edital[]> {
               await Promise.all(lote.map(async (item) => {
                 if (!item.dataAchadaNoHtml) {
                   item.dataPdf = await extrairDataDoArquivo(item.linkCompleto);
-                  if (!item.dataPdf) {
-                    await new Promise(r => setTimeout(r, 5000));
-                    item.dataPdf = await extrairDataDoArquivo(item.linkCompleto);
-                  }
                 }
               }));
             }
