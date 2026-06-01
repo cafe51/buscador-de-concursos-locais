@@ -1,30 +1,27 @@
 'use server'
 
 import { Edital } from '../types';
-import { put, list } from '@vercel/blob';
 import { obterMockLogs } from './mockScrapingLogs';
+import connectToDatabase from './mongodb';
+import { EditalModel } from '../models/Edital';
+import { ScrapingLogModel } from '../models/ScrapingLog';
+import { MetadataModel } from '../models/Metadata';
 
 export async function carregarDoBanco(): Promise<Edital[]> {
   try {
-    const { blobs } = await list();
-    const file = blobs.find(b => b.pathname === 'editais.json');
+    await connectToDatabase();
+    // `.lean()` retorna objetos JS puros ao invés de Documentos Mongoose
+    const dados = await EditalModel.find()
+      .sort({ dataTimestamp: -1, ordemOriginal: 1 })
+      .lean();
+    
+    // O Next.js não permite passar ObjectId ou Objetos complexos para Client Components.
+    // Limpamos os campos internos do MongoDB (_id, __v, createdAt, updatedAt)
+    const dadosLimpos = dados.map(({ _id, __v, createdAt, updatedAt, ...resto }) => resto);
 
-    if (!file) return [];
-
-    const res = await fetch(file.downloadUrl, {
-      cache: 'no-store',
-      headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` }
-    });
-
-    if (!res.ok) {
-      console.error("Erro HTTP ao baixar o banco:", res.status, res.statusText);
-      return [];
-    }
-
-    const dados = await res.json();
-    return dados;
+    return dadosLimpos as unknown as Edital[];
   } catch (e) {
-    console.error("Erro ao ler do Vercel Blob:", e);
+    console.error("Erro ao ler do MongoDB:", e);
     return [];
   }
 }
@@ -33,27 +30,30 @@ export async function sincronizarBanco(novosEditais: Edital[], substituirTudo: b
   try {
     console.log("\n===================================================");
     if (substituirTudo) {
-      console.log("☁️ CRIANDO NOVO BANCO NA NUVEM (SUBSTITUIÇÃO TOTAL)...");
+      console.log("🍃 CRIANDO NOVO BANCO NO MONGODB (SUBSTITUIÇÃO TOTAL)...");
     } else {
-      console.log("☁️ SINCRONIZANDO COM A NUVEM...");
+      console.log("🍃 SINCRONIZANDO COM O MONGODB...");
     }
     console.log("===================================================");
 
-    const editaisAntigos = substituirTudo ? [] : await carregarDoBanco();
+    await connectToDatabase();
 
-    const mapaFinal = new Map<string, Edital>();
+    const editaisAntigos = substituirTudo ? [] : await EditalModel.find().lean();
+    const mapaAntigos = new Map<string, any>();
+    editaisAntigos.forEach(e => mapaAntigos.set(e.link, e));
+
     const relatorioAtualizacoes: SyncLogUpdate[] = [];
     const relatorioAdicoes: SyncLogAddition[] = [];
     let qtdeAdicionados = 0;
 
-    editaisAntigos.forEach(e => mapaFinal.set(e.link, e));
+    const operations: any[] = [];
 
     novosEditais.forEach(novo => {
-      const antigo = mapaFinal.get(novo.link);
+      const antigo = mapaAntigos.get(novo.link);
 
       if (antigo) {
         const alteracoes: string[] = [];
-        const chavesParaIgnorar = ['ordemOriginal', 'dataTimestamp'];
+        const chavesParaIgnorar = ['ordemOriginal', 'dataTimestamp', '_id', '__v', 'createdAt', 'updatedAt'];
 
         (Object.keys(novo) as Array<keyof Edital>).forEach(key => {
           if (!chavesParaIgnorar.includes(key)) {
@@ -73,6 +73,13 @@ export async function sincronizarBanco(novosEditais: Edital[], substituirTudo: b
             link: novo.link,
             mudancas: alteracoes
           });
+          
+          operations.push({
+            updateOne: {
+              filter: { link: novo.link },
+              update: { $set: novo }
+            }
+          });
         }
       } else {
         qtdeAdicionados++;
@@ -84,26 +91,26 @@ export async function sincronizarBanco(novosEditais: Edital[], substituirTudo: b
           dataPublicacao: novo.dataPublicacao,
           concurso: novo.concurso
         });
+        
+        operations.push({
+          insertOne: {
+            document: novo
+          }
+        });
       }
-
-      mapaFinal.set(novo.link, novo);
     });
 
-    const listaFinal = Array.from(mapaFinal.values());
-    listaFinal.sort((a, b) => {
-      if (b.dataTimestamp !== a.dataTimestamp) return b.dataTimestamp - a.dataTimestamp;
-      return (a.ordemOriginal || 0) - (b.ordemOriginal || 0);
-    });
+    if (substituirTudo) {
+      await EditalModel.deleteMany({});
+      if (novosEditais.length > 0) {
+        // Insere em lotes se substituir tudo
+        await EditalModel.insertMany(novosEditais);
+      }
+    } else if (operations.length > 0) {
+      await EditalModel.bulkWrite(operations);
+    }
 
-    console.log(`☁️ Enviando pacote consolidado (${listaFinal.length} itens) para o Vercel Blob...`);
-    await put('editais.json', JSON.stringify(listaFinal), {
-      access: 'private',
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: 'application/json'
-    });
-
-    console.log(`✅ Upload concluído!`);
+    console.log(`✅ Sincronização MongoDB concluída!`);
     console.log(`📈 Novos Editais Adicionados: ${qtdeAdicionados}`);
     console.log(`🔄 Editais Atualizados: ${relatorioAtualizacoes.length}`);
 
@@ -127,43 +134,34 @@ export async function sincronizarBanco(novosEditais: Edital[], substituirTudo: b
 
     return { sucesso: true, adicionados: qtdeAdicionados, atualizados: relatorioAtualizacoes, relatorioAdicoes };
   } catch (e) {
-    console.error("Erro na sincronização com Vercel Blob:", e);
+    console.error("Erro na sincronização com MongoDB:", e);
     return { sucesso: false, adicionados: 0, atualizados: [], relatorioAdicoes: [] };
   }
 }
 
 export async function carregarMetadata(): Promise<{ ultimaAtualizacao?: string } | null> {
   try {
-    const { blobs } = await list();
-    const file = blobs.find(b => b.pathname === 'metadata.json');
-
-    if (!file) return null;
-
-    const res = await fetch(file.downloadUrl, {
-      cache: 'no-store',
-      headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` }
-    });
-
-    if (!res.ok) return null;
-
-    return await res.json();
+    await connectToDatabase();
+    const doc = await MetadataModel.findOne({ key: 'global' }).lean();
+    if (!doc) return null;
+    return { ultimaAtualizacao: doc.ultimaAtualizacao };
   } catch (e) {
-    console.error("Erro ao carregar metadata:", e);
+    console.error("Erro ao carregar metadata do MongoDB:", e);
     return null;
   }
 }
 
 export async function salvarMetadata(ultimaAtualizacao: string): Promise<boolean> {
   try {
-    await put('metadata.json', JSON.stringify({ ultimaAtualizacao }), {
-      access: 'private',
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: 'application/json'
-    });
+    await connectToDatabase();
+    await MetadataModel.updateOne(
+      { key: 'global' },
+      { $set: { ultimaAtualizacao } },
+      { upsert: true }
+    );
     return true;
   } catch (e) {
-    console.error("Erro ao salvar metadata:", e);
+    console.error("Erro ao salvar metadata no MongoDB:", e);
     return false;
   }
 }
@@ -219,58 +217,63 @@ export type ScrapingLog = {
 
 export async function carregarScrapingLogs(): Promise<ScrapingLog[]> {
   try {
-    const { blobs } = await list();
-    const file = blobs.find(b => b.pathname === 'scraping-logs.json');
+    await connectToDatabase();
+    // Busca os 20 mais recentes
+    const logs = await ScrapingLogModel.find()
+      .sort({ inicio: -1 })
+      .limit(20)
+      .lean();
 
-    if (!file) {
-      console.log("Banco de logs não encontrado. Criando logs falsos para teste...");
-      const mockLogs = obterMockLogs();
-      await salvarScrapingLogs(mockLogs);
-      return mockLogs;
+    if (!logs || logs.length === 0) {
+      console.log("Banco de logs vazio no MongoDB. Retornando logs falsos para teste se houver necessidade...");
+      return obterMockLogs();
     }
 
-    const res = await fetch(file.downloadUrl, {
-      cache: 'no-store',
-      headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` }
-    });
+    const logsLimpos = logs.map(({ _id, __v, createdAt, updatedAt, ...resto }) => resto);
 
-    if (!res.ok) return [];
-
-    return await res.json();
+    return logsLimpos as unknown as ScrapingLog[];
   } catch (e) {
-    console.error("Erro ao carregar scraping logs:", e);
+    console.error("Erro ao carregar scraping logs do MongoDB:", e);
     return [];
   }
 }
 
+// Em um BD de verdade não precisamos re-salvar a array inteira toda vez,
+// mas para manter a compatibilidade caso alguém use essa função:
 export async function salvarScrapingLogs(logs: ScrapingLog[]): Promise<boolean> {
   try {
-    await put('scraping-logs.json', JSON.stringify(logs), {
-      access: 'private',
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: 'application/json'
-    });
+    await connectToDatabase();
+    // Deleta os antigos e insere os novos
+    await ScrapingLogModel.deleteMany({});
+    if (logs.length > 0) {
+      await ScrapingLogModel.insertMany(logs);
+    }
     return true;
   } catch (e) {
-    console.error("Erro ao salvar scraping logs:", e);
+    console.error("Erro ao salvar scraping logs no MongoDB:", e);
     return false;
   }
 }
 
 export async function adicionarScrapingLog(novoLog: ScrapingLog): Promise<boolean> {
   try {
-    const logs = await carregarScrapingLogs();
+    await connectToDatabase();
+    // Apenas insere o novo documento no Mongo (muito mais eficiente do que no Blob)
+    await ScrapingLogModel.create(novoLog);
     
-    // Insere no início (mais recente no topo)
-    const novosLogs = [novoLog, ...logs];
+    // Opcionalmente, apaga logs antigos para manter o limite de 20
+    const count = await ScrapingLogModel.countDocuments();
+    if (count > 20) {
+      const excess = count - 20;
+      // Pega os mais antigos e apaga
+      const oldestLogs = await ScrapingLogModel.find().sort({ inicio: 1 }).limit(excess);
+      const idsToDelete = oldestLogs.map(l => l._id);
+      await ScrapingLogModel.deleteMany({ _id: { $in: idsToDelete } });
+    }
     
-    // Limita aos 20 mais recentes
-    const logsLimitados = novosLogs.slice(0, 20);
-    
-    return await salvarScrapingLogs(logsLimitados);
+    return true;
   } catch (e) {
-    console.error("Erro ao adicionar scraping log:", e);
+    console.error("Erro ao adicionar scraping log no MongoDB:", e);
     return false;
   }
 }
