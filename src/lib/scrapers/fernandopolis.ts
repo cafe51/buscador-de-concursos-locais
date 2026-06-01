@@ -93,7 +93,8 @@ async function processarLoteDetalhes(lote: any[], resultados: Edital[], detalhes
       }
     }
 
-    if (deveExcluirPorAno(idConcurso)) return;
+    // A exclusão por ano agora será feita na etapa final após o fallback
+    // if (deveExcluirPorAno(idConcurso)) return;
 
     let anoConcurso: number | undefined = undefined;
     if (idConcurso) {
@@ -112,19 +113,12 @@ async function processarLoteDetalhes(lote: any[], resultados: Edital[], detalhes
     if (textoCompletoPesquisa.includes('SMAS') || textoCompletoPesquisa.includes('ASSISTENCIA SOCIAL') || textoCompletoPesquisa.includes('ASSISTÊNCIA SOCIAL')) tagsMetadados.push('Assistência Social');
     if (textoCompletoPesquisa.includes('CISARF')) tagsMetadados.push('Consórcio CISARF');
 
-    resultados.push({
-      cidade: 'Fernandópolis',
-      orgao: 'Prefeitura',
-      titulo: item.titulo,
-      link: item.linkCompleto,
-      descricao: descricaoFinal || undefined,
-      concurso: idConcurso,
-      ano: anoConcurso,
-      metadados: tagsMetadados.length > 0 ? tagsMetadados : undefined,
-      dataPublicacao: detalhes.dataCorreta || 'sem data',
-      dataTimestamp: timestamp,
-      ordemOriginal: item.ordem
-    });
+    item.idConcursoExtracao = idConcurso;
+    item.anoConcursoExtracao = anoConcurso;
+    item.descricaoFinal = descricaoFinal || undefined;
+    item.tagsMetadados = tagsMetadados.length > 0 ? tagsMetadados : undefined;
+    item.dataPublicacao = detalhes.dataCorreta || 'sem data';
+    item.dataTimestamp = timestamp;
   }));
 }
 
@@ -132,7 +126,18 @@ export async function buscarFernandopolis(): Promise<Edital[]> {
   const resultados: Edital[] = [];
   let ordemGlobal = 0;
   let encontrouAlvoDeParada = false;
-  const itensBrutos: { titulo: string, linkCompleto: string, textoAoRedor: string, ordem: number }[] = [];
+  const itensBrutos: { 
+    titulo: string, 
+    linkCompleto: string, 
+    textoAoRedor: string, 
+    ordem: number,
+    idConcursoExtracao?: string,
+    anoConcursoExtracao?: number,
+    descricaoFinal?: string,
+    tagsMetadados?: string[],
+    dataPublicacao?: string,
+    dataTimestamp?: number
+  }[] = [];
   const detalhesFalhas: string[] = [];
 
   for (let loteInicio = 1; loteInicio <= 50; loteInicio += 2) {
@@ -192,6 +197,38 @@ export async function buscarFernandopolis(): Promise<Edital[]> {
   for (let i = 0; i < itensBrutos.length; i += TAMANHO_LOTE) {
     const lote = itensBrutos.slice(i, i + TAMANHO_LOTE);
     await processarLoteDetalhes(lote, resultados, detalhesFalhas);
+  }
+
+  // Passada 2: Fallback bottom-up do idConcurso
+  let fallbackIdConcurso = '';
+  for (let i = itensBrutos.length - 1; i >= 0; i--) {
+    const item = itensBrutos[i];
+    if (item.idConcursoExtracao) {
+      fallbackIdConcurso = item.idConcursoExtracao;
+    } else if (fallbackIdConcurso) {
+      item.idConcursoExtracao = fallbackIdConcurso;
+      const matchAno = fallbackIdConcurso.match(/\/(\d{4})\b/);
+      if (matchAno) item.anoConcursoExtracao = parseInt(matchAno[1], 10);
+    }
+  }
+
+  // Passada 3: Filtragem final e montagem dos resultados
+  for (const item of itensBrutos) {
+    if (deveExcluirPorAno(item.idConcursoExtracao)) continue;
+
+    resultados.push({
+      cidade: 'Fernandópolis',
+      orgao: 'Prefeitura',
+      titulo: item.titulo,
+      link: item.linkCompleto,
+      descricao: item.descricaoFinal,
+      concurso: item.idConcursoExtracao,
+      ano: item.anoConcursoExtracao,
+      metadados: item.tagsMetadados,
+      dataPublicacao: item.dataPublicacao || 'sem data',
+      dataTimestamp: item.dataTimestamp || 0,
+      ordemOriginal: item.ordem
+    });
   }
 
   if (detalhesFalhas.length > 0) {
