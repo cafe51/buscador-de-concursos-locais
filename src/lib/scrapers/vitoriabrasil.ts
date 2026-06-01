@@ -249,12 +249,73 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
                 break;
               }
 
-              // A resolução do ID para concursos fragmentados foi centralizada
-              // na Fase 2 (pós-agrupamento) para evitar resultados inconsistentes
-              // entre documentos do mesmo grupo quando a leitura de PDF falha.
+              // ==============================================================
+              // 📄 O LEITOR DE PDFS (Com Fallback Rústico)
+              // ==============================================================
               let idResolvido = concurso.idConcurso;
 
-              if (!concurso.isFragmentado && idResolvido.startsWith('Concurso ')) {
+              if (concurso.isFragmentado && idResolvido.startsWith('TEMPORARIO|')) {
+
+                const regexLink = /(?:^|[\W_])(cp|ps|concurso|processo seletivo)[\W_]{0,3}?(\d{1,3})[\W_]+(\d{2}|\d{4})[\W_]/i;
+                const matchLink = linkDoc.match(regexLink);
+                if (matchLink) {
+                  const tipoLink = (matchLink[1].toUpperCase().includes('CONCUR') || matchLink[1].toUpperCase() === 'CP') ? 'Concurso' : 'Processo Seletivo';
+                  const numeroLink = parseInt(matchLink[2], 10).toString().padStart(2, '0');
+                  let anoLink = matchLink[3];
+                  if (anoLink.length === 2) anoLink = `20${anoLink}`;
+                  idResolvido = `${tipoLink} ${numeroLink}/${anoLink}`;
+                } else {
+                  try {
+                    let textoPdf = await extrairTextoBruto(linkDoc);
+                    // Retentativa em caso de falha de rede/timeout
+                    if (!textoPdf) {
+                      await new Promise(r => setTimeout(r, 1000));
+                      textoPdf = await extrairTextoBruto(linkDoc);
+                    }
+                    if (textoPdf) {
+                      const cleanTexto = textoPdf.replace(/\s+/g, ' ');
+                      // Normaliza texto espaçado letra por letra (ex: "C O N C U R S O" → "CONCURSO")
+                      const textoNormalizado = cleanTexto.replace(/((?:\S ){4,}\S)(?=\s|$)/g, m => m.replace(/ /g, ''));
+
+                      let idExtraido;
+
+                      // 0. Busca prioritária no cabeçalho sem espaços (Resolve PDFs com títulos com muito espaçamento)
+                      const cabecalhoSemEspacos = cleanTexto.substring(0, 2000).replace(/\s+/g, '');
+                      const matchCabecalho = cabecalhoSemEspacos.match(/(PROCESSOSELETIVO|CONCURSOP[UÚ]BLICO)[^\d]{0,50}?(\d{1,3})[\/\.\-](\d{4})/i);
+                      if (matchCabecalho) {
+                        const tipo = matchCabecalho[1].toUpperCase().includes('CONCURSO') ? 'Concurso Público' : 'Processo Seletivo';
+                        const num = parseInt(matchCabecalho[2], 10).toString().padStart(2, '0');
+                        idExtraido = `${tipo} ${num}/${matchCabecalho[3]}`;
+                      }
+
+                      // 1. Tenta o filtro global
+                      if (!idExtraido) {
+                        idExtraido = extrairIdConcurso(corrigirErrosDigitacao(textoNormalizado), '');
+                      }
+
+                      // 2. Fallback Rústico
+                      if (!idExtraido) {
+                        const matchRustico = textoNormalizado.match(/(Processo\s*Seletivo|Concurso\s*P[uú]blico)[^\d]{0,80}?(\d{1,3})\s*[\/\-]\s*(\d{4})/i);
+                        if (matchRustico) {
+                          const tipo = matchRustico[1].toLowerCase().includes('concurso') ? 'Concurso Público' : 'Processo Seletivo';
+                          const num = parseInt(matchRustico[2], 10).toString().padStart(2, '0');
+                          idExtraido = `${tipo} ${num}/${matchRustico[3]}`;
+                        }
+                      }
+
+                      if (idExtraido) {
+                        idResolvido = idExtraido;
+                      }
+                      // Se não extraiu, mantém TEMPORARIO para a Fase 2 tentar
+                    }
+                    // Se PDF retornou null, mantém TEMPORARIO para a Fase 2 tentar
+                  } catch (e) {
+                    // Se deu exceção, mantém TEMPORARIO para a Fase 2 tentar
+                  }
+                }
+              }
+
+              if (idResolvido && idResolvido.startsWith('Concurso ') && !idResolvido.startsWith('Concurso Público')) {
                 idResolvido = idResolvido.replace('Concurso ', 'Concurso Público ');
               }
 
@@ -288,9 +349,7 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
 
           if (concursoContaminado) return;
 
-          const idParaAglutinacao = concurso.isFragmentado
-            ? concurso.idConcurso
-            : (documentosTemporarios[0]?.finalIdConcurso || concurso.idConcurso);
+          const idParaAglutinacao = documentosTemporarios[0]?.finalIdConcurso || concurso.idConcurso;
 
           const docsDaPasta = documentosTemporarios.map(doc => ({
             cidade: 'Vitória Brasil',
@@ -354,26 +413,32 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
                 }
                 if (textoPdf) {
                   const cleanTexto = textoPdf.replace(/\s+/g, ' ');
+                  // Normaliza texto espaçado letra por letra (ex: "C O N C U R S O" → "CONCURSO")
+                  const textoNormalizado = cleanTexto.replace(/((?:\S ){4,}\S)(?=\s|$)/g, m => m.replace(/ /g, ''));
+
+                  let idExtraido;
+
+                  // 0. Busca prioritária no cabeçalho sem espaços (Resolve PDFs com títulos com muito espaçamento)
+                  const cabecalhoSemEspacos = cleanTexto.substring(0, 2000).replace(/\s+/g, '');
+                  const matchCabecalho = cabecalhoSemEspacos.match(/(PROCESSOSELETIVO|CONCURSOP[UÚ]BLICO)[^\d]{0,50}?(\d{1,3})[\/\.\-](\d{4})/i);
+                  if (matchCabecalho) {
+                    const tipo = matchCabecalho[1].toUpperCase().includes('CONCURSO') ? 'Concurso Público' : 'Processo Seletivo';
+                    const num = parseInt(matchCabecalho[2], 10).toString().padStart(2, '0');
+                    idExtraido = `${tipo} ${num}/${matchCabecalho[3]}`;
+                  }
 
                   // 1. Tenta o filtro global normal
-                  let idExtraido = extrairIdConcurso(corrigirErrosDigitacao(cleanTexto), '');
+                  if (!idExtraido) {
+                    idExtraido = extrairIdConcurso(corrigirErrosDigitacao(textoNormalizado), '');
+                  }
 
                   // 2. Fallback Rústico
                   if (!idExtraido) {
-                    const matchRustico = cleanTexto.match(/(Processo\s*Seletivo|Concurso\s*P[uú]blico)[^\d]{0,80}?(\d{1,3})\s*[\/\-]\s*(\d{4})/i);
+                    const matchRustico = textoNormalizado.match(/(Processo\s*Seletivo|Concurso\s*P[uú]blico)[^\d]{0,80}?(\d{1,3})\s*[\/\-]\s*(\d{4})/i);
                     if (matchRustico) {
                       const tipo = matchRustico[1].toLowerCase().includes('concurso') ? 'Concurso Público' : 'Processo Seletivo';
-                      idExtraido = `${tipo} ${matchRustico[2].padStart(2, '0')}/${matchRustico[3]}`;
-                    }
-                  }
-
-                  // 3. Fallback Espaçado
-                  if (!idExtraido) {
-                    const textoSemEspacos = cleanTexto.replace(/\s+/g, '');
-                    const matchEspacado = textoSemEspacos.match(/(PROCESSOSELETIVO|CONCURSOP[UÚ]BLICO)[^\d]{0,50}?(\d{1,3})[\/\.\-](\d{4})/i);
-                    if (matchEspacado) {
-                      const tipo = matchEspacado[1].toUpperCase().includes('CONCURSO') ? 'Concurso Público' : 'Processo Seletivo';
-                      idExtraido = `${tipo} ${matchEspacado[2].padStart(2, '0')}/${matchEspacado[3]}`;
+                      const num = parseInt(matchRustico[2], 10).toString().padStart(2, '0');
+                      idExtraido = `${tipo} ${num}/${matchRustico[3]}`;
                     }
                   }
 
@@ -388,7 +453,7 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
         }
 
         idDefinitivo = idReal || fallbackName;
-        if (idDefinitivo.startsWith('Concurso ')) {
+        if (idDefinitivo.startsWith('Concurso ') && !idDefinitivo.startsWith('Concurso Público')) {
           idDefinitivo = idDefinitivo.replace('Concurso ', 'Concurso Público ');
         }
       }
