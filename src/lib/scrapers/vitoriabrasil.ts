@@ -249,56 +249,12 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
                 break;
               }
 
-              // ==============================================================
-              // 📄 O LEITOR DE PDFS (Com Fallback Rústico)
-              // ==============================================================
+              // A resolução do ID para concursos fragmentados foi centralizada
+              // na Fase 2 (pós-agrupamento) para evitar resultados inconsistentes
+              // entre documentos do mesmo grupo quando a leitura de PDF falha.
               let idResolvido = concurso.idConcurso;
 
-              if (concurso.isFragmentado && idResolvido.startsWith('TEMPORARIO|')) {
-                const partes = idResolvido.split('|');
-                let fallbackName = `${partes[1]} ${partes[2] === 'Anterior' ? '' : partes[2]}`.trim();
-
-                const regexLink = /(?:^|[\W_])(cp|ps|concurso|processo seletivo)[\W_]{0,3}?(\d{1,3})[\W_]+(\d{2}|\d{4})[\W_]/i;
-                const matchLink = linkDoc.match(regexLink);
-                if (matchLink) {
-                  const tipoLink = (matchLink[1].toUpperCase().includes('CONCUR') || matchLink[1].toUpperCase() === 'CP') ? 'Concurso' : 'Processo Seletivo';
-                  const numeroLink = parseInt(matchLink[2], 10).toString().padStart(2, '0');
-                  let anoLink = matchLink[3];
-                  if (anoLink.length === 2) anoLink = `20${anoLink}`;
-                  idResolvido = `${tipoLink} ${numeroLink}/${anoLink}`;
-                } else {
-                  try {
-                    const textoPdf = await extrairTextoBruto(linkDoc);
-                    if (textoPdf) {
-                      const cleanTexto = textoPdf.replace(/\s+/g, ' ');
-
-                      // 1. Tenta o filtro global
-                      let idExtraido = extrairIdConcurso(corrigirErrosDigitacao(cleanTexto), '');
-
-                      // 2. Fallback Rústico
-                      if (!idExtraido) {
-                        const matchRustico = cleanTexto.match(/(Processo\s*Seletivo|Concurso\s*P[uú]blico)[^\d]{0,80}?(\d{1,3})\s*[\/\-]\s*(\d{4})/i);
-                        if (matchRustico) {
-                          const tipo = matchRustico[1].toLowerCase().includes('concurso') ? 'Concurso Público' : 'Processo Seletivo';
-                          idExtraido = `${tipo} ${matchRustico[2].padStart(2, '0')}/${matchRustico[3]}`;
-                        }
-                      }
-
-                      if (idExtraido) {
-                        idResolvido = idExtraido;
-                      } else {
-                        idResolvido = fallbackName;
-                      }
-                    } else {
-                      idResolvido = fallbackName;
-                    }
-                  } catch (e) {
-                    idResolvido = fallbackName;
-                  }
-                }
-              }
-
-              if (idResolvido && idResolvido.startsWith('Concurso ')) {
+              if (!concurso.isFragmentado && idResolvido.startsWith('Concurso ')) {
                 idResolvido = idResolvido.replace('Concurso ', 'Concurso Público ');
               }
 
@@ -332,7 +288,9 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
 
           if (concursoContaminado) return;
 
-          const idParaAglutinacao = documentosTemporarios[0]?.finalIdConcurso || concurso.idConcurso;
+          const idParaAglutinacao = concurso.isFragmentado
+            ? concurso.idConcurso
+            : (documentosTemporarios[0]?.finalIdConcurso || concurso.idConcurso);
 
           const docsDaPasta = documentosTemporarios.map(doc => ({
             cidade: 'Vitória Brasil',
@@ -388,7 +346,12 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
           for (const doc of pasta.documentos) {
             if (doc.link.endsWith('.pdf') || doc.link.includes('download')) {
               try {
-                const textoPdf = await extrairTextoBruto(doc.link);
+                let textoPdf = await extrairTextoBruto(doc.link);
+                // Retentativa em caso de falha de rede/timeout
+                if (!textoPdf) {
+                  await new Promise(r => setTimeout(r, 1000));
+                  textoPdf = await extrairTextoBruto(doc.link);
+                }
                 if (textoPdf) {
                   const cleanTexto = textoPdf.replace(/\s+/g, ' ');
 
@@ -432,7 +395,9 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
 
       pastasDoConcurso.sort((a, b) => {
         if (a.dataTimestamp !== b.dataTimestamp) return a.dataTimestamp - b.dataTimestamp;
-        return b.documentos.length - a.documentos.length;
+        if (a.documentos.length !== b.documentos.length) return b.documentos.length - a.documentos.length;
+        // Desempate determinístico pelo título da pasta
+        return a.tituloPasta.localeCompare(b.tituloPasta);
       });
 
       for (let i = 0; i < pastasDoConcurso.length; i++) {
