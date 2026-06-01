@@ -84,6 +84,10 @@ export async function buscarPedranopolis(): Promise<Edital[]> {
               await Promise.all(lote.map(async (item) => {
                 if (!item.dataAchadaNoHtml) {
                   item.dataPdf = await extrairDataDoArquivo(item.linkCompleto);
+                  if (!item.dataPdf) {
+                    await new Promise(r => setTimeout(r, 5000));
+                    item.dataPdf = await extrairDataDoArquivo(item.linkCompleto);
+                  }
                 }
               }));
             }
@@ -96,6 +100,7 @@ export async function buscarPedranopolis(): Promise<Edital[]> {
             for (const item of itensBrutos) {
               let dataFinal = 'sem data';
               let timestampFinal = 0;
+              let extraidaDoPdf = false;
 
               if (item.dataAchadaNoHtml) {
                 dataFinal = item.dataFormatadaHtml;
@@ -105,6 +110,7 @@ export async function buscarPedranopolis(): Promise<Edital[]> {
                 dataFinal = item.dataPdf.formatada;
                 timestampFinal = item.dataPdf.timestamp;
                 dataFallback = item.dataPdf;
+                extraidaDoPdf = true;
               } else {
                 dataFinal = dataFallback.formatada;
                 timestampFinal = dataFallback.timestamp;
@@ -145,6 +151,7 @@ export async function buscarPedranopolis(): Promise<Edital[]> {
                 link: item.linkCompleto,
                 concurso: idConcurso,
                 ano: anoConcurso,
+                descricao: extraidaDoPdf ? '(data extraída do pdf)' : undefined,
                 metadados: undefined,
                 dataPublicacao: dataFinal,
                 dataTimestamp: timestampFinal,

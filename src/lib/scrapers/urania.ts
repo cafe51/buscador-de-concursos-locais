@@ -34,6 +34,7 @@ export async function buscarUrania(): Promise<Edital[]> {
 
       let dataFormatada = 'sem data';
       let dataTimestamp = 0;
+      let descricao: string | undefined = undefined;
 
       // 2. Tenta extrair a data diretamente do título
       const dataExtraida = extrairData(tituloLimpo);
@@ -51,6 +52,7 @@ export async function buscarUrania(): Promise<Edital[]> {
         if (dataDoc) {
           dataFormatada = dataDoc.formatada;
           dataTimestamp = dataDoc.timestamp;
+          descricao = '(data extraída do pdf)';
         }
       }
 
@@ -98,6 +100,7 @@ export async function buscarUrania(): Promise<Edital[]> {
         titulo: tituloFinal || 'Documento',
         concurso: idConcurso,
         ano: anoConcurso,
+        descricao,
         link: item.href.startsWith('http') ? item.href : `https://ecrie.com.br${item.href}`,
         dataPublicacao: dataFormatada,
         dataTimestamp: dataTimestamp,

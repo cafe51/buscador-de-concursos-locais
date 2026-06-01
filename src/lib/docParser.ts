@@ -111,41 +111,73 @@ export async function extrairDataDoArquivo(url: string): Promise<{ formatada: st
   const regexExtenso = /\b(\d{1,2})\s+de\s+([a-zA-ZçÇ]+)\s+de\s+(\d{4})\b/gi;
   const regexNumerica = /\b(\d{2})[\/\.](\d{2})[\/\.](\d{4})\b/gi;
 
-  let match;
-  let maiorTimestamp = 0;
-  let dataMaisRecente = '';
+  let melhorData = '';
+  let maiorScore = -Infinity;
+  let menorIndex = Infinity;
+  let timestampEscolhido = 0;
 
   const dataLimite = new Date().getTime() + 86400000; // Hoje + 1 dia de margem de segurança
 
-  while ((match = regexExtenso.exec(textoExtraido)) !== null) {
-    const dia = match[1].padStart(2, '0');
-    const mesTexto = match[2].toLowerCase();
-    const ano = match[3];
+  const processarData = (match: RegExpExecArray, dia: string, mesNumero: string, ano: string) => {
+    const timestampAtual = new Date(`${ano}-${mesNumero}-${dia}T00:00:00`).getTime();
+    if (timestampAtual <= dataLimite) {
+      const startIndex = Math.max(0, match.index - 40);
+      const contextoAntes = textoExtraido.substring(startIndex, match.index);
+      const contextoDepois = textoExtraido.substring(match.index + match[0].length, match.index + match[0].length + 40);
+      
+      let score = 0;
+      
+      // 1. Penalidade forte para prazos e cronogramas (contexto anterior)
+      if (/(?:dia|até|para|a partir de|período|prazo|entre|realizad[oa]s?\s+em|aplicad[oa]s?\s+em|designad[oa]s?\s+para)\s*$/i.test(contextoAntes)) {
+        score -= 50;
+      }
+      
+      // 1.2 Penalidade forte para citações de documentos passados (ex: "conforme Edital de 06 de junho")
+      if (/(?:conforme|termos|referente|datado|lei|decreto|edital|processo|documento|portaria|resolução).*(?:de|em)\s*$/i.test(contextoAntes)) {
+        score -= 50;
+      }
 
-    const mesNumero = MESES[mesTexto];
-    if (mesNumero) {
-      const timestampAtual = new Date(`${ano}-${mesNumero}-${dia}T00:00:00`).getTime();
-      if (timestampAtual > maiorTimestamp && timestampAtual <= dataLimite) {
-        maiorTimestamp = timestampAtual;
-        dataMaisRecente = `${dia}/${mesNumero}/${ano}`;
+      // 1.3 Penalidade forte para cronogramas (contexto posterior indicando horas, ex: "às 14:00" ou "14:00 horas")
+      if (/^\s*(?:às|as|à|a|-)?\s*\d{1,2}[:h]/i.test(contextoDepois) || /^\s*(?:às|as|à|a)\s+/i.test(contextoDepois)) {
+        score -= 50;
+      }
+      
+      // 2. Bônus para assinaturas e locais
+      if (/(?:Aos|Gabinete|Dado(?: e passado)?|Paço Municipal)[,\.\s]*$/i.test(contextoAntes) ||
+          /(?:-|\/)\s*[A-Z]{2}[,\.\s]*$/.test(contextoAntes)) {
+        score += 50;
+      }
+      
+      // 3. Bônus para cabeçalhos ou assinatura "Em" (no início da linha)
+      const linhaInicio = textoExtraido.lastIndexOf('\n', match.index);
+      const textoNaLinhaAntes = textoExtraido.substring(linhaInicio === -1 ? 0 : linhaInicio + 1, match.index);
+      if (/^\s*Em\s*$/i.test(textoNaLinhaAntes)) {
+        score += 50;
+      } else if (/^\s*$/.test(textoNaLinhaAntes)) {
+        score += 40;
+      }
+      
+      if (score > maiorScore || (score === maiorScore && match.index < menorIndex)) {
+        maiorScore = score;
+        menorIndex = match.index;
+        melhorData = `${dia.padStart(2, '0')}/${mesNumero.padStart(2, '0')}/${ano}`;
+        timestampEscolhido = timestampAtual;
       }
     }
+  };
+
+  let match;
+  while ((match = regexExtenso.exec(textoExtraido)) !== null) {
+    const mesNumero = MESES[match[2].toLowerCase()];
+    if (mesNumero) processarData(match, match[1], mesNumero, match[3]);
   }
 
   while ((match = regexNumerica.exec(textoExtraido)) !== null) {
-    const dia = match[1].padStart(2, '0');
-    const mesNumero = match[2].padStart(2, '0');
-    const ano = match[3];
-
-    const timestampAtual = new Date(`${ano}-${mesNumero}-${dia}T00:00:00`).getTime();
-    if (timestampAtual > maiorTimestamp && timestampAtual <= dataLimite) {
-      maiorTimestamp = timestampAtual;
-      dataMaisRecente = `${dia}/${mesNumero}/${ano}`;
-    }
+    processarData(match, match[1], match[2], match[3]);
   }
 
-  if (maiorTimestamp > 0) {
-    return { formatada: dataMaisRecente, timestamp: maiorTimestamp };
+  if (maiorScore !== -Infinity) {
+    return { formatada: melhorData, timestamp: timestampEscolhido };
   }
 
   urlsParaBlacklist.add(url);

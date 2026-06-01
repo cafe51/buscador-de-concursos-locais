@@ -110,12 +110,14 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
         // Passada 1: Propagação de baixo para cima
         for (let i = itensBrutos.length - 1; i >= 0; i--) {
           const item = itensBrutos[i];
+          item.extraidaDoPdf = false;
           if (item.dataAchadaNoHtml) {
             item.dataFinalResolvida = { formatada: item.dataFormatadaHtml, timestamp: item.dataTimestampHtml };
             dataFallback = item.dataFinalResolvida;
           } else if (item.dataPdf) {
             item.dataFinalResolvida = item.dataPdf;
             dataFallback = item.dataFinalResolvida;
+            item.extraidaDoPdf = true;
           } else {
             item.dataFinalResolvida = { ...dataFallback };
           }
@@ -161,6 +163,7 @@ export async function buscarSaoJoao(): Promise<Edital[]> {
             link: item.linkCompleto,
             concurso: idConcurso,
             ano: anoConcurso,
+            descricao: item.extraidaDoPdf ? '(data extraída do pdf)' : undefined,
             metadados: undefined,
             dataPublicacao: dataFinal,
             dataTimestamp: timestampFinal,
