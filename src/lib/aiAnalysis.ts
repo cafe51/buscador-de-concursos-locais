@@ -59,18 +59,15 @@ DADOS DA POSTAGEM:
 - Descrição original: ${edital.descricao || 'Não fornecida'}
 
 INSTRUÇÕES:
-1. Gere um TÍTULO conciso (máximo 15 palavras) que identifique precisamente o tipo 
-   de documento e seu conteúdo principal. Use o vocabulário oficial de concursos:
-   Edital de Abertura, Resultado Preliminar, Resultado Final, Convocação, 
-   Homologação, Retificação, Gabarito, Lista de Classificados, etc.
+1. Gere um TÍTULO conciso (máximo 10 palavras) focado APENAS na ação principal e referência do documento. 
+   REGRA CRÍTICA: NÃO repita o nome da cidade ou o órgão, nós já temos essa informação.
+   Exemplos bons: "Abertura de Processo Seletivo 01/2026", "Convocação para Provas Práticas", "Resultado Preliminar de Cargos Administrativos".
+   Exemplos ruins (não faça assim): "Edital de Abertura Processo Seletivo Simplificado 001/2026, Prefeitura de Parisi/SP, Nível Médio." (muito longo e repete a cidade).
    
-2. Considere que o título original da postagem pode estar incorreto, vago ou 
-   genérico. O que vale é o conteúdo real do documento.
-
-3. Gere uma DESCRIÇÃO informativa (2-3 frases, máximo 200 caracteres) que resuma:
-   - O que o documento trata
-   - Cargos mencionados (se aplicável)
-   - Datas importantes (inscrição, prova, etc.)
+2. Gere uma DESCRIÇÃO informativa (2 a 3 frases curtas) focada no conteúdo útil para o candidato:
+   - Motivo central (ex: vagas temporárias, contratação de professores, etc)
+   - Nível de escolaridade e alguns cargos principais (se aplicável)
+   - Datas principais (período de inscrição, data da prova)
 
 Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
 {"tituloIA": "...", "descricaoIA": "..."}
@@ -135,7 +132,7 @@ export async function processarComIA(editaisNovos: Edital[]): Promise<void> {
         if (resultado) {
           edital.tituloIA = resultado.tituloIA;
           edital.descricaoIA = resultado.descricaoIA;
-          console.log(`🧠 [IA] [${i+1}/${editaisNovos.length}] ✅ tituloIA: "${resultado.tituloIA}"`);
+          console.log(`🧠 [IA] [${i+1}/${editaisNovos.length}] ✅ Título: "${resultado.tituloIA}"\n   ↳ Descrição: "${resultado.descricaoIA}"`);
           sucessos++;
         } else {
           console.log(`🧠 [IA] [${i+1}/${editaisNovos.length}] ❌ Falha ao extrair dados. O resultado estava vazio.`);
@@ -151,7 +148,7 @@ export async function processarComIA(editaisNovos: Edital[]): Promise<void> {
             if (resultado) {
               edital.tituloIA = resultado.tituloIA;
               edital.descricaoIA = resultado.descricaoIA;
-              console.log(`🧠 [IA] [${i+1}/${editaisNovos.length}] ✅ tituloIA: "${resultado.tituloIA}" (Após retry)`);
+              console.log(`🧠 [IA] [${i+1}/${editaisNovos.length}] ✅ Título: "${resultado.tituloIA}" (Após retry)\n   ↳ Descrição: "${resultado.descricaoIA}"`);
               sucessos++;
             }
           } catch(e) {
