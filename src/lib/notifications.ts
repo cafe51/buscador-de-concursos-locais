@@ -34,17 +34,14 @@ export async function processarNotificacoes(novasAdicoes: SyncLogAddition[]) {
   // 1. Passa a adição de documentos pelo filtro das 41 palavras primeiro (Passo mais leve e rápido)
   const adicoesFiltradas = novasAdicoes.filter(edital => {
     const tituloNormalizado = edital.dadosEnriquecidos?.titulo ? removerAcentos(edital.dadosEnriquecidos.titulo) : removerAcentos(edital.titulo);
-    const descricaoNormalizada = edital.dadosEnriquecidos?.descricao ? removerAcentos(edital.dadosEnriquecidos.descricao) : '';
-    const concursoNorm = (edital.dadosEnriquecidos?.concurso || edital.concurso) ? removerAcentos(edital.dadosEnriquecidos?.concurso || edital.concurso || '') : '';
-    const textoCompleto = `${tituloNormalizado} ${descricaoNormalizada} ${concursoNorm}`;
 
     const contemBurocracia = PALAVRAS_IGNORADAS_PADRAO.some(palavra => {
       const palavraNorm = removerAcentos(palavra);
-      const bateu = textoCompleto.includes(palavraNorm);
-      if (bateu) {
-        console.log(`  ❌ Excluído por palavra burocrática: [${edital.cidade}] [${edital.orgao || 'Geral'}] "${edital.titulo}" (Motivo: termo '${palavra}')`);
+      if (tituloNormalizado.includes(palavraNorm)) {
+        console.log(`  ❌ Excluído por palavra burocrática: [${edital.cidade}] [${edital.orgao}] "${edital.dadosEnriquecidos?.titulo || edital.titulo}" (Motivo: termo '${palavra}')`);
+        return true;
       }
-      return bateu;
+      return false;
     });
 
     if (!contemBurocracia) {

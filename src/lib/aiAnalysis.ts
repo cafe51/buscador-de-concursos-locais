@@ -69,7 +69,12 @@ INSTRUÇÕES:
    - Nível de escolaridade e alguns cargos principais (se aplicável)
    - Datas principais (período de inscrição, data da prova)
    
-3. Extraia a referência exata do concurso ou processo seletivo (ex: "Processo Seletivo 01/2026", "Concurso Público 002/2024").
+3. Extraia a referência do concurso ou processo seletivo e PADRONIZE RIGOROSAMENTE para o seguinte formato exato:
+   - PARTE 1: Deve ser EXATAMENTE "Processo Seletivo" ou "Concurso Público" (e nada mais).
+   - PARTE 2: Deve ser o número no formato nn/aaaa (exatamente 2 dígitos, barra, 4 dígitos. Ex: 01/2026).
+   - PARTE 3 (opcional, adicione no fim se aplicável): Deve ser EXATAMENTE "(Estagiários)" ou "(Simplificado)".
+   Exemplo Perfeito: "Processo Seletivo 01/2026 (Simplificado)".
+   Se não conseguir identificar, deixe como string vazia "".
 
 4. Extraia a data exata de publicação oficial do edital (se houver). Formato DD/MM/AAAA.
 
