@@ -64,7 +64,7 @@ export async function extrairTextoBruto(url: string, depth = 0, tentativas = 2):
       const $ = cheerio.load(htmlText);
 
       let novaUrl = '';
-      
+
       // Checa Meta Refresh (redirecionamento HTML)
       const refreshMeta = $('meta[http-equiv="refresh" i]').attr('content');
       if (refreshMeta) {
@@ -102,32 +102,9 @@ export async function extrairTextoBruto(url: string, depth = 0, tentativas = 2):
       console.log = () => { }; console.warn = () => { }; console.error = () => { };
 
       try {
-        const render_page = function(pageData: any) {
-          const render_options = {
-              normalizeWhitespace: false,
-              disableCombineTextItems: false
-          };
-          return pageData.getTextContent(render_options).then(function(textContent: any) {
-              let text = '';
-              for (let item of textContent.items) {
-                  text += item.str + ' ';
-              }
-              return `\n[---PAGINA_${pageData.pageIndex}---]\n` + text;
-          });
-        };
-
         // @ts-ignore
-        const dadosPdf = await pdfParse(buffer, { pagerender: render_page }); 
-        
-        const paginas = dadosPdf.text.split(/\[---PAGINA_\d+---\]/).filter((p: string) => p.trim().length > 0);
-        
-        if (paginas.length <= 5) {
-          return paginas.join('\n');
-        } else {
-          const inicio = paginas.slice(0, 3).join('\n');
-          const fim = paginas.slice(-2).join('\n');
-          return inicio + '\n\n...[PÁGINAS INTERMEDIÁRIAS OMITIDAS]...\n\n' + fim;
-        }
+        const dadosPdf = await pdfParse(buffer, { max: 3 }); // Lê até 3 páginas para garantir
+        return dadosPdf.text;
       } catch (err: any) {
         urlsParaBlacklist.add(url);
         return null;
@@ -136,11 +113,7 @@ export async function extrairTextoBruto(url: string, depth = 0, tentativas = 2):
       }
     } else if (isDOCX) {
       const result = await mammoth.extractRawText({ buffer });
-      const textoStr = result.value;
-      if (textoStr.length > 15000) {
-        return textoStr.substring(0, 8000) + '\n\n...[TEXTO INTERMEDIÁRIO OMITIDO]...\n\n' + textoStr.substring(textoStr.length - 5000);
-      }
-      return textoStr;
+      return result.value;
     }
 
     urlsParaBlacklist.add(url);
@@ -179,14 +152,14 @@ export async function extrairDataDoArquivo(url: string): Promise<{ formatada: st
       const startIndex = Math.max(0, match.index - 40);
       const contextoAntes = textoExtraido.substring(startIndex, match.index);
       const contextoDepois = textoExtraido.substring(match.index + match[0].length, match.index + match[0].length + 40);
-      
+
       let score = 0;
-      
+
       // 1. Penalidade forte para prazos e cronogramas (contexto anterior)
       if (/(?:dia|até|para|a partir de|período|prazo|entre|realizad[oa]s?\s+em|aplicad[oa]s?\s+em|designad[oa]s?\s+para)\s*$/i.test(contextoAntes)) {
         score -= 50;
       }
-      
+
       // 1.2 Penalidade forte para citações de documentos passados (ex: "conforme Edital de 06 de junho")
       if (/(?:conforme|termos|referente|datado|lei|decreto|edital|processo|documento|portaria|resolução).*(?:de|em)\s*$/i.test(contextoAntes)) {
         score -= 50;
@@ -196,13 +169,13 @@ export async function extrairDataDoArquivo(url: string): Promise<{ formatada: st
       if (/^\s*(?:às|as|à|a|-)?\s*\d{1,2}[:h]/i.test(contextoDepois) || /^\s*(?:às|as|à|a)\s+/i.test(contextoDepois)) {
         score -= 50;
       }
-      
+
       // 2. Bônus para assinaturas e locais
       if (/(?:Aos|Gabinete|Dado(?: e passado)?|Paço Municipal)[,\.\s]*$/i.test(contextoAntes) ||
-          /(?:-|\/)\s*[A-Z]{2}[,\.\s]*$/.test(contextoAntes)) {
+        /(?:-|\/)\s*[A-Z]{2}[,\.\s]*$/.test(contextoAntes)) {
         score += 50;
       }
-      
+
       // 3. Bônus para cabeçalhos ou assinatura "Em" (no início da linha)
       const linhaInicio = textoExtraido.lastIndexOf('\n', match.index);
       const textoNaLinhaAntes = textoExtraido.substring(linhaInicio === -1 ? 0 : linhaInicio + 1, match.index);
@@ -211,7 +184,7 @@ export async function extrairDataDoArquivo(url: string): Promise<{ formatada: st
       } else if (/^\s*$/.test(textoNaLinhaAntes)) {
         score += 40;
       }
-      
+
       if (score > maiorScore || (score === maiorScore && match.index < menorIndex)) {
         maiorScore = score;
         menorIndex = match.index;
