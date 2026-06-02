@@ -60,7 +60,7 @@ DADOS DA POSTAGEM:
 
 INSTRUÇÕES:
 1. Gere um TÍTULO conciso (máximo 10 palavras) focado APENAS na ação principal e referência do documento. 
-   REGRA CRÍTICA: NÃO repita o nome da cidade ou o órgão, nós já temos essa informação.
+   REGRA CRÍTICA 1: NÃO repita o nome da cidade ou o órgão, nós já temos essa informação.
    Exemplos bons: "Abertura de Processo Seletivo 01/2026", "Convocação para Provas Práticas", "Resultado Preliminar de Cargos Administrativos".
    Exemplos ruins (não faça assim): "Edital de Abertura Processo Seletivo Simplificado 001/2026, Prefeitura de Parisi/SP, Nível Médio." (muito longo e repete a cidade).
    

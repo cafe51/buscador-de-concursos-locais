@@ -6,12 +6,17 @@ import { enviarEmail } from './email';
 const PALAVRAS_IGNORADAS_PADRAO = [
   'classificacao', 'convocacao', 'chamamento', 'homologacao', 'estagiario',
   'gabarito', 'resultado', 'cancelamento', 'homologadas', 'inventario',
-  'contrarrazoes', 'recurso', 'respostas', 'provas', 'inscricoes',
+  'contrarrazoes', 'recurso', 'respostas', 'provas', 'indeferimento', 'deferimento',
   'nomeacao', 'nomeacoes', 'convocacoes', 'impugnacao', 'impugnacoes',
   'atividades', 'atividade', 'atribuicoes', 'atribuicao', 'exoneracao',
-  'exoneracoes', 'filhos da terra', 'isencao', 'isencoes', 'simplificado',
+  'exoneracoes', 'filhos da terra', 'isencao', 'isencoes', 'locais',
   'estagio', 'estagiario', 'homologacoes', 'class', 'pontuacao',
-  'inscritos', 'alocacao', 'salas', 'notas', 'sorteio', 'desempate'
+  'inscritos', 'alocacao', 'salas', 'notas', 'sorteio', 'desempate', 'retificacao', 'errata',
+  // Frases compostas específicas de etapas pós-abertura
+  'prorrogacao de inscricoes', 'lista de inscricoes', 'lista provisoria de inscricoes',
+  'inscricoes deferidas', 'inscricoes indeferidas', 'homologacao das inscricoes',
+  'homologacao de inscricoes', 'acesso das inscricoes', 'inscricoes homologadas',
+  'lista de inscritos'
 ];
 
 function removerAcentos(texto: string): string {
