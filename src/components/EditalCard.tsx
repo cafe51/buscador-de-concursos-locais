@@ -57,7 +57,7 @@ export default function EditalCard({ edital }: { edital: Edital }) {
       </h2>
 
       {(edital.dadosEnriquecidos?.descricao || edital.descricao) && (
-        <p className="mt-2 text-sm text-slate-500 line-clamp-2 leading-relaxed">
+        <p className="mt-2 text-sm text-slate-500 line-clamp-4 leading-relaxed">
           {edital.dadosEnriquecidos?.descricao || edital.descricao}
         </p>
       )}
