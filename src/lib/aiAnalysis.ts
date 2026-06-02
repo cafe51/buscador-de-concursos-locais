@@ -50,37 +50,26 @@ async function analisarEditalComIA(edital: Edital): Promise<{ titulo: string; de
   if (!apiKey) return null;
   
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-  const prompt = `Você é um especialista em concursos públicos e processos seletivos no Brasil.
-
-Analise o documento abaixo, que foi coletado de um Diário Oficial municipal.
-
-DADOS DA POSTAGEM:
-- Cidade: ${edital.cidade}
-- Órgão: ${edital.orgao}
-- Título original: ${edital.titulo}
-- Descrição original: ${edital.descricao || 'Não fornecida'}
-
-INSTRUÇÕES:
-1. Gere um TÍTULO conciso (máximo 10 palavras) focado APENAS na ação principal e referência do documento. 
-   REGRA CRÍTICA 1: NÃO repita o nome da cidade ou o órgão, nós já temos essa informação.
-   Exemplos bons: "Abertura de Processo Seletivo 01/2026", "Convocação para Provas Práticas", "Resultado Preliminar de Cargos Administrativos".
-   Exemplos ruins (não faça assim): "Edital de Abertura Processo Seletivo Simplificado 001/2026, Prefeitura de Parisi/SP, Nível Médio." (muito longo e repete a cidade).
+  
+  const systemInstruction = `Você é um especialista em concursos públicos e processos seletivos no Brasil.
+INSTRUÇÕES RÍGIDAS DE FORMATAÇÃO:
+1. TÍTULO: Gere um título conciso (máximo 10 palavras) focado APENAS na ação principal e referência do documento. 
+   REGRA CRÍTICA: NUNCA repita o nome da cidade ou o órgão.
+   Exemplos bons: "Abertura de Processo Seletivo 01/2026", "Convocação para Provas Práticas".
    
-2. Gere uma DESCRIÇÃO informativa (2 a 3 frases curtas) focada no conteúdo útil para o candidato:
-   - Motivo central (ex: vagas temporárias, contratação de professores, etc)
-   - Nível de escolaridade e alguns cargos principais (se aplicável)
-   - Datas principais (período de inscrição, data da prova)
+2. DESCRIÇÃO: 2 a 3 frases curtas informativas para o candidato:
+   - Motivo central (ex: vagas temporárias, homologação, convocações)
+   - Escolaridade e cargos principais (se aplicável)
+   - Datas principais (se aplicável)
    
-3. Extraia a referência do concurso ou processo seletivo e PADRONIZE RIGOROSAMENTE para o seguinte formato exato:
-   - PARTE 1: Deve ser EXATAMENTE "Processo Seletivo" ou "Concurso Público" (e nada mais).
-   - PARTE 2: Deve ser o número no formato nn/aaaa (exatamente 2 dígitos, barra, 4 dígitos. Ex: 01/2026).
-   - PARTE 3 (opcional, adicione no fim se aplicável): Deve ser EXATAMENTE "(Estagiários)" ou "(Simplificado)".
-   Exemplo Perfeito: "Processo Seletivo 01/2026 (Simplificado)".
-   Se não conseguir identificar, deixe como string vazia "".
+3. CONCURSO (Chave de Agrupamento): Extraia a referência do concurso e PADRONIZE RIGOROSAMENTE para o formato:
+   - PARTE 1: EXATAMENTE "Processo Seletivo" ou "Concurso Público".
+   - PARTE 2: Número no formato nn/aaaa. CONVERTA QUALQUER NÚMERO PARA EXATAMENTE 2 DÍGITOS ANTES DA BARRA (Ex: 001/2020 deve virar 01/2020. 1/2020 deve virar 01/2020). O ano deve ter 4 dígitos.
+   - PARTE 3 (Opcional): Se for para estagiários, adicione "(Estagiários)" no final.
+   Exemplo Perfeito: "Processo Seletivo 01/2026" ou "Processo Seletivo 01/2026 (Estagiários)".
+   Se não conseguir identificar a que concurso o edital pertence, deixe como string vazia "".
 
-4. Extraia a data exata de publicação oficial do edital (se houver). Formato DD/MM/AAAA.
+4. DATA: Extraia a data exata de publicação oficial do edital (se houver) no formato DD/MM/AAAA.
 
 Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
 {
@@ -88,12 +77,16 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
   "descricao": "...",
   "concurso": "...",
   "dataPublicacao": "..."
-}
-`;
+}`;
+
+  const model = genAI.getGenerativeModel({ 
+    model: "gemini-2.5-flash",
+    systemInstruction
+  });
 
   try {
     let textoDocumento = await extrairTextoBruto(edital.link);
-    let partesReq: any[] = [prompt];
+    let partesReq: any[] = ["Extraia os dados deste documento seguindo rigorosamente as instruções do sistema."];
     
     if (textoDocumento && textoDocumento.length > 100) {
       partesReq.push(`\nTEXTO DO DOCUMENTO:\n${textoDocumento.substring(0, 30000)}`);
@@ -128,7 +121,22 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
       }
     }
 
-    const result = await model.generateContent(partesReq);
+    const contentsPayload = [
+      {
+        role: "user",
+        parts: [{ text: "Extraia os dados deste documento seguindo rigorosamente as instruções do sistema.\n\nTEXTO DO DOCUMENTO:\n...[TEXTO OMITIDO]... O Prefeito Municipal de Exemplo/SP torna público a abertura do Concurso Público nº 001/2024 para provimento de cargos de Professor..." }]
+      },
+      {
+        role: "model",
+        parts: [{ text: `{\n  "titulo": "Abertura de Concurso Público 01/2024",\n  "descricao": "Abertura de concurso para contratação de Professores na rede municipal.",\n  "concurso": "Concurso Público 01/2024",\n  "dataPublicacao": ""\n}` }]
+      },
+      {
+        role: "user",
+        parts: partesReq
+      }
+    ];
+
+    const result = await model.generateContent({ contents: contentsPayload });
     const responseText = result.response.text();
     const dados = extrairJSONSeguro(responseText);
     
