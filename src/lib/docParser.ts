@@ -61,22 +61,32 @@ export async function extrairTextoBruto(url: string, depth = 0, tentativas = 2):
     // =========================================================================
     if (contentType.includes('text/html') && !isPDF && !isDOCX) {
       const htmlText = buffer.toString('utf-8');
-
-      const jsRedirect = htmlText.match(/window\.location(?:\.href)?\s*=\s*['"]([^'"]+)['"]/i);
-      const metaRedirect = htmlText.match(/url=['"]?([^'">]+)['"]?/i);
+      const $ = cheerio.load(htmlText);
 
       let novaUrl = '';
-      if (jsRedirect && jsRedirect[1]) novaUrl = jsRedirect[1];
-      else if (metaRedirect && metaRedirect[1]) novaUrl = metaRedirect[1];
+      
+      // Checa Meta Refresh (redirecionamento HTML)
+      const refreshMeta = $('meta[http-equiv="refresh" i]').attr('content');
+      if (refreshMeta) {
+        const match = refreshMeta.match(/url=['"]?([^'"]+)['"]?/i);
+        if (match) novaUrl = match[1];
+      }
+
+      // Checa JS Redirect
+      if (!novaUrl) {
+        const jsRedirect = htmlText.match(/window\.location(?:\.href)?\s*=\s*['"]([^'"]+)['"]/i);
+        if (jsRedirect && jsRedirect[1]) novaUrl = jsRedirect[1];
+      }
 
       if (novaUrl) {
         const urlAbsoluta = novaUrl.startsWith('http') ? novaUrl : new URL(novaUrl, url).href;
         return extrairTextoBruto(urlAbsoluta, depth + 1, tentativas);
       }
 
-      const $ = cheerio.load(htmlText);
       $('script, style, nav, header, footer, aside').remove();
       const textoLimpo = $('body').text().replace(/\s+/g, ' ').trim();
+      console.log(`[DEBUG docParser] htmlText.length = ${htmlText.length}`);
+      console.log(`[DEBUG docParser] textoLimpo.length = ${textoLimpo.length}`);
       if (textoLimpo.length > 50) {
         return textoLimpo;
       }

@@ -1,5 +1,9 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, Part } from '@google/generative-ai';
+import { GoogleAIFileManager } from '@google/generative-ai/server';
 import { Edital } from '../types';
+import * as os from 'os';
+import * as path from 'path';
+import * as fs from 'fs';
 import { extrairTextoBruto } from './docParser';
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
@@ -92,16 +96,31 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
     let partesReq: any[] = [prompt];
     
     if (textoDocumento && textoDocumento.length > 100) {
-      // Usar texto
       partesReq.push(`\nTEXTO DO DOCUMENTO:\n${textoDocumento.substring(0, 30000)}`);
     } else {
       console.log(`🧠 [IA] ⚠️ Texto insuficiente para "${edital.titulo}". Enviando PDF/Arquivo como imagem ao Gemini...`);
       const docRaw = await baixarDocumentoBruto(edital.link);
+      
       if (docRaw) {
+        let mimeTypeUpload = docRaw.mimeType || "application/pdf";
+        const buffer = Buffer.from(docRaw.bytes, 'base64');
+        const magicBytes = buffer.toString('hex', 0, 4);
+        
+        if (magicBytes === '25504446') {
+          mimeTypeUpload = "application/pdf";
+        } else if (magicBytes === '504b0304') {
+          mimeTypeUpload = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        } else {
+          const inicio = buffer.toString('utf8', 0, 200).toLowerCase();
+          if (inicio.includes('<!doctype html') || inicio.includes('<html')) {
+            mimeTypeUpload = "text/html";
+          }
+        }
+
         partesReq.push({
           inlineData: {
             data: docRaw.bytes,
-            mimeType: docRaw.mimeType
+            mimeType: mimeTypeUpload
           }
         });
       } else {
