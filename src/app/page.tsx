@@ -115,12 +115,17 @@ export default function Home() {
   }
 
   // 🚀 A FUNÇÃO DO MODO DESENVOLVEDOR (Raspa a internet inteira e salva no Banco)
-  async function rasparESalvarNaNuvem() {
+  async function rasparESalvarNaNuvem(options: { enableAI: boolean; enableEmails: boolean; cidadesSelecionadas: string[] }) {
     setIsSavingToCloud(true);
     try {
       const { rodarFluxoCompletoServerAction } = await import('./actions');
       
-      const response = await rodarFluxoCompletoServerAction();
+      const response = await rodarFluxoCompletoServerAction({
+        isLocalUI: true,
+        enableAI: options.enableAI,
+        enableEmails: options.enableEmails,
+        cidadesSelecionadas: options.cidadesSelecionadas
+      });
 
       if (response.sucesso) {
         if (response.syncInfo) {
@@ -550,7 +555,7 @@ export default function Home() {
         todasCidades={TODAS_CIDADES}
         concursosAgrupados={concursosAgrupados}
         onUpdateCityData={handleUpdateCityData}
-        onScrapeAndSave={rasparESalvarNaNuvem} // 🚀 Função Injetada!
+        onScrapeAndSave={rasparESalvarNaNuvem}
         isSavingToCloud={isSavingToCloud}
         onCreateNewDb={criarNovoBancoNaNuvem}
         isCreatingNewDb={isCreatingNewDb}

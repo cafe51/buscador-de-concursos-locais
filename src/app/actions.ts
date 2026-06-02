@@ -53,9 +53,9 @@ export async function buscarEditaisPorCidade(nomeCidade: string): Promise<Result
 }
 
 // ==============================================================
-// 🚀 BUSCA PRINCIPAL DE TODAS AS CIDADES
+// 🚀 BUSCA PRINCIPAL DE TODAS AS CIDADES (COM SUPORTE A FILTRO)
 // ==============================================================
-export async function buscarTodosEditais(): Promise<ResultadoBusca> {
+export async function buscarTodosEditais(cidadesAlvo?: string[]): Promise<ResultadoBusca> {
   let todosOsEditais: Edital[] = [];
   const cidadesComFalha: string[] = [];
 
@@ -68,7 +68,9 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
   const tempoInicioTotal = performance.now();
 
   try {
-    const tarefas = CIDADES_ATIVAS.map(cidade => {
+    const cidadesParaRaspar = cidadesAlvo && cidadesAlvo.length > 0 ? cidadesAlvo : CIDADES_ATIVAS;
+
+    const tarefas = cidadesParaRaspar.map(cidade => {
       const scraper = MAPA_SCRAPERS[cidade];
       return () => rodarComProtecao(cidade, scraper);
     });
@@ -140,7 +142,14 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
 // ==============================================================
 // 🚀 NOVA ACTION: EXECUTAR FLUXO COMPLETO VIA INTERFACE LOCAL
 // ==============================================================
-export async function rodarFluxoCompletoServerAction() {
+export interface OrquestradorOptions {
+  isLocalUI: boolean;
+  enableAI?: boolean;
+  enableEmails?: boolean;
+  cidadesSelecionadas?: string[];
+}
+
+export async function rodarFluxoCompletoServerAction(options: OrquestradorOptions) {
   const { runFullScraperWorkflow } = await import('../lib/orchestrator');
-  return await runFullScraperWorkflow({ isLocalUI: true });
+  return await runFullScraperWorkflow(options);
 }

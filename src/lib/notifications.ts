@@ -23,7 +23,7 @@ function removerAcentos(texto: string): string {
   return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
-export async function processarNotificacoes(novasAdicoes: SyncLogAddition[]) {
+export async function processarNotificacoes(novasAdicoes: SyncLogAddition[], enviarEmails: boolean = true) {
   console.log("\n=====================================================================");
   console.log("📢 [NOTIFICAÇÕES] INICIANDO FLUXO DE PROCESSAMENTO DE ALERTAS");
   console.log("=====================================================================");
@@ -61,6 +61,13 @@ export async function processarNotificacoes(novasAdicoes: SyncLogAddition[]) {
   if (adicoesFiltradas.length === 0) {
     console.log("🔔 [NOTIFICAÇÕES] Nenhuma postagem de edital sobreviveu ao filtro burocrático global de 41 palavras.");
     console.log("💡 Otimização: processo encerrado precocemente sem consultar base de dados.");
+    console.log("=====================================================================\n");
+    return;
+  }
+
+  if (!enviarEmails) {
+    console.log("⚠️ [NOTIFICAÇÕES] Disparo de e-mails desativado nas opções locais.");
+    console.log("💡 Processo de notificações interrompido. O filtro burocrático acima rodou apenas para fins de Log e Teste.");
     console.log("=====================================================================\n");
     return;
   }

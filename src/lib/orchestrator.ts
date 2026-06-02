@@ -14,7 +14,12 @@ async function wait(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export async function runFullScraperWorkflow(options: { isLocalUI: boolean }) {
+export async function runFullScraperWorkflow(options: { 
+  isLocalUI: boolean;
+  enableAI?: boolean;
+  enableEmails?: boolean;
+  cidadesSelecionadas?: string[];
+}) {
   console.log("===================================================");
   console.log(`🚀 INICIANDO BLOCO DE RASPAGEM AUTOMATIZADA (${options.isLocalUI ? 'LOCAL UI' : 'GITHUB ACTIONS'})`);
   console.log("===================================================");
@@ -27,7 +32,11 @@ export async function runFullScraperWorkflow(options: { isLocalUI: boolean }) {
 
   // Inicializando mapa de logs para todas as cidades
   const logsCidades: Record<string, LogCidadeDetail> = {};
-  CIDADES_ATIVAS.forEach(c => {
+  const cidadesParaRaspar = options.cidadesSelecionadas && options.cidadesSelecionadas.length > 0 
+    ? options.cidadesSelecionadas 
+    : CIDADES_ATIVAS;
+
+  cidadesParaRaspar.forEach(c => {
     logsCidades[c] = { cidade: c, sucesso: false, itens: 0, tentativaSucesso: 0, tempoGastoSegundos: 0, erro: 'Não iniciada' };
   });
 
@@ -35,7 +44,7 @@ export async function runFullScraperWorkflow(options: { isLocalUI: boolean }) {
 
   try {
     // 1. Roda a raspagem completa de todas as cidades
-    let { editais, falhas, resultadosDetalhes } = await buscarTodosEditais();
+    let { editais, falhas, resultadosDetalhes } = await buscarTodosEditais(options.cidadesSelecionadas);
     let todosEditais = [...editais];
     let cidadesComFalha = [...falhas];
 
@@ -66,7 +75,7 @@ export async function runFullScraperWorkflow(options: { isLocalUI: boolean }) {
       await wait(RETRY_DELAY_MS);
 
       const nomesCidades = cidadesComFalha.map(falha => {
-        const ordenadas = [...CIDADES_ATIVAS].sort((a, b) => b.length - a.length);
+        const ordenadas = [...cidadesParaRaspar].sort((a, b) => b.length - a.length);
         const cidadeEncontrada = ordenadas.find(c => falha.startsWith(c + ' ('));
         return cidadeEncontrada || falha.trim();
       });
@@ -125,7 +134,7 @@ export async function runFullScraperWorkflow(options: { isLocalUI: boolean }) {
 
     let statusGeral: 'sucesso' | 'falha_parcial' | 'falha' = 'sucesso';
     if (cidadesComFalha.length > 0) {
-      if (cidadesComFalha.length === CIDADES_ATIVAS.length) {
+      if (cidadesComFalha.length === cidadesParaRaspar.length) {
         statusGeral = 'falha';
       } else {
         statusGeral = 'falha_parcial';
@@ -142,7 +151,12 @@ export async function runFullScraperWorkflow(options: { isLocalUI: boolean }) {
       if (resultadoSync.adicionados > 0 || resultadoSync.atualizados.length > 0) {
         
         if (resultadoSync.adicionados > 0) {
-          await processarComIA(resultadoSync.novasAdicoesReferencias);
+          if (options.enableAI !== false) {
+             console.log("\n🧠 Ativando enriquecimento de dados via Inteligência Artificial...");
+             await processarComIA(resultadoSync.novasAdicoesReferencias);
+          } else {
+             console.log("\n⚠️ Inteligência Artificial desativada nas configurações.");
+          }
           
           resultadoSync.relatorioAdicoes = resultadoSync.novasAdicoesReferencias.map(ed => ({
             cidade: ed.cidade,
@@ -176,9 +190,9 @@ export async function runFullScraperWorkflow(options: { isLocalUI: boolean }) {
 
           if (resultadoSync.adicionados > 0) {
             console.log("\n=====================================================================");
-            console.log("📢 [DISPARADOR] INICIANDO ENVIO DE ALERTAS PARA NOVOS EDITAIS");
+            console.log("📢 [DISPARADOR] INICIANDO PROCESSAMENTO DE ALERTAS (E FILTRO BUROCRÁTICO)");
             console.log("=====================================================================");
-            await processarNotificacoes(resultadoSync.relatorioAdicoes);
+            await processarNotificacoes(resultadoSync.relatorioAdicoes, options.enableEmails !== false);
           } else {
             console.log("\n🔔 [DISPARADOR] Nenhuma nova adição registrada na sincronização. Processamento de alertas ignorado.");
           }
