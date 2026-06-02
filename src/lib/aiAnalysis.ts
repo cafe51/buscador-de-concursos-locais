@@ -86,10 +86,10 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
 
   try {
     let textoDocumento = await extrairTextoBruto(edital.link);
-    let partesReq: any[] = ["Extraia os dados deste documento seguindo rigorosamente as instruções do sistema."];
+    let partesReq: any[] = [{ text: "Extraia os dados deste documento seguindo rigorosamente as instruções do sistema." }];
     
     if (textoDocumento && textoDocumento.length > 100) {
-      partesReq.push(`\nTEXTO DO DOCUMENTO:\n${textoDocumento.substring(0, 30000)}`);
+      partesReq.push({ text: `\nTEXTO DO DOCUMENTO:\n${textoDocumento.substring(0, 30000)}` });
     } else {
       console.log(`🧠 [IA] ⚠️ Texto insuficiente para "${edital.titulo}". Enviando PDF/Arquivo como imagem ao Gemini...`);
       const docRaw = await baixarDocumentoBruto(edital.link);
