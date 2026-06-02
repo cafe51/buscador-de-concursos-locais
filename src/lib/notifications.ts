@@ -194,15 +194,12 @@ export async function processarNotificacoes(novasAdicoes: SyncLogAddition[]) {
         continue;
       }
 
-      // 4. Desenha o email e envia para cada usuário de acordo com o resultado das filtragens (Passo 4)
-      console.log(`  🚀 [PASSO 4/4] Desenhando e despachando e-mail para ${userEmail} contendo ${matchesUsuario.length} correspondências...`);
+      // 4. Desenha e envia UM EMAIL POR EDITAL para o usuário (Passo 4)
+      console.log(`  🚀 [PASSO 4/4] Enviando ${matchesUsuario.length} e-mail(s) individuais para ${userEmail}...`);
 
-      // 4. Formatar o e-mail em HTML Premium
-      console.log(`  🔍 [DEBUG-EMAIL] Dados a serem desenhados no email:`, JSON.stringify(matchesUsuario, null, 2));
-
-      const itemsHtml = matchesUsuario.map(item => {
+      for (const item of matchesUsuario) {
         const isCamara = item.orgao ? removerAcentos(item.orgao).includes('camara') : false;
-        const badgeColor = isCamara ? '#7c3aed' : '#2563eb'; // Roxo para Câmara, Azul para Prefeitura
+        const badgeColor = isCamara ? '#7c3aed' : '#2563eb';
         const labelOrgao = item.orgao ? (isCamara ? 'Câmara' : 'Prefeitura') : 'Geral';
 
         const tituloFinal = item.dadosEnriquecidos?.titulo || item.titulo;
@@ -213,9 +210,9 @@ export async function processarNotificacoes(novasAdicoes: SyncLogAddition[]) {
         const dataPublicacaoFinal = item.dadosEnriquecidos?.dataPublicacao || item.dataPublicacao;
         const dataPublicacaoBadgeIA = item.dadosEnriquecidos?.dataPublicacao ? '✨ ' : '';
         
-        console.log(`  🔍 [DEBUG-EMAIL] Item mapeado -> tituloFinal: "${tituloFinal}"`);
+        console.log(`  🔍 [DEBUG-EMAIL] Desenhando e-mail individual para -> tituloFinal: "${tituloFinal}"`);
 
-        return `
+        const itemHtml = `
           <div style="margin-bottom: 24px; padding: 20px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; font-family: sans-serif;">
             <div style="margin-bottom: 8px;">
               ${badgeIA}
@@ -243,72 +240,71 @@ export async function processarNotificacoes(novasAdicoes: SyncLogAddition[]) {
             </div>
           </div>
         `;
-      }).join('');
 
-      const emailHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Novos Editais Encontrados</title>
-        </head>
-        <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-          <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 20px auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
-            <!-- Header -->
-            <tr>
-              <td style="padding: 40px 30px; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); text-align: center; color: #ffffff;">
-                <h2 style="margin: 0 0 8px 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">Buscador de Concursos</h2>
-                <p style="margin: 0; font-size: 14px; color: #e0e7ff; font-weight: 500;">Novas oportunidades encontradas na sua região</p>
-              </td>
-            </tr>
-            
-            <!-- Conteúdo -->
-            <tr>
-              <td style="padding: 30px 24px; background-color: #f8fafc;">
-                <p style="margin: 0 0 20px 0; font-size: 15px; color: #334155; line-height: 1.6;">
-                  Olá! Identificamos novas publicações de editais que correspondem às suas preferências de monitoramento cadastradas:
-                </p>
-                
-                <!-- Lista de Itens -->
-                ${itemsHtml}
-                
-                <!-- Call to Action Principal -->
-                <div style="text-align: center; margin-top: 30px; margin-bottom: 10px;">
-                  <a href="${siteUrl}" target="_blank" style="display: inline-block; padding: 12px 28px; background-color: #1e1b4b; color: #ffffff; font-size: 14px; font-weight: bold; text-decoration: none; border-radius: 10px;">
-                    Acessar Painel Completo
-                  </a>
-                </div>
-              </td>
-            </tr>
-            
-            <!-- Footer -->
-            <tr>
-              <td style="padding: 24px 30px; background-color: #ffffff; border-top: 1px solid #f1f5f9; text-align: center; font-size: 12px; color: #94a3b8; line-height: 1.5;">
-                <p style="margin: 0 0 8px 0;">
-                  Este e-mail foi enviado automaticamente de acordo com as preferências da sua conta.
-                </p>
-                <p style="margin: 0;">
-                  Para alterar suas preferências de cidades ou cancelar o recebimento, acesse a página 
-                  <a href="${siteUrl}/profile" target="_blank" style="color: #4f46e5; text-decoration: underline; font-weight: 500;">Meu Perfil</a>.
-                </p>
-              </td>
-            </tr>
-          </table>
-        </body>
-        </html>
-      `;
+        const emailHtml = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Novo Edital Encontrado</title>
+          </head>
+          <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+            <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 20px auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+              <!-- Header -->
+              <tr>
+                <td style="padding: 40px 30px; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); text-align: center; color: #ffffff;">
+                  <h2 style="margin: 0 0 8px 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">Buscador de Concursos</h2>
+                  <p style="margin: 0; font-size: 14px; color: #e0e7ff; font-weight: 500;">Nova oportunidade em ${item.cidade}</p>
+                </td>
+              </tr>
+              
+              <!-- Conteúdo -->
+              <tr>
+                <td style="padding: 30px 24px; background-color: #f8fafc;">
+                  <p style="margin: 0 0 20px 0; font-size: 15px; color: #334155; line-height: 1.6;">
+                    Olá! Identificamos a publicação de um novo edital que corresponde às suas preferências de monitoramento:
+                  </p>
+                  
+                  <!-- Item -->
+                  ${itemHtml}
+                  
+                  <!-- Call to Action Principal -->
+                  <div style="text-align: center; margin-top: 30px; margin-bottom: 10px;">
+                    <a href="${siteUrl}" target="_blank" style="display: inline-block; padding: 12px 28px; background-color: #1e1b4b; color: #ffffff; font-size: 14px; font-weight: bold; text-decoration: none; border-radius: 10px;">
+                      Acessar Painel Completo
+                    </a>
+                  </div>
+                </td>
+              </tr>
+              
+              <!-- Footer -->
+              <tr>
+                <td style="padding: 24px 30px; background-color: #ffffff; border-top: 1px solid #f1f5f9; text-align: center; font-size: 12px; color: #94a3b8; line-height: 1.5;">
+                  <p style="margin: 0 0 8px 0;">
+                    Este e-mail foi enviado automaticamente de acordo com as preferências da sua conta.
+                  </p>
+                  <p style="margin: 0;">
+                    Para alterar suas preferências de cidades ou cancelar o recebimento, acesse a página 
+                    <a href="${siteUrl}/profile" target="_blank" style="color: #4f46e5; text-decoration: underline; font-weight: 500;">Meu Perfil</a>.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </body>
+          </html>
+        `;
 
-      // Enviar e-mail de fato
-      const assunto = matchesUsuario.length === 1 
-        ? `[Novo Edital] Oportunidade em ${matchesUsuario[0].cidade}!`
-        : `[Alerta] ${matchesUsuario.length} Novos Editais Publicados na Região!`;
+        // O Assunto agora será focado neste edital específico
+        const labelAssuntoOrgao = item.orgao || 'Prefeitura/Câmara';
+        const assunto = `[Novo Edital] ${item.cidade} - ${labelAssuntoOrgao}: ${tituloFinal}`;
 
-      const resultEmail = await enviarEmail(userEmail, assunto, emailHtml);
-      if (resultEmail.error) {
-        console.error(`    ❌ Falha ao enviar e-mail para ${userEmail}:`, resultEmail.error);
-      } else {
-        console.log(`    ✅ Alerta de e-mail entregue com sucesso para: ${userEmail}`);
+        const resultEmail = await enviarEmail(userEmail, assunto, emailHtml);
+        if (resultEmail.error) {
+          console.error(`    ❌ Falha ao enviar e-mail de ${tituloFinal} para ${userEmail}:`, resultEmail.error);
+        } else {
+          console.log(`    ✅ Alerta de e-mail entregue com sucesso para: ${userEmail} -> ${tituloFinal}`);
+        }
       }
     }
 
