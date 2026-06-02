@@ -136,3 +136,11 @@ export async function buscarTodosEditais(): Promise<ResultadoBusca> {
     console.error("ERRO GRAVE NA BUSCA:", e); throw new Error("Erro grave ao processar as buscas.");
   }
 }
+
+// ==============================================================
+// 🚀 NOVA ACTION: EXECUTAR FLUXO COMPLETO VIA INTERFACE LOCAL
+// ==============================================================
+export async function rodarFluxoCompletoServerAction() {
+  const { runFullScraperWorkflow } = await import('../lib/orchestrator');
+  return await runFullScraperWorkflow({ isLocalUI: true });
+}

@@ -118,26 +118,22 @@ export default function Home() {
   async function rasparESalvarNaNuvem() {
     setIsSavingToCloud(true);
     try {
-      // Importamos a nova função
-      const { buscarTodosEditais } = await import('./actions');
-      const { sincronizarBanco } = await import('../lib/storage');
+      const { rodarFluxoCompletoServerAction } = await import('./actions');
+      
+      const response = await rodarFluxoCompletoServerAction();
 
-      const resultado = await buscarTodosEditais();
-      setAlertas(resultado.falhas);
-
-      // Envia os dados frescos para fundir com os antigos na nuvem
-      const syncResult = await sincronizarBanco(resultado.editais);
-
-      if (syncResult.sucesso) {
-        alert(`✅ Sincronização Concluída!\n\n📈 Novos Itens Adicionados: ${syncResult.adicionados}\n🔄 Itens Atualizados: ${syncResult.atualizados.length}\n\nAbra o terminal do seu servidor para ver o relatório completo de alterações.`);
-
-        // Recarrega os dados do banco recém-atualizado para a tela do usuário
+      if (response.sucesso) {
+        if (response.syncInfo) {
+           alert(`✅ Fluxo Completo Executado com Sucesso!\n\n📈 Novos Itens Adicionados: ${response.syncInfo.adicionados}\n🔄 Itens Atualizados: ${response.syncInfo.atualizados}\n\nO processo incluiu Análise com IA, Emails e Salvamento de Logs.`);
+        } else {
+           alert(`✅ Fluxo Completo Executado com Sucesso! Nenhuma modificação necessária no banco.`);
+        }
         carregarDados();
       } else {
-        alert("❌ Erro ao salvar na Nuvem. Verifique o console.");
+        alert("❌ Erro ao completar fluxo na Nuvem. Verifique o terminal.");
       }
     } catch (e) {
-      alert("❌ Falha crítica ao raspar as cidades.");
+      alert("❌ Falha crítica ao raspar as cidades (Verifique se não houve timeout na interface, veja o terminal).");
     }
     setIsSavingToCloud(false);
   }
