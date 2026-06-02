@@ -102,9 +102,32 @@ export async function extrairTextoBruto(url: string, depth = 0, tentativas = 2):
       console.log = () => { }; console.warn = () => { }; console.error = () => { };
 
       try {
+        const render_page = function(pageData: any) {
+          const render_options = {
+              normalizeWhitespace: false,
+              disableCombineTextItems: false
+          };
+          return pageData.getTextContent(render_options).then(function(textContent: any) {
+              let text = '';
+              for (let item of textContent.items) {
+                  text += item.str + ' ';
+              }
+              return `\n[---PAGINA_${pageData.pageIndex}---]\n` + text;
+          });
+        };
+
         // @ts-ignore
-        const dadosPdf = await pdfParse(buffer, { max: 3 }); // Lê até 3 páginas para garantir
-        return dadosPdf.text;
+        const dadosPdf = await pdfParse(buffer, { pagerender: render_page }); 
+        
+        const paginas = dadosPdf.text.split(/\[---PAGINA_\d+---\]/).filter((p: string) => p.trim().length > 0);
+        
+        if (paginas.length <= 5) {
+          return paginas.join('\n');
+        } else {
+          const inicio = paginas.slice(0, 3).join('\n');
+          const fim = paginas.slice(-2).join('\n');
+          return inicio + '\n\n...[PÁGINAS INTERMEDIÁRIAS OMITIDAS]...\n\n' + fim;
+        }
       } catch (err: any) {
         urlsParaBlacklist.add(url);
         return null;
@@ -113,7 +136,11 @@ export async function extrairTextoBruto(url: string, depth = 0, tentativas = 2):
       }
     } else if (isDOCX) {
       const result = await mammoth.extractRawText({ buffer });
-      return result.value;
+      const textoStr = result.value;
+      if (textoStr.length > 15000) {
+        return textoStr.substring(0, 8000) + '\n\n...[TEXTO INTERMEDIÁRIO OMITIDO]...\n\n' + textoStr.substring(textoStr.length - 5000);
+      }
+      return textoStr;
     }
 
     urlsParaBlacklist.add(url);
