@@ -376,9 +376,11 @@ export default function Home() {
 
       const valoresTextuais = [
         edital.cidade, edital.orgao, 
-        edital.tituloIA || edital.titulo, 
-        edital.descricaoIA || edital.descricao,
-        edital.metadados, edital.statusGeral, edital.dataPublicacao
+        edital.dadosEnriquecidos?.titulo || edital.titulo, 
+        edital.dadosEnriquecidos?.descricao || edital.descricao,
+        edital.dadosEnriquecidos?.concurso || edital.concurso,
+        edital.dadosEnriquecidos?.dataPublicacao || edital.dataPublicacao,
+        edital.metadados, edital.statusGeral
       ].filter(Boolean).join(" ");
 
       const textoNormalizado = removerAcentos(valoresTextuais);
@@ -394,23 +396,30 @@ export default function Home() {
     const mapa = new Map<string, Edital[]>();
 
     editaisFiltrados.forEach((edital) => {
-      if (edital.concurso) {
-        const chaveUnica = `${edital.cidade}_${edital.orgao}_${edital.concurso}`;
+      const concursoFinal = edital.dadosEnriquecidos?.concurso || edital.concurso;
+      if (concursoFinal) {
+        const chaveUnica = `${edital.cidade}_${edital.orgao}_${concursoFinal}`;
         if (!mapa.has(chaveUnica)) mapa.set(chaveUnica, []);
         mapa.get(chaveUnica)!.push(edital);
       }
     });
 
-    let gruposArray = Array.from(mapa.entries()).map(([chaveUnica, listaEditais]) => ({
-      chaveUnica: chaveUnica,
-      nome: listaEditais[0].concurso as string,
-      cidade: listaEditais[0].cidade,
-      orgao: listaEditais[0].orgao,
-      ultimaAtualizacao: listaEditais[0].dataPublicacao,
-      totalItens: listaEditais.length,
-      itens: listaEditais,
-      linksOrigem: Array.from(new Set(listaEditais.map(e => e.linkOrigem).filter(Boolean))) as string[]
-    }));
+    let gruposArray = Array.from(mapa.entries()).map(([chaveUnica, listaEditais]) => {
+      const primeiroItem = listaEditais[0];
+      const concursoFinal = primeiroItem.dadosEnriquecidos?.concurso || primeiroItem.concurso;
+      const dataPublicacaoFinal = primeiroItem.dadosEnriquecidos?.dataPublicacao || primeiroItem.dataPublicacao;
+      
+      return {
+        chaveUnica: chaveUnica,
+        nome: concursoFinal as string,
+        cidade: primeiroItem.cidade,
+        orgao: primeiroItem.orgao,
+        ultimaAtualizacao: dataPublicacaoFinal,
+        totalItens: listaEditais.length,
+        itens: listaEditais,
+        linksOrigem: Array.from(new Set(listaEditais.map(e => e.linkOrigem).filter(Boolean))) as string[]
+      };
+    });
 
     gruposArray.sort((a, b) => {
       const extrairAnoNumero = (nome: string) => {

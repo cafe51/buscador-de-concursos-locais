@@ -153,7 +153,7 @@ async function main() {
           // logo a mutação será persistida no bulkWrite da Fase 2.
           
           // 🚀 ATUALIZAÇÃO CRÍTICA: Reconstruir o relatorioAdicoes para propagar as
-          // propriedades tituloIA e descricaoIA para a Fase 2 (logs) e Passos 1-4 (notificações)
+          // propriedades de dadosEnriquecidos para a Fase 2 (logs) e Passos 1-4 (notificações)
           resultadoSync.relatorioAdicoes = resultadoSync.novasAdicoesReferencias.map(ed => ({
             cidade: ed.cidade,
             titulo: ed.titulo,
@@ -161,8 +161,7 @@ async function main() {
             orgao: ed.orgao,
             dataPublicacao: ed.dataPublicacao,
             concurso: ed.concurso,
-            tituloIA: ed.tituloIA,
-            descricaoIA: ed.descricaoIA
+            dadosEnriquecidos: ed.dadosEnriquecidos
           }));
         }
 

@@ -15,8 +15,12 @@ const editalSchema = new mongoose.Schema({
   dataPublicacao: { type: String },
   ordemOriginal: { type: Number },
   linkOrigem: { type: String },
-  tituloIA: { type: String },
-  descricaoIA: { type: String },
+  dadosEnriquecidos: {
+    titulo: { type: String },
+    descricao: { type: String },
+    concurso: { type: String },
+    dataPublicacao: { type: String }
+  }
 }, {
   timestamps: true
 });

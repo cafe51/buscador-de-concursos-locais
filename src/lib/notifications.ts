@@ -33,9 +33,9 @@ export async function processarNotificacoes(novasAdicoes: SyncLogAddition[]) {
 
   // 1. Passa a adição de documentos pelo filtro das 41 palavras primeiro (Passo mais leve e rápido)
   const adicoesFiltradas = novasAdicoes.filter(edital => {
-    const tituloNormalizado = edital.tituloIA ? removerAcentos(edital.tituloIA) : removerAcentos(edital.titulo);
-    const descricaoNormalizada = edital.descricaoIA ? removerAcentos(edital.descricaoIA) : '';
-    const concursoNorm = edital.concurso ? removerAcentos(edital.concurso) : '';
+    const tituloNormalizado = edital.dadosEnriquecidos?.titulo ? removerAcentos(edital.dadosEnriquecidos.titulo) : removerAcentos(edital.titulo);
+    const descricaoNormalizada = edital.dadosEnriquecidos?.descricao ? removerAcentos(edital.dadosEnriquecidos.descricao) : '';
+    const concursoNorm = (edital.dadosEnriquecidos?.concurso || edital.concurso) ? removerAcentos(edital.dadosEnriquecidos?.concurso || edital.concurso || '') : '';
     const textoCompleto = `${tituloNormalizado} ${descricaoNormalizada} ${concursoNorm}`;
 
     const contemBurocracia = PALAVRAS_IGNORADAS_PADRAO.some(palavra => {
@@ -203,11 +203,15 @@ export async function processarNotificacoes(novasAdicoes: SyncLogAddition[]) {
         const badgeColor = isCamara ? '#7c3aed' : '#2563eb'; // Roxo para Câmara, Azul para Prefeitura
         const labelOrgao = item.orgao ? (isCamara ? 'Câmara' : 'Prefeitura') : 'Geral';
 
-        const tituloFinal = item.tituloIA || item.titulo;
-        const badgeIA = item.tituloIA ? `<span style="display: inline-block; padding: 4px 10px; background-color: #f59e0b; color: #ffffff; font-size: 11px; font-weight: bold; border-radius: 9999px; text-transform: uppercase; margin-right: 6px;">✨ Resumo IA</span>` : '';
-        const descricaoHtml = item.descricaoIA ? `<p style="margin: 0 0 12px 0; color: #475569; font-size: 14px; line-height: 1.5;">${item.descricaoIA}</p>` : '';
+        const tituloFinal = item.dadosEnriquecidos?.titulo || item.titulo;
+        const badgeIA = item.dadosEnriquecidos ? `<span style="display: inline-block; padding: 4px 10px; background-color: #f59e0b; color: #ffffff; font-size: 11px; font-weight: bold; border-radius: 9999px; text-transform: uppercase; margin-right: 6px;">✨ Enriquecido por IA</span>` : '';
+        const descricaoHtml = item.dadosEnriquecidos?.descricao ? `<p style="margin: 0 0 12px 0; color: #475569; font-size: 14px; line-height: 1.5;">${item.dadosEnriquecidos.descricao}</p>` : '';
+        const concursoFinal = item.dadosEnriquecidos?.concurso || item.concurso;
+        const concursoBadgeIA = item.dadosEnriquecidos?.concurso ? '✨ ' : '';
+        const dataPublicacaoFinal = item.dadosEnriquecidos?.dataPublicacao || item.dataPublicacao;
+        const dataPublicacaoBadgeIA = item.dadosEnriquecidos?.dataPublicacao ? '✨ ' : '';
         
-        console.log(`  🔍 [DEBUG-EMAIL] Item mapeado -> tituloFinal: "${tituloFinal}" | tituloIA: "${item.tituloIA}"`);
+        console.log(`  🔍 [DEBUG-EMAIL] Item mapeado -> tituloFinal: "${tituloFinal}"`);
 
         return `
           <div style="margin-bottom: 24px; padding: 20px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; font-family: sans-serif;">
@@ -227,7 +231,8 @@ export async function processarNotificacoes(novasAdicoes: SyncLogAddition[]) {
             
             ${descricaoHtml}
             
-            ${item.concurso ? `<p style="margin: 0 0 12px 0; color: #64748b; font-size: 13px;"><strong>Referência:</strong> ${item.concurso}</p>` : ''}
+            ${concursoFinal ? `<p style="margin: 0 0 4px 0; color: #64748b; font-size: 13px;"><strong>Referência:</strong> ${concursoBadgeIA}${concursoFinal}</p>` : ''}
+            ${dataPublicacaoFinal ? `<p style="margin: 0 0 12px 0; color: #64748b; font-size: 13px;"><strong>Publicação:</strong> ${dataPublicacaoBadgeIA}${dataPublicacaoFinal}</p>` : ''}
             
             <div style="margin-top: 14px;">
               <a href="${item.link}" target="_blank" style="display: inline-block; padding: 8px 16px; background-color: #4f46e5; color: #ffffff; font-size: 13px; font-weight: 600; text-decoration: none; border-radius: 8px; transition: background-color 0.2s;">

@@ -41,7 +41,7 @@ async function baixarDocumentoBruto(url: string): Promise<{ bytes: string; mimeT
   }
 }
 
-async function analisarEditalComIA(edital: Edital): Promise<{ tituloIA: string; descricaoIA: string } | null> {
+async function analisarEditalComIA(edital: Edital): Promise<{ titulo: string; descricao: string; concurso?: string; dataPublicacao?: string } | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
   
@@ -68,9 +68,18 @@ INSTRUÇÕES:
    - Motivo central (ex: vagas temporárias, contratação de professores, etc)
    - Nível de escolaridade e alguns cargos principais (se aplicável)
    - Datas principais (período de inscrição, data da prova)
+   
+3. Extraia a referência exata do concurso ou processo seletivo (ex: "Processo Seletivo 01/2026", "Concurso Público 002/2024").
+
+4. Extraia a data exata de publicação oficial do edital (se houver). Formato DD/MM/AAAA.
 
 Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
-{"tituloIA": "...", "descricaoIA": "..."}
+{
+  "titulo": "...",
+  "descricao": "...",
+  "concurso": "...",
+  "dataPublicacao": "..."
+}
 `;
 
   try {
@@ -99,8 +108,13 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
     const responseText = result.response.text();
     const dados = extrairJSONSeguro(responseText);
     
-    if (dados.tituloIA && dados.descricaoIA) {
-      return { tituloIA: dados.tituloIA, descricaoIA: dados.descricaoIA };
+    if (dados.titulo && dados.descricao) {
+      return { 
+        titulo: dados.titulo, 
+        descricao: dados.descricao,
+        concurso: dados.concurso,
+        dataPublicacao: dados.dataPublicacao
+      };
     }
     return null;
   } catch (error) {
@@ -130,9 +144,13 @@ export async function processarComIA(editaisNovos: Edital[]): Promise<void> {
       try {
         const resultado = await analisarEditalComIA(edital);
         if (resultado) {
-          edital.tituloIA = resultado.tituloIA;
-          edital.descricaoIA = resultado.descricaoIA;
-          console.log(`🧠 [IA] [${i+1}/${editaisNovos.length}] ✅ Título: "${resultado.tituloIA}"\n   ↳ Descrição: "${resultado.descricaoIA}"`);
+          edital.dadosEnriquecidos = {
+            titulo: resultado.titulo,
+            descricao: resultado.descricao,
+            concurso: resultado.concurso,
+            dataPublicacao: resultado.dataPublicacao
+          };
+          console.log(`🧠 [IA] [${i+1}/${editaisNovos.length}] ✅ Título: "${resultado.titulo}"\n   ↳ Descrição: "${resultado.descricao}"`);
           sucessos++;
         } else {
           console.log(`🧠 [IA] [${i+1}/${editaisNovos.length}] ❌ Falha ao extrair dados. O resultado estava vazio.`);
@@ -146,9 +164,13 @@ export async function processarComIA(editaisNovos: Edital[]): Promise<void> {
           try {
             const resultado = await analisarEditalComIA(edital);
             if (resultado) {
-              edital.tituloIA = resultado.tituloIA;
-              edital.descricaoIA = resultado.descricaoIA;
-              console.log(`🧠 [IA] [${i+1}/${editaisNovos.length}] ✅ Título: "${resultado.tituloIA}" (Após retry)\n   ↳ Descrição: "${resultado.descricaoIA}"`);
+              edital.dadosEnriquecidos = {
+                titulo: resultado.titulo,
+                descricao: resultado.descricao,
+                concurso: resultado.concurso,
+                dataPublicacao: resultado.dataPublicacao
+              };
+              console.log(`🧠 [IA] [${i+1}/${editaisNovos.length}] ✅ Título: "${resultado.titulo}" (Após retry)\n   ↳ Descrição: "${resultado.descricao}"`);
               sucessos++;
             }
           } catch(e) {

@@ -95,8 +95,7 @@ export async function identificarMudancas(novosEditais: Edital[], substituirTudo
         orgao: novo.orgao,
         dataPublicacao: novo.dataPublicacao,
         concurso: novo.concurso,
-        tituloIA: novo.tituloIA,
-        descricaoIA: novo.descricaoIA
+        dadosEnriquecidos: novo.dadosEnriquecidos
       });
       novasAdicoesReferencias.push(novo);
       
@@ -144,7 +143,8 @@ export async function persistirSincronizacao(
     if (relatorioAdicoes.length > 0 && !substituirTudo) {
       console.log("\n🆕 Relatório de Adições:");
       relatorioAdicoes.forEach(log => {
-        console.log(`\n   ✨ [${log.cidade}] 📄 "${log.tituloIA || log.titulo}"\n   🔗 Link: ${log.link}`);
+        const tituloParaLog = log.dadosEnriquecidos?.titulo || log.titulo;
+        console.log(`\n   ✨ [${log.cidade}] 📄 "${tituloParaLog}"\n   🔗 Link: ${log.link}`);
       });
     }
 
@@ -239,8 +239,12 @@ export type SyncLogAddition = {
   orgao?: string;
   dataPublicacao?: string;
   concurso?: string;
-  tituloIA?: string;
-  descricaoIA?: string;
+  dadosEnriquecidos?: {
+    titulo?: string;
+    descricao?: string;
+    concurso?: string;
+    dataPublicacao?: string;
+  };
 };
 
 export type SyncLogUpdate = {

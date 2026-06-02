@@ -38,27 +38,27 @@ export default function EditalCard({ edital }: { edital: Edital }) {
             ))
           )}
 
-          {edital.concurso && (
+          {edital.dadosEnriquecidos?.concurso || edital.concurso ? (
             <span className="bg-violet-50 text-violet-700 border border-violet-200 text-xs font-bold px-2 py-1 rounded-lg">
-              🗂️ {edital.concurso}
+              🗂️ {edital.dadosEnriquecidos?.concurso ? '✨ ' : ''}{edital.dadosEnriquecidos?.concurso || edital.concurso}
             </span>
-          )}
+          ) : null}
         </div>
 
-        {edital.dataPublicacao && (
+        {edital.dadosEnriquecidos?.dataPublicacao || edital.dataPublicacao ? (
           <span className="text-xs font-medium text-slate-500 bg-slate-50 px-2 py-1 rounded-lg shrink-0 w-fit border border-slate-200">
-            📅 {edital.dataPublicacao}
+            📅 {edital.dadosEnriquecidos?.dataPublicacao ? '✨ ' : ''}{edital.dadosEnriquecidos?.dataPublicacao || edital.dataPublicacao}
           </span>
-        )}
+        ) : null}
       </div>
 
       <h2 className="text-lg font-semibold text-slate-800 pr-4 group-hover:text-indigo-700 transition-colors">
-        {edital.tituloIA || edital.titulo}
+        {edital.dadosEnriquecidos?.titulo || edital.titulo}
       </h2>
 
-      {(edital.descricaoIA || edital.descricao) && (
+      {(edital.dadosEnriquecidos?.descricao || edital.descricao) && (
         <p className="mt-2 text-sm text-slate-500 line-clamp-2 leading-relaxed">
-          {edital.descricaoIA || edital.descricao}
+          {edital.dadosEnriquecidos?.descricao || edital.descricao}
         </p>
       )}
 
