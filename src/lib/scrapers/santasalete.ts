@@ -81,9 +81,7 @@ export async function buscarSantaSalete(): Promise<Edital[]> {
                 }
 
                 // Padronização e Limpeza
-                if (idExtraido.startsWith('Concurso ')) {
-                  idExtraido = idExtraido.replace('Concurso ', 'Concurso Público ');
-                }
+                
 
                 // Exceção de Estagiário
                 if (textoUpper.includes('ESTAGI')) {

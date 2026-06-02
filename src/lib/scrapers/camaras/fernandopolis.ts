@@ -98,9 +98,7 @@ export async function buscarCamaraFernandopolis(): Promise<Edital[]> {
           const anoExt = matchAno ? (matchAno[1] || matchAno[2]) : new Date().getFullYear();
           idConcurso = `Concurso Público 01/${anoExt}`;
         }
-        if (idConcurso.startsWith('Concurso ')) {
-          idConcurso = idConcurso.replace('Concurso ', 'Concurso Público ');
-        }
+        
 
         // Verifica se é de estagiários
         if (ementa.toUpperCase().includes('ESTAGI')) {

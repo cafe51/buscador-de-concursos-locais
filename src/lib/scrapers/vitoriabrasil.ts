@@ -310,9 +310,7 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
                 }
               }
 
-              if (idResolvido && idResolvido.startsWith('Concurso ') && !idResolvido.startsWith('Concurso Público')) {
-                idResolvido = idResolvido.replace('Concurso ', 'Concurso Público ');
-              }
+              
 
               const dataSpan = $inner(el).find('.ed_data_hora_arquivo span').first().text().trim();
               let dataFormatada = 'sem data';
@@ -443,9 +441,7 @@ export async function buscarVitoriaBrasil(): Promise<Edital[]> {
         }
 
         idDefinitivo = idReal || fallbackName;
-        if (idDefinitivo.startsWith('Concurso ') && !idDefinitivo.startsWith('Concurso Público')) {
-          idDefinitivo = idDefinitivo.replace('Concurso ', 'Concurso Público ');
-        }
+        
       }
 
       pastasDoConcurso.sort((a, b) => {

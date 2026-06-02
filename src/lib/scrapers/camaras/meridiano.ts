@@ -35,9 +35,7 @@ export async function buscarCamaraMeridiano(): Promise<Edital[]> {
       if (!idConcurso) {
         idConcurso = tituloFull;
       }
-      if (idConcurso && idConcurso.startsWith('Concurso ')) {
-        idConcurso = idConcurso.replace('Concurso ', 'Concurso Público ');
-      }
+      
 
       let anoConcurso: number | undefined = undefined;
       const matchAno = idConcurso.match(/\/(\d{4})\b/);

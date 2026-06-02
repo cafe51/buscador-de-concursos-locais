@@ -155,9 +155,7 @@ function parseConcursosList(htmls: string[], config: InstarConfig): ConcursoInfo
         if (!idConcurso) idConcurso = tituloMain;
       }
 
-      if (idConcurso && idConcurso.startsWith('Concurso ')) {
-        idConcurso = idConcurso.replace('Concurso ', 'Concurso Público ');
-      }
+      
 
       if (idConcurso) {
         const upperTitulo = tituloMain.toUpperCase();

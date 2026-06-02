@@ -149,9 +149,7 @@ export async function buscarCamaraJales(): Promise<Edital[]> {
         idConcursoDefinitivo = `${modalidade} ${pasta.anoConcurso || 'Não Identificado'}`;
       }
 
-      if (idConcursoDefinitivo.startsWith('Concurso ')) {
-        idConcursoDefinitivo = idConcursoDefinitivo.replace('Concurso ', 'Concurso Público ');
-      }
+      
 
       // Monta os cards finais
       pasta.documentos.forEach((doc: any) => {

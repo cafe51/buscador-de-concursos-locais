@@ -112,9 +112,7 @@ export async function buscarCamaraParisi(): Promise<Edital[]> {
           }
 
           // 🟢 CORREÇÃO: Adicionada a trava !idConcurso.includes('Público')
-          if (idConcurso && idConcurso.startsWith('Concurso ') && !idConcurso.includes('Público')) {
-            idConcurso = idConcurso.replace('Concurso ', 'Concurso Público ');
-          }
+          
 
           let anoConcurso: number | undefined = undefined;
           if (idConcurso) {

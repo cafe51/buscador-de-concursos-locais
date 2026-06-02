@@ -75,9 +75,7 @@ export async function buscarUrania(): Promise<Edital[]> {
       }
 
       // 🟢 PADRONIZAÇÃO EXIGIDA
-      if (idConcurso && idConcurso.startsWith('Concurso ') && !idConcurso.includes('Público')) {
-        idConcurso = idConcurso.replace('Concurso ', 'Concurso Público ');
-      }
+      
 
       // Se for estagiário, marca para não misturar
       if (idConcurso && tituloLimpo.toUpperCase().includes('ESTAGI')) {

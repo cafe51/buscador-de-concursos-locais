@@ -96,7 +96,7 @@ export function extrairIdConcurso(titulo: string, descricao: string, aceitarBusc
   }
 
   if (match) {
-    const tipo = match[1].startsWith('CONCUR') ? 'Concurso' : 'Processo Seletivo';
+    const tipo = match[1].startsWith('CONCUR') ? 'Concurso Público' : 'Processo Seletivo';
     const numero = parseInt(match[2], 10).toString().padStart(2, '0');
     let ano = match[3];
     if (ano.length === 2) ano = `20${ano}`;
