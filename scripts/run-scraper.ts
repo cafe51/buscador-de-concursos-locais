@@ -151,6 +151,19 @@ async function main() {
           // A função acima muta as referências dentro de novasAdicoesReferencias in-place.
           // O array operations já contém referências para esses mesmos objetos,
           // logo a mutação será persistida no bulkWrite da Fase 2.
+          
+          // 🚀 ATUALIZAÇÃO CRÍTICA: Reconstruir o relatorioAdicoes para propagar as
+          // propriedades tituloIA e descricaoIA para a Fase 2 (logs) e Passos 1-4 (notificações)
+          resultadoSync.relatorioAdicoes = resultadoSync.novasAdicoesReferencias.map(ed => ({
+            cidade: ed.cidade,
+            titulo: ed.titulo,
+            link: ed.link,
+            orgao: ed.orgao,
+            dataPublicacao: ed.dataPublicacao,
+            concurso: ed.concurso,
+            tituloIA: ed.tituloIA,
+            descricaoIA: ed.descricaoIA
+          }));
         }
 
         console.log("\nIniciando Fase 2: Persistência no banco de dados...");

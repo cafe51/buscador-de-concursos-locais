@@ -196,6 +196,8 @@ export async function processarNotificacoes(novasAdicoes: SyncLogAddition[]) {
       console.log(`  🚀 [PASSO 4/4] Desenhando e despachando e-mail para ${userEmail} contendo ${matchesUsuario.length} correspondências...`);
 
       // 4. Formatar o e-mail em HTML Premium
+      console.log(`  🔍 [DEBUG-EMAIL] Dados a serem desenhados no email:`, JSON.stringify(matchesUsuario, null, 2));
+
       const itemsHtml = matchesUsuario.map(item => {
         const isCamara = item.orgao ? removerAcentos(item.orgao).includes('camara') : false;
         const badgeColor = isCamara ? '#7c3aed' : '#2563eb'; // Roxo para Câmara, Azul para Prefeitura
@@ -204,6 +206,8 @@ export async function processarNotificacoes(novasAdicoes: SyncLogAddition[]) {
         const tituloFinal = item.tituloIA || item.titulo;
         const badgeIA = item.tituloIA ? `<span style="display: inline-block; padding: 4px 10px; background-color: #f59e0b; color: #ffffff; font-size: 11px; font-weight: bold; border-radius: 9999px; text-transform: uppercase; margin-right: 6px;">✨ Resumo IA</span>` : '';
         const descricaoHtml = item.descricaoIA ? `<p style="margin: 0 0 12px 0; color: #475569; font-size: 14px; line-height: 1.5;">${item.descricaoIA}</p>` : '';
+        
+        console.log(`  🔍 [DEBUG-EMAIL] Item mapeado -> tituloFinal: "${tituloFinal}" | tituloIA: "${item.tituloIA}"`);
 
         return `
           <div style="margin-bottom: 24px; padding: 20px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; font-family: sans-serif;">
