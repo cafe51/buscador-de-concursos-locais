@@ -146,62 +146,6 @@ export async function extrairTextoBruto(url: string, depth = 0, tentativas = 2):
 }
 
 // ==============================================================
-// 🧠 EXTRATOR DE TEXTO OTIMIZADO (Específico para a Inteligência Artificial)
-// ==============================================================
-export async function extrairTextoParaIA(url: string, depth = 0, tentativas = 2): Promise<string | null> {
-  const doc = await obterBufferDoDocumento(url, depth, tentativas);
-  if (!doc) return null;
-
-  if (doc.textoLimpo) return doc.textoLimpo;
-
-  if (doc.isPDF && doc.buffer) {
-    const logOriginal = console.log;
-    const warnOriginal = console.warn;
-    const errorOriginal = console.error;
-    console.log = () => { }; console.warn = () => { }; console.error = () => { };
-
-    try {
-        function render_page(pageData: any) {
-            return pageData.getTextContent({ normalizeWhitespace: false, disableCombineTextItems: false })
-            .then(function(textContent: any) {
-                let lastY, text = '';
-                for (let item of textContent.items) {
-                    if (lastY == item.transform[5] || !lastY){
-                        text += item.str;
-                    } else {
-                        text += '\n' + item.str;
-                    }
-                    lastY = item.transform[5];
-                }
-                return "\n[---PAGE_BOUNDARY---]\n" + text;
-            });
-        }
-        // @ts-ignore
-        const dadosPdf = await pdfParse(doc.buffer, { pagerender: render_page });
-        const paginas = dadosPdf.text.split('\n[---PAGE_BOUNDARY---]\n').filter((p: string) => p.trim() !== '');
-        if (paginas.length <= 10) {
-            return paginas.join('\n\n');
-        } else {
-            const primeiras = paginas.slice(0, 5);
-            const ultimas = paginas.slice(-5);
-            return primeiras.join('\n\n') + '\n\n...[PÁGINAS INTERMEDIÁRIAS OMITIDAS]...\n\n' + ultimas.join('\n\n');
-        }
-    } catch (err: any) {
-      urlsParaBlacklist.add(url);
-      return null;
-    } finally {
-      console.log = logOriginal; console.warn = warnOriginal; console.error = errorOriginal;
-    }
-  } else if (doc.isDOCX && doc.buffer) {
-    const result = await mammoth.extractRawText({ buffer: doc.buffer });
-    return result.value;
-  }
-
-  urlsParaBlacklist.add(url);
-  return null;
-}
-
-// ==============================================================
 // 📅 EXTRATOR DE DATA (Usa a função acima)
 // ==============================================================
 export async function extrairDataDoArquivo(url: string): Promise<{ formatada: string, timestamp: number } | null> {
