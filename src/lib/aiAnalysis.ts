@@ -279,7 +279,7 @@ export async function processarComIA(editaisNovos: Edital[]): Promise<void> {
   try {
     cotacaoDolar = await obterCotacaoDolar();
     console.log(`🧠 [IA] 💵 Cotação do Dólar hoje: R$ ${cotacaoDolar.toFixed(2)}`);
-  } catch(e) {}
+  } catch (e) { }
 
   let sucessos = 0;
   let falhas = 0;

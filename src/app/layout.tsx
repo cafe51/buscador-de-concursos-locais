@@ -19,6 +19,12 @@ export const metadata: Metadata = {
 };
 
 import Footer from "../components/Footer";
+import TerminalPanel from "../components/TerminalPanel";
+import { initDevLogger } from "@/lib/devLogger";
+
+if (typeof window === "undefined") {
+  initDevLogger();
+}
 
 export default function RootLayout({
   children,
@@ -33,6 +39,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-slate-50">
         <div className="flex-1 flex flex-col">{children}</div>
         <Footer />
+        <TerminalPanel />
       </body>
     </html>
   );
