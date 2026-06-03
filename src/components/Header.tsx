@@ -16,7 +16,7 @@ export default function Header({ loading, hasData, onExport, onUpdate, ultimaAtu
 
   return (
     <header className="mb-6 flex flex-col md:flex-row md:justify-between md:items-center bg-white/80 backdrop-blur-xl border border-slate-200 p-4 sm:p-6 rounded-2xl shadow-sm gap-4">
-      <div className="flex justify-between items-start w-full">
+      <div className="flex flex-wrap justify-between items-start sm:items-center w-full md:w-auto md:flex-1 gap-4">
         <div>
           <Link href="/" className="inline-block hover:opacity-80 transition-opacity">
             <h1 className="text-2xl md:text-3xl font-bold text-indigo-900">Radar de Concursos 🎯</h1>
@@ -28,7 +28,7 @@ export default function Header({ loading, hasData, onExport, onUpdate, ultimaAtu
             </p>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-end">
           <AdminLogsButton />
           <ProfileButton />
         </div>

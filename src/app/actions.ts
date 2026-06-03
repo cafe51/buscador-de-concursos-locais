@@ -234,7 +234,8 @@ export async function enriquecerArquivosAction(editais: Edital[]) {
       }
 
       if (mudancasGerais.length > 0) {
-        logsMudancas.push(`[${edital.link}] ${mudancasGerais.join(' | ')}`);
+        const tituloLog = edital.dadosEnriquecidos?.titulo || edital.titulo;
+        logsMudancas.push(`"${tituloLog}" [${edital.link}] ${mudancasGerais.join(' | ')}`);
       }
     });
 
@@ -254,6 +255,16 @@ export async function enriquecerArquivosAction(editais: Edital[]) {
   return { 
     sucesso: true, 
     count: editaisEnriquecidosComSucesso.length,
-    links: linksEnriquecidos
+    links: linksEnriquecidos,
+    // Cria novos objetos quebando a referência para que o Next.js não ignore os novos dados no Client
+    atualizados: editaisEnriquecidosComSucesso.map(e => ({
+      link: e.link,
+      dadosEnriquecidos: { ...e.dadosEnriquecidos }
+    }))
   };
+}
+
+export async function reverterEnriquecimentoAction(link: string) {
+  const { reverterEnriquecimento } = await import('../lib/storage');
+  return await reverterEnriquecimento(link);
 }

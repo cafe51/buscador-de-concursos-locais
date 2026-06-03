@@ -32,10 +32,12 @@ export default function AdminLogsButton() {
   return (
     <Link 
       href="/developer/logs" 
-      className="flex items-center gap-2 bg-slate-800 text-white hover:bg-slate-700 px-4 py-2 rounded-xl font-semibold transition-all duration-200 border border-slate-700 shadow-sm"
+      className="flex items-center justify-center gap-2 bg-slate-800 text-white hover:bg-slate-700 px-3 sm:px-4 py-2 rounded-xl font-semibold transition-all duration-200 border border-slate-700 shadow-sm text-sm sm:text-base"
       title="Acessar Logs do Sistema"
     >
-      <span>⚙️</span> Logs (Admin)
+      <span className="text-lg leading-none">⚙️</span>
+      <span className="hidden sm:inline">Logs (Admin)</span>
+      <span className="sm:hidden">Logs</span>
     </Link>
   )
 }

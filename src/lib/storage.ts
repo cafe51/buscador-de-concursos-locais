@@ -241,6 +241,20 @@ export async function salvarEnriquecimentoEmLote(editais: Edital[]): Promise<{ s
   }
 }
 
+export async function reverterEnriquecimento(link: string): Promise<{ sucesso: boolean }> {
+  try {
+    await connectToDatabase();
+    const resultado = await EditalModel.updateOne(
+      { link },
+      { $unset: { dadosEnriquecidos: "" } }
+    );
+    return { sucesso: resultado.modifiedCount > 0 };
+  } catch (e) {
+    console.error("Erro ao reverter enriquecimento no MongoDB:", e);
+    return { sucesso: false };
+  }
+}
+
 
 // ==============================================================
 // 📋 SCRAPING LOGS (ÚLTIMOS 20 BLOCOS)

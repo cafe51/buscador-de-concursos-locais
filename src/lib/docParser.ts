@@ -22,9 +22,14 @@ const MESES: Record<string, string> = {
 };
 
 // ==============================================================
-// 📄 EXTRATOR DE TEXTO BRUTO (Módulo Genérico)
+// 📥 FUNÇÃO BASE: Faz o download, resolve redirects e detecta tipo
 // ==============================================================
-export async function extrairTextoBruto(url: string, depth = 0, tentativas = 2, isForAI = false): Promise<string | null> {
+export async function obterBufferDoDocumento(url: string, depth = 0, tentativas = 2): Promise<{
+  textoLimpo?: string;
+  isPDF?: boolean;
+  isDOCX?: boolean;
+  buffer?: Buffer;
+} | null> {
   if (depth > 2) return null; // Limite de 2 saltos de redirecionamento
   if (PDFs_IGNORADOS.includes(url)) return null;
 
@@ -44,7 +49,7 @@ export async function extrairTextoBruto(url: string, depth = 0, tentativas = 2, 
     if (!res.ok) {
       if (tentativas > 0) {
         await new Promise(r => setTimeout(r, 3000));
-        return extrairTextoBruto(url, depth, tentativas - 1);
+        return obterBufferDoDocumento(url, depth, tentativas - 1);
       }
       return null;
     }
@@ -80,7 +85,7 @@ export async function extrairTextoBruto(url: string, depth = 0, tentativas = 2, 
 
       if (novaUrl) {
         const urlAbsoluta = novaUrl.startsWith('http') ? novaUrl : new URL(novaUrl, url).href;
-        return extrairTextoBruto(urlAbsoluta, depth + 1, tentativas, isForAI);
+        return obterBufferDoDocumento(urlAbsoluta, depth + 1, tentativas);
       }
 
       $('script, style, nav, header, footer, aside').remove();
@@ -88,72 +93,112 @@ export async function extrairTextoBruto(url: string, depth = 0, tentativas = 2, 
       console.log(`[DEBUG docParser] htmlText.length = ${htmlText.length}`);
       console.log(`[DEBUG docParser] textoLimpo.length = ${textoLimpo.length}`);
       if (textoLimpo.length > 50) {
-        return textoLimpo;
+        return { textoLimpo };
       }
 
       urlsParaBlacklist.add(url);
       return null;
     }
 
-    if (isPDF) {
-      const logOriginal = console.log;
-      const warnOriginal = console.warn;
-      const errorOriginal = console.error;
-      console.log = () => { }; console.warn = () => { }; console.error = () => { };
-
-      try {
-        if (isForAI) {
-            function render_page(pageData: any) {
-                return pageData.getTextContent({ normalizeWhitespace: false, disableCombineTextItems: false })
-                .then(function(textContent: any) {
-                    let lastY, text = '';
-                    for (let item of textContent.items) {
-                        if (lastY == item.transform[5] || !lastY){
-                            text += item.str;
-                        } else {
-                            text += '\n' + item.str;
-                        }
-                        lastY = item.transform[5];
-                    }
-                    return "\n[---PAGE_BOUNDARY---]\n" + text;
-                });
-            }
-            // @ts-ignore
-            const dadosPdf = await pdfParse(buffer, { pagerender: render_page });
-            const paginas = dadosPdf.text.split('\n[---PAGE_BOUNDARY---]\n').filter((p: string) => p.trim() !== '');
-            if (paginas.length <= 10) {
-                return paginas.join('\n\n');
-            } else {
-                const primeiras = paginas.slice(0, 5);
-                const ultimas = paginas.slice(-5);
-                return primeiras.join('\n\n') + '\n\n...[PÁGINAS INTERMEDIÁRIAS OMITIDAS]...\n\n' + ultimas.join('\n\n');
-            }
-        } else {
-            // @ts-ignore
-            const dadosPdf = await pdfParse(buffer, { max: 3 }); // Lê até 3 páginas para garantir
-            return dadosPdf.text;
-        }
-      } catch (err: any) {
-        urlsParaBlacklist.add(url);
-        return null;
-      } finally {
-        console.log = logOriginal; console.warn = warnOriginal; console.error = errorOriginal;
-      }
-    } else if (isDOCX) {
-      const result = await mammoth.extractRawText({ buffer });
-      return result.value;
-    }
-
-    urlsParaBlacklist.add(url);
-    return null;
+    return { isPDF, isDOCX, buffer };
 
   } catch (err) {
     if (tentativas > 0) {
       await new Promise(r => setTimeout(r, 3000));
-      return extrairTextoBruto(url, depth, tentativas - 1, isForAI);
+      return obterBufferDoDocumento(url, depth, tentativas - 1);
     }
     return null;
   }
+}
+
+// ==============================================================
+// 📄 EXTRATOR DE TEXTO (Para Scraper Padrão / Extração de Datas)
+// ==============================================================
+export async function extrairTextoBruto(url: string, depth = 0, tentativas = 2): Promise<string | null> {
+  const doc = await obterBufferDoDocumento(url, depth, tentativas);
+  if (!doc) return null;
+
+  if (doc.textoLimpo) return doc.textoLimpo;
+
+  if (doc.isPDF && doc.buffer) {
+    const logOriginal = console.log;
+    const warnOriginal = console.warn;
+    const errorOriginal = console.error;
+    console.log = () => { }; console.warn = () => { }; console.error = () => { };
+
+    try {
+      // @ts-ignore
+      const dadosPdf = await pdfParse(doc.buffer, { max: 3 }); // Lê até 3 páginas para garantir
+      return dadosPdf.text;
+    } catch (err: any) {
+      urlsParaBlacklist.add(url);
+      return null;
+    } finally {
+      console.log = logOriginal; console.warn = warnOriginal; console.error = errorOriginal;
+    }
+  } else if (doc.isDOCX && doc.buffer) {
+    const result = await mammoth.extractRawText({ buffer: doc.buffer });
+    return result.value;
+  }
+
+  urlsParaBlacklist.add(url);
+  return null;
+}
+
+// ==============================================================
+// 🧠 EXTRATOR DE TEXTO OTIMIZADO (Específico para a Inteligência Artificial)
+// ==============================================================
+export async function extrairTextoParaIA(url: string, depth = 0, tentativas = 2): Promise<string | null> {
+  const doc = await obterBufferDoDocumento(url, depth, tentativas);
+  if (!doc) return null;
+
+  if (doc.textoLimpo) return doc.textoLimpo;
+
+  if (doc.isPDF && doc.buffer) {
+    const logOriginal = console.log;
+    const warnOriginal = console.warn;
+    const errorOriginal = console.error;
+    console.log = () => { }; console.warn = () => { }; console.error = () => { };
+
+    try {
+        function render_page(pageData: any) {
+            return pageData.getTextContent({ normalizeWhitespace: false, disableCombineTextItems: false })
+            .then(function(textContent: any) {
+                let lastY, text = '';
+                for (let item of textContent.items) {
+                    if (lastY == item.transform[5] || !lastY){
+                        text += item.str;
+                    } else {
+                        text += '\n' + item.str;
+                    }
+                    lastY = item.transform[5];
+                }
+                return "\n[---PAGE_BOUNDARY---]\n" + text;
+            });
+        }
+        // @ts-ignore
+        const dadosPdf = await pdfParse(doc.buffer, { pagerender: render_page });
+        const paginas = dadosPdf.text.split('\n[---PAGE_BOUNDARY---]\n').filter((p: string) => p.trim() !== '');
+        if (paginas.length <= 10) {
+            return paginas.join('\n\n');
+        } else {
+            const primeiras = paginas.slice(0, 5);
+            const ultimas = paginas.slice(-5);
+            return primeiras.join('\n\n') + '\n\n...[PÁGINAS INTERMEDIÁRIAS OMITIDAS]...\n\n' + ultimas.join('\n\n');
+        }
+    } catch (err: any) {
+      urlsParaBlacklist.add(url);
+      return null;
+    } finally {
+      console.log = logOriginal; console.warn = warnOriginal; console.error = errorOriginal;
+    }
+  } else if (doc.isDOCX && doc.buffer) {
+    const result = await mammoth.extractRawText({ buffer: doc.buffer });
+    return result.value;
+  }
+
+  urlsParaBlacklist.add(url);
+  return null;
 }
 
 // ==============================================================
