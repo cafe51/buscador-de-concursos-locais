@@ -218,6 +218,7 @@ export async function enriquecerArquivosAction(editais: Edital[]) {
     };
 
     const logsMudancas: string[] = [];
+    const editaisComMudancas: any[] = [];
 
     editaisEnriquecidosComSucesso.forEach((edital) => {
       const mudancasGerais = [];
@@ -235,13 +236,24 @@ export async function enriquecerArquivosAction(editais: Edital[]) {
 
       if (mudancasGerais.length > 0) {
         const tituloLog = edital.dadosEnriquecidos?.titulo || edital.titulo;
-        logsMudancas.push(`"${tituloLog}" [${edital.link}] ${mudancasGerais.join(' | ')}`);
+        const mudancasTexto = mudancasGerais.join(' | ');
+        logsMudancas.push(`"${tituloLog}" [${edital.link}] ${mudancasTexto}`);
+        
+        editaisComMudancas.push({
+          edital,
+          mudancasTexto
+        });
       }
     });
 
     if (logsMudancas.length > 0) {
       console.log(`\n🔍 MUDANÇAS ENCONTRADAS APÓS ENRIQUECIMENTO (${logsMudancas.length} edital(is)):`);
       logsMudancas.forEach(log => console.log(`  - ${log}`));
+
+      // Executa a Auditoria IA nas mudanças encontradas antes de prosseguir para o banco
+      const { processarAuditoria } = await import('../lib/aiAuditor');
+      await processarAuditoria(editaisComMudancas);
+
     } else {
       console.log(`\n🔍 Nenhuma mudança significativa foi encontrada em relação aos dados originais.`);
     }

@@ -11,9 +11,9 @@ import * as crypto from 'crypto';
 export const MODEL_NAME = 'gemini-3.1-flash-lite';
 export const TAXA_IMPOSTO = 0.14; // 14% de imposto (pode ser modificado)
 
-const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+export const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-function calcularCusto(modelo: string, promptTokens: number, outputTokens: number): number {
+export function calcularCusto(modelo: string, promptTokens: number, outputTokens: number): number {
   let custoInput = 0;
   let custoOutput = 0;
 
@@ -65,7 +65,7 @@ function calcularCusto(modelo: string, promptTokens: number, outputTokens: numbe
   return custoBase * (1 + TAXA_IMPOSTO);
 }
 
-async function obterCotacaoDolar(): Promise<number> {
+export async function obterCotacaoDolar(): Promise<number> {
   try {
     const res = await fetch('https://economia.awesomeapi.com.br/last/USD-BRL');
     if (!res.ok) return 5.50; // Fallback caso falhe
@@ -76,7 +76,7 @@ async function obterCotacaoDolar(): Promise<number> {
   }
 }
 
-function extrairJSONSeguro(texto: string): any {
+export function extrairJSONSeguro(texto: string): any {
   try {
     let limpo = texto.replace(/```json/g, '').replace(/```/g, '').trim();
     const inicio = limpo.indexOf('{');
