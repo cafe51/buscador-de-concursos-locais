@@ -9,6 +9,7 @@ import { PDFDocument } from 'pdf-lib';
 import * as crypto from 'crypto';
 
 export const MODEL_NAME = 'gemini-3.1-flash-lite';
+export const TAXA_IMPOSTO = 0.14; // 14% de imposto (pode ser modificado)
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
@@ -60,7 +61,8 @@ function calcularCusto(modelo: string, promptTokens: number, outputTokens: numbe
       custoOutput = outM * 0.00;
       break;
   }
-  return custoInput + custoOutput;
+  const custoBase = custoInput + custoOutput;
+  return custoBase * (1 + TAXA_IMPOSTO);
 }
 
 async function obterCotacaoDolar(): Promise<number> {
