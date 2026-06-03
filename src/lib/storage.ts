@@ -217,6 +217,30 @@ export async function salvarMetadata(ultimaAtualizacao: string): Promise<boolean
     return false;
   }
 }
+export async function salvarEnriquecimentoEmLote(editais: Edital[]): Promise<{ sucesso: boolean, count: number }> {
+  try {
+    await connectToDatabase();
+    
+    const operations = editais
+      .filter(e => e.dadosEnriquecidos)
+      .map(e => ({
+        updateOne: {
+          filter: { link: e.link },
+          update: { $set: { dadosEnriquecidos: e.dadosEnriquecidos } }
+        }
+      }));
+
+    if (operations.length > 0) {
+      await EditalModel.bulkWrite(operations);
+    }
+    
+    return { sucesso: true, count: operations.length };
+  } catch (e) {
+    console.error("Erro ao salvar enriquecimento em lote no MongoDB:", e);
+    return { sucesso: false, count: 0 };
+  }
+}
+
 
 // ==============================================================
 // 📋 SCRAPING LOGS (ÚLTIMOS 20 BLOCOS)

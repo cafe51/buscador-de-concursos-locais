@@ -24,7 +24,7 @@ const MESES: Record<string, string> = {
 // ==============================================================
 // 📄 EXTRATOR DE TEXTO BRUTO (Módulo Genérico)
 // ==============================================================
-export async function extrairTextoBruto(url: string, depth = 0, tentativas = 2): Promise<string | null> {
+export async function extrairTextoBruto(url: string, depth = 0, tentativas = 2, isForAI = false): Promise<string | null> {
   if (depth > 2) return null; // Limite de 2 saltos de redirecionamento
   if (PDFs_IGNORADOS.includes(url)) return null;
 
@@ -80,7 +80,7 @@ export async function extrairTextoBruto(url: string, depth = 0, tentativas = 2):
 
       if (novaUrl) {
         const urlAbsoluta = novaUrl.startsWith('http') ? novaUrl : new URL(novaUrl, url).href;
-        return extrairTextoBruto(urlAbsoluta, depth + 1, tentativas);
+        return extrairTextoBruto(urlAbsoluta, depth + 1, tentativas, isForAI);
       }
 
       $('script, style, nav, header, footer, aside').remove();
@@ -102,9 +102,37 @@ export async function extrairTextoBruto(url: string, depth = 0, tentativas = 2):
       console.log = () => { }; console.warn = () => { }; console.error = () => { };
 
       try {
-        // @ts-ignore
-        const dadosPdf = await pdfParse(buffer, { max: 3 }); // Lê até 3 páginas para garantir
-        return dadosPdf.text;
+        if (isForAI) {
+            function render_page(pageData: any) {
+                return pageData.getTextContent({ normalizeWhitespace: false, disableCombineTextItems: false })
+                .then(function(textContent: any) {
+                    let lastY, text = '';
+                    for (let item of textContent.items) {
+                        if (lastY == item.transform[5] || !lastY){
+                            text += item.str;
+                        } else {
+                            text += '\n' + item.str;
+                        }
+                        lastY = item.transform[5];
+                    }
+                    return "\n[---PAGE_BOUNDARY---]\n" + text;
+                });
+            }
+            // @ts-ignore
+            const dadosPdf = await pdfParse(buffer, { pagerender: render_page });
+            const paginas = dadosPdf.text.split('\n[---PAGE_BOUNDARY---]\n').filter((p: string) => p.trim() !== '');
+            if (paginas.length <= 10) {
+                return paginas.join('\n\n');
+            } else {
+                const primeiras = paginas.slice(0, 5);
+                const ultimas = paginas.slice(-5);
+                return primeiras.join('\n\n') + '\n\n...[PÁGINAS INTERMEDIÁRIAS OMITIDAS]...\n\n' + ultimas.join('\n\n');
+            }
+        } else {
+            // @ts-ignore
+            const dadosPdf = await pdfParse(buffer, { max: 3 }); // Lê até 3 páginas para garantir
+            return dadosPdf.text;
+        }
       } catch (err: any) {
         urlsParaBlacklist.add(url);
         return null;
@@ -122,7 +150,7 @@ export async function extrairTextoBruto(url: string, depth = 0, tentativas = 2):
   } catch (err) {
     if (tentativas > 0) {
       await new Promise(r => setTimeout(r, 3000));
-      return extrairTextoBruto(url, depth, tentativas - 1);
+      return extrairTextoBruto(url, depth, tentativas - 1, isForAI);
     }
     return null;
   }

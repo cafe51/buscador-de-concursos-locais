@@ -31,14 +31,14 @@ async function baixarDocumentoBruto(url: string): Promise<{ bytes: string; mimeT
     if (!res.ok) return null;
     const arrayBuffer = await res.arrayBuffer();
     const contentType = (res.headers.get('content-type') || '').toLowerCase();
-    
+
     // Convert arrayBuffer to base64 for Gemini API
     const base64Data = Buffer.from(arrayBuffer).toString("base64");
-    
+
     let mimeType = 'application/pdf'; // Default fallback
     if (contentType.includes('pdf')) mimeType = 'application/pdf';
     else if (contentType.includes('wordprocessingml')) mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    
+
     return { bytes: base64Data, mimeType };
   } catch (e) {
     return null;
@@ -48,9 +48,9 @@ async function baixarDocumentoBruto(url: string): Promise<{ bytes: string; mimeT
 async function analisarEditalComIA(edital: Edital): Promise<{ titulo: string; descricao: string; concurso?: string; dataPublicacao?: string } | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
-  
+
   const genAI = new GoogleGenerativeAI(apiKey);
-  
+
   const systemInstruction = `Você é um especialista em concursos públicos e processos seletivos no Brasil.
 INSTRUÇÕES RÍGIDAS DE FORMATAÇÃO:
 1. TÍTULO: Gere um título conciso (máximo 10 palavras) focado APENAS na ação principal e referência do documento. 
@@ -69,7 +69,8 @@ INSTRUÇÕES RÍGIDAS DE FORMATAÇÃO:
    Exemplo Perfeito: "Processo Seletivo 01/2026" ou "Processo Seletivo 01/2026 (Estagiários)".
    Se não conseguir identificar a que concurso o edital pertence, deixe como string vazia "".
 
-4. DATA: Extraia a data exata de publicação oficial do edital (se houver) no formato DD/MM/AAAA.
+4. DATA: Extraia a data exata de publicação oficial ou assinatura do edital (se houver) no formato DD/MM/AAAA.
+   ATENÇÃO: Em caso de conflito entre múltiplas datas encontradas, analise com cuidado para descobrir qual data se refere à publicação do documento, dê preferência para datas associadas à assinatura que costuma vir em uma sequencia que segue o formato [nome da cidade] ao lado de [data de publicação do documento] e embaixo [nome da pessoa e/ou instituição/cargo].
 
 Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
 {
@@ -79,26 +80,27 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
   "dataPublicacao": "..."
 }`;
 
-  const model = genAI.getGenerativeModel({ 
-    model: "gemini-2.5-flash",
+  const model = genAI.getGenerativeModel({
+    model: "gemini-3.1-flash-lite",
     systemInstruction
   });
 
   try {
-    let textoDocumento = await extrairTextoBruto(edital.link);
+    let textoDocumento = await extrairTextoBruto(edital.link, 0, 2, true);
     let partesReq: any[] = [{ text: "Extraia os dados deste documento seguindo rigorosamente as instruções do sistema." }];
-    
+
     if (textoDocumento && textoDocumento.length > 100) {
-      partesReq.push({ text: `\nTEXTO DO DOCUMENTO:\n${textoDocumento.substring(0, 30000)}` });
+      // Limite aumentado para 200.000 caracteres (~50k tokens) para acomodar as primeiras e últimas 5 páginas
+      partesReq.push({ text: `\nTEXTO DO DOCUMENTO:\n${textoDocumento.substring(0, 200000)}` });
     } else {
       console.log(`🧠 [IA] ⚠️ Texto insuficiente para "${edital.titulo}". Enviando PDF/Arquivo como imagem ao Gemini...`);
       const docRaw = await baixarDocumentoBruto(edital.link);
-      
+
       if (docRaw) {
         let mimeTypeUpload = docRaw.mimeType || "application/pdf";
         const buffer = Buffer.from(docRaw.bytes, 'base64');
         const magicBytes = buffer.toString('hex', 0, 4);
-        
+
         if (magicBytes === '25504446') {
           mimeTypeUpload = "application/pdf";
         } else if (magicBytes === '504b0304') {
@@ -136,13 +138,23 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
       }
     ];
 
+    // === DEBUG TEMPORÁRIO PARA REFINAR O PROMPT (REMOVA DEPOIS) ===
+    // console.log(`\n\n=== 🧪 DEBUG: TEXTO LIDO PELA IA (${edital.link}) ===`);
+    // if (textoDocumento && textoDocumento.length > 100) {
+    //   console.log(partesReq[1]?.text || "Sem texto legível.");
+    // } else {
+    //   console.log("[O documento foi enviado como arquivo PDF/Binário via Inline Data]");
+    // }
+    // console.log("=================================================================\n\n");
+    // ==============================================================
+
     const result = await model.generateContent({ contents: contentsPayload });
     const responseText = result.response.text();
     const dados = extrairJSONSeguro(responseText);
-    
+
     if (dados.titulo && dados.descricao) {
-      return { 
-        titulo: dados.titulo, 
+      return {
+        titulo: dados.titulo,
         descricao: dados.descricao,
         concurso: dados.concurso,
         dataPublicacao: dados.dataPublicacao
@@ -171,8 +183,8 @@ export async function processarComIA(editaisNovos: Edital[]): Promise<void> {
   try {
     for (let i = 0; i < editaisNovos.length; i++) {
       const edital = editaisNovos[i];
-      console.log(`🧠 [IA] [${i+1}/${editaisNovos.length}] Analisando: "${edital.titulo}" (${edital.cidade} - ${edital.orgao})...`);
-      
+      console.log(`🧠 [IA] [${i + 1}/${editaisNovos.length}] Analisando: "${edital.titulo}" (${edital.cidade} - ${edital.orgao})...`);
+
       try {
         const resultado = await analisarEditalComIA(edital);
         if (resultado) {
@@ -182,15 +194,15 @@ export async function processarComIA(editaisNovos: Edital[]): Promise<void> {
             concurso: resultado.concurso,
             dataPublicacao: resultado.dataPublicacao
           };
-          console.log(`🧠 [IA] [${i+1}/${editaisNovos.length}] ✅ Título: "${resultado.titulo}"\n   ↳ Descrição: "${resultado.descricao}"`);
+          console.log(`🧠 [IA] [${i + 1}/${editaisNovos.length}] ✅ Título: "${resultado.titulo}"\n   ↳ Descrição: "${resultado.descricao}"`);
           sucessos++;
         } else {
-          console.log(`🧠 [IA] [${i+1}/${editaisNovos.length}] ❌ Falha ao extrair dados. O resultado estava vazio.`);
+          console.log(`🧠 [IA] [${i + 1}/${editaisNovos.length}] ❌ Falha ao extrair dados. O resultado estava vazio.`);
           falhas++;
         }
       } catch (err: any) {
         if (err.message && err.message.includes('429')) {
-          console.log(`🧠 [IA] [${i+1}/${editaisNovos.length}] ⏳ Rate limit atingido. Aguardando 60s...`);
+          console.log(`🧠 [IA] [${i + 1}/${editaisNovos.length}] ⏳ Rate limit atingido. Aguardando 60s...`);
           await delay(60000);
           // Retry
           try {
@@ -202,19 +214,19 @@ export async function processarComIA(editaisNovos: Edital[]): Promise<void> {
                 concurso: resultado.concurso,
                 dataPublicacao: resultado.dataPublicacao
               };
-              console.log(`🧠 [IA] [${i+1}/${editaisNovos.length}] ✅ Título: "${resultado.titulo}" (Após retry)\n   ↳ Descrição: "${resultado.descricao}"`);
+              console.log(`🧠 [IA] [${i + 1}/${editaisNovos.length}] ✅ Título: "${resultado.titulo}" (Após retry)\n   ↳ Descrição: "${resultado.descricao}"`);
               sucessos++;
             }
-          } catch(e) {
-            console.log(`🧠 [IA] [${i+1}/${editaisNovos.length}] ❌ Falha no retry: ${e}. Continuando sem IA para este edital.`);
+          } catch (e) {
+            console.log(`🧠 [IA] [${i + 1}/${editaisNovos.length}] ❌ Falha no retry: ${e}. Continuando sem IA para este edital.`);
             falhas++;
           }
         } else {
-          console.log(`🧠 [IA] [${i+1}/${editaisNovos.length}] ❌ Falha: ${err.message || err}. Continuando sem IA para este edital.`);
+          console.log(`🧠 [IA] [${i + 1}/${editaisNovos.length}] ❌ Falha: ${err.message || err}. Continuando sem IA para este edital.`);
           falhas++;
         }
       }
-      
+
       // Rate limit base (espera 4 segundos para evitar limite de ~15 RPM)
       if (i < editaisNovos.length - 1) {
         await delay(4000);

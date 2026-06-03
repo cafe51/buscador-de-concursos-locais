@@ -153,3 +153,107 @@ export async function rodarFluxoCompletoServerAction(options: OrquestradorOption
   const { runFullScraperWorkflow } = await import('../lib/orchestrator');
   return await runFullScraperWorkflow(options);
 }
+
+// ==============================================================
+// 🚀 NOVA ACTION: ENRIQUECER ARQUIVOS DE UM CONCURSO MANUALMENTE
+// ==============================================================
+export async function enriquecerArquivosAction(editais: Edital[]) {
+  const { processarComIA } = await import('../lib/aiAnalysis');
+  const { salvarEnriquecimentoEmLote } = await import('../lib/storage');
+
+  // Filtra apenas os editais que ainda não têm dados enriquecidos
+  const editaisPendentes = editais.filter(
+    (e) => !e.dadosEnriquecidos || Object.keys(e.dadosEnriquecidos).length === 0
+  );
+
+  if (editaisPendentes.length === 0) {
+    console.log("Nenhum edital pendente de enriquecimento neste concurso.");
+    return { sucesso: true, count: 0, links: [] };
+  }
+
+  // A função original foi desenhada para receber e mutar os editais passados como array.
+  // Ela já imprime logs detalhados no console.
+  await processarComIA(editaisPendentes);
+
+  // Filtra para pegar apenas os que conseguiram os dados enriquecidos após a IA.
+  const editaisEnriquecidosComSucesso = editaisPendentes.filter(
+    (e) => e.dadosEnriquecidos && Object.keys(e.dadosEnriquecidos).length > 0
+  );
+
+  let linksEnriquecidos: string[] = [];
+
+  if (editaisEnriquecidosComSucesso.length > 0) {
+    await salvarEnriquecimentoEmLote(editaisEnriquecidosComSucesso);
+    linksEnriquecidos = editaisEnriquecidosComSucesso.map((e) => e.link);
+    console.log("===================================================");
+    console.log(`✅ ${linksEnriquecidos.length} arquivos enriquecidos com sucesso!`);
+    console.log("Links:");
+    console.log(linksEnriquecidos);
+
+    // ==============================================================
+    // LÓGICA DE COMPARAÇÃO DE MUDANÇAS
+    // ==============================================================
+    const isDataDiferenteMais3Dias = (d1?: string, d2?: string) => {
+      if (!d1 && !d2) return false;
+      if (!d1 || !d2) return true;
+
+      const parseData = (str: string) => {
+        const partes = str.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+        if (partes) {
+          return new Date(Number(partes[3]), Number(partes[2]) - 1, Number(partes[1]));
+        }
+        const d = new Date(str);
+        if (isNaN(d.getTime())) return null;
+        return d;
+      };
+
+      const dataOriginal = parseData(d1);
+      const dataNova = parseData(d2);
+
+      if (!dataOriginal || !dataNova) return true; 
+
+      const diffMs = Math.abs(dataOriginal.getTime() - dataNova.getTime());
+      const diffDias = diffMs / (1000 * 60 * 60 * 24);
+      return diffDias > 3;
+    };
+
+    const logsMudancas: string[] = [];
+
+    editaisEnriquecidosComSucesso.forEach((edital) => {
+      const mudancasGerais = [];
+      
+      const concursoAntigo = (edital.concurso || "").trim();
+      const concursoNovo = (edital.dadosEnriquecidos?.concurso || "").trim();
+      
+      if (concursoAntigo !== concursoNovo) {
+        mudancasGerais.push(`concurso: "${concursoAntigo || 'vazio'}" -> "${concursoNovo || 'vazio'}"`);
+      }
+
+      if (isDataDiferenteMais3Dias(edital.dataPublicacao, edital.dadosEnriquecidos?.dataPublicacao)) {
+        mudancasGerais.push(`dataPublicacao: "${edital.dataPublicacao || 'vazia'}" -> "${edital.dadosEnriquecidos?.dataPublicacao || 'vazia'}"`);
+      }
+
+      if (mudancasGerais.length > 0) {
+        logsMudancas.push(`[${edital.link}] ${mudancasGerais.join(' | ')}`);
+      }
+    });
+
+    if (logsMudancas.length > 0) {
+      console.log(`\n🔍 MUDANÇAS ENCONTRADAS APÓS ENRIQUECIMENTO (${logsMudancas.length} edital(is)):`);
+      logsMudancas.forEach(log => console.log(`  - ${log}`));
+    } else {
+      console.log(`\n🔍 Nenhuma mudança significativa foi encontrada em relação aos dados originais.`);
+    }
+    // ==============================================================
+
+    console.log("===================================================");
+  } else {
+    console.log("⚠️ A IA rodou mas nenhum arquivo foi enriquecido com sucesso.");
+  }
+
+  return { 
+    sucesso: true, 
+    count: editaisEnriquecidosComSucesso.length,
+    links: linksEnriquecidos
+  };
+}

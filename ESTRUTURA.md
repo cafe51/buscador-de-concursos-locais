@@ -65,7 +65,7 @@ achadordeeditais/
     │   ├── Header.tsx         # Cabeçalho da aplicação (logo, navegação principal e botões de conta)
     │   ├── ListView.tsx       # Modo de visualização de lista linear (cronológica) dos editais
     │   └── ProfileButton.tsx  # Botão do header que reflete o estado do usuário logado (links para perfil e logout)
-    ├── lib/
+    │   ├── aiAnalysis.ts      # Módulo de Inteligência Artificial (Gemini) utilizando Few-Shot Prompting para leitura e padronização inteligente de editais e arquivos
     │   ├── blacklist.ts       # Banco de URLs de documentos inválidos que devem ser ignorados
     │   ├── diagnostics.ts     # Auditorias e raw scrapers focados em portais no padrão "Instar"
     │   ├── docParser.ts       # Baixador e analisador de anexos (PDF/DOCX) para extração automática de datas via Regex
@@ -73,6 +73,8 @@ achadordeeditais/
     │   ├── filtrosGlobais.ts  # Regras globais de filtragem e heurística anti-ruído (eliminação de compras públicas)
     │   ├── mockScrapingLogs.ts # Gerador de registros realistas de logs de scraping para testes em desenvolvimento
     │   ├── mongodb.ts         # Módulo gerenciador de conexões com o MongoDB (Connection Caching)
+    │   ├── notifications.ts   # Motor de notificações, que processa o filtro burocrático (limpeza de ruídos) e envia e-mails para novos editais
+    │   ├── orchestrator.ts    # Orquestrador Central que une a raspagem de dados, a Inteligência Artificial e as Notificações, além de suportar configurações locais avançadas
     │   ├── runner.ts          # Executor resiliente de scrapers com proteção contra timeouts (290s por cidade)
     │   ├── storage.ts         # Módulo de persistência e sincronização de dados (editais, logs) no MongoDB
     │   └── scrapers/
@@ -163,14 +165,18 @@ achadordeeditais/
 *   **`FilterPanel.tsx`**: Menu de filtros na barra lateral que permite restringir editais por cidades ativas, termos textuais no título e exibir/esconder concursos expirados ou licitações.
 *   **`ListView.tsx` / `FolderView.tsx`**: Dois modos de renderização concorrentes da busca. O primeiro exibe os editais cronologicamente, enquanto o segundo organiza os editais e anexos sob a forma de pastas virtuais de concursos.
 *   **`EditalCard.tsx` / `FolderDetailView.tsx`**: O card visual individual e a janela expandida de documentos agrupados, respectivamente, enriquecidos com badges de status, links diretos e datas.
-*   **`DevToolsPanel.tsx`**: Barra flutuante disponível no ambiente de desenvolvimento/administrador para acionar auditorias profundas de scrapers, disparar scrapings manuais em lote e simular cenários de falhas de comunicação.
+*   **`DevToolsPanel.tsx`**: Barra flutuante disponível no ambiente de desenvolvimento/administrador para acionar auditorias profundas de scrapers, disparar scrapings manuais em lote e simular cenários de falhas de comunicação. O painel inclui também **Configurações Locais Inteligentes**, conectadas ao `localStorage`, permitindo varrer apenas cidades específicas, bem como ligar/desligar de forma granular o processo de Inteligência Artificial e de Disparo de E-mails para rodadas de testes ultrarrápidas.
 
-### 🔧 6. Diretório `src/lib/` (Módulos de Negócio e Raspadores)
+### 🔧 6. Diretório `src/lib/` (Módulos de Negócio, IA, e Raspadores)
+*   **`orchestrator.ts`**: O Orquestrador Central da aplicação. Define o pipeline primário ("Run Full Scraper Workflow") unindo de ponta-a-ponta a extração, armazenamento no banco, enriquecimento via Gemini AI e roteamento de notificações. Em desenvolvimento local, obedece as configurações passadas pelo `DevToolsPanel`.
+*   **`aiAnalysis.ts`**: Módulo de Inteligência Artificial implementado com o SDK `@google/generative-ai` (Gemini 2.5 Flash). Ele acessa o link dos editais, lê o texto bruto (ou o arquivo binário em caso de PDFs não mapeados) e utiliza a técnica de **"Few-Shot Prompting"** (fornecendo um histórico Multi-Turn instrucional e mockado) para forçar que o modelo devolva as informações extraídas no mais absoluto padrão de segurança e em JSON.
+*   **`notifications.ts`**: O filtro humano-protetor do sistema. Uma vez que o orquestrador acuse novos editais persistidos, eles caem aqui. Funciona em 4 passos: (1) O Filtro Burocrático de 41 termos destrói qualquer postagem de acompanhamento ou administrativa; (2) Busca os perfis que possuem e-mails ativos no Supabase Admin; (3) Monta a estrutura HTML moderna de alerta; (4) Comunica a Resend API para expedir o e-mail transacional.
 *   **`blacklist.ts`**: Armazena links diretos (especialmente PDFs) catalogados como impróprios, vazios ou sem valor que devem ser cortados da renderização.
 *   **`docParser.ts`**: Biblioteca que baixa temporariamente PDFs/DOCX em buffers locais na memória e varre seu conteúdo de texto com Regex para decifrar a data de publicação original contida no documento.
+*   **`email.ts`**: Abstração direta da biblioteca `resend` para chamadas da API de expedição e gestão dos templates HTML.
 *   **`filtrosGlobais.ts`**: Central de heurísticas anti-ruído. Garante que apenas concursos de contratação de pessoas (servidores públicos) passem pela triagem, descartando editais comerciais de licitação, compras de insumos e leilões.
 *   **`mongodb.ts`**: Gerenciador de conexão com o banco de dados que previne estouro de pool no ambiente serverless (Next.js) através de Connection Caching.
-*   **`storage.ts`**: Fornece a lógica de persistência e comunicação com o MongoDB usando Mongoose, controlando inserções otimizadas em lote (bulkWrite) e consultas dos editais, logs e metadados.
+*   **`storage.ts`**: Fornece a lógica de persistência e comunicação com o MongoDB usando Mongoose, controlando inserções otimizadas em lote (bulkWrite) e consultas dos editais, logs e metadados. O módulo agora expõe o tipo `SyncLogAddition` capaz de armazenar as variações de editais recém criados para passá-los aos pipelines de Inteligência Artificial.
 *   **`runner.ts`**: Controla a execução individual de scrapers com tratamentos de erros e timeouts por cidade (limite flexível de 290 segundos) para impedir que a lentidão de um único portal comprometa toda a raspagem.
 *   **`diagnostics.ts`**: Fornece motores de auditoria que fazem requisições diretas e rápidas aos portais das cidades, lêem o número indicado nas badges de documentos e comparam com a contagem armazenada, alertando sobre possíveis falhas ou perdas de arquivos.
 
@@ -206,6 +212,12 @@ Contém as definições estritas (Schemas) do Mongoose para garantir consistênc
       statusGeral?: string;
       dataPublicacao?: string;
       ordemOriginal?: number;
+      dadosEnriquecidos?: {         // Adicionado via IA Gemini
+        titulo: string;
+        descricao: string;
+        concurso: string;
+        dataPublicacao: string;
+      };
     };
     ```
 

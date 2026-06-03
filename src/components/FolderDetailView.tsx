@@ -1,6 +1,8 @@
 // src/components/FolderDetailView.tsx
+import { useState } from 'react';
 import EditalCard from './EditalCard';
 import { exportarParaJSON } from '../utils/exportJson';
+import { enriquecerArquivosAction } from '../app/actions';
 
 type FolderDetailViewProps = {
   grupo: any;
@@ -12,6 +14,30 @@ function formatarNomeArquivo(nome: string) {
 }
 
 export default function FolderDetailView({ grupo, onBack }: FolderDetailViewProps) {
+  const [isEnriching, setIsEnriching] = useState(false);
+
+  async function handleEnriquecer() {
+    setIsEnriching(true);
+    try {
+      const result = await enriquecerArquivosAction(grupo.itens);
+      if (result.sucesso) {
+        if (result.count > 0) {
+          alert(`${result.count} arquivo(s) enriquecido(s) com sucesso!\n\nVerifique o console do terminal e do navegador para ver os links afetados.`);
+          console.log("Editais enriquecidos:", result.links);
+        } else {
+          alert("Todos os editais deste concurso já estão enriquecidos, ou a IA falhou. Verifique os logs do servidor.");
+        }
+      } else {
+        alert("Falha ao enriquecer arquivos.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao comunicar com o servidor.");
+    } finally {
+      setIsEnriching(false);
+    }
+  }
+
   return (
     <div className="animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -19,12 +45,31 @@ export default function FolderDetailView({ grupo, onBack }: FolderDetailViewProp
           <span>←</span> Voltar para as Pastas
         </button>
         {process.env.NODE_ENV === 'development' && (
-          <button
-            onClick={() => exportarParaJSON(grupo.itens, formatarNomeArquivo(`${grupo.cidade}-${grupo.nome}`))}
-            className="w-full sm:w-auto bg-white text-purple-700 border border-purple-200 hover:bg-purple-50 px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow-sm"
-          >
-            📥 Baixar Arquivos Deste Concurso
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <button
+              onClick={() => exportarParaJSON(grupo.itens, formatarNomeArquivo(`${grupo.cidade}-${grupo.nome}`))}
+              className="w-full sm:w-auto bg-white text-purple-700 border border-purple-200 hover:bg-purple-50 px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow-sm"
+            >
+              📥 Baixar Arquivos Deste Concurso
+            </button>
+            <button
+              onClick={handleEnriquecer}
+              disabled={isEnriching}
+              className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-700 px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {isEnriching ? (
+                <>
+                  <span className="animate-spin inline-block">⏳</span>
+                  Enriquecendo...
+                </>
+              ) : (
+                <>
+                  <span>🧠</span>
+                  Enriquecer Arquivos Deste Concurso
+                </>
+              )}
+            </button>
+          </div>
         )}
       </div>
 
