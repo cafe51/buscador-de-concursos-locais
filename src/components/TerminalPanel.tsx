@@ -3,15 +3,37 @@ import { useState, useEffect, useRef } from 'react';
 import { LogMessage } from '@/lib/devLogger';
 
 const renderTextWithLinks = (text: string) => {
-  // Ignora colchetes e parênteses de fechamento que possam estar "colados" no final da URL
-  const urlRegex = /(https?:\/\/[^\s\])"]+)/g;
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
   const parts = text.split(urlRegex);
+  
   return parts.map((part, i) => {
-    if (part.match(urlRegex)) {
+    if (part.startsWith('http://') || part.startsWith('https://')) {
+      let url = part;
+      let trailing = '';
+      
+      while (url.length > 0) {
+        const lastChar = url[url.length - 1];
+        if (lastChar === '"' || lastChar === "'" || lastChar === ',' || lastChar === '.') {
+          trailing = lastChar + trailing;
+          url = url.slice(0, -1);
+        } else if (lastChar === ']' && !url.includes('[')) {
+          trailing = lastChar + trailing;
+          url = url.slice(0, -1);
+        } else if (lastChar === ')' && !url.includes('(')) {
+          trailing = lastChar + trailing;
+          url = url.slice(0, -1);
+        } else {
+          break;
+        }
+      }
+
       return (
-        <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
-          {part}
-        </a>
+        <span key={i}>
+          <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+            {url}
+          </a>
+          {trailing}
+        </span>
       );
     }
     return part;
