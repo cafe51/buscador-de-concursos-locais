@@ -197,10 +197,21 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
     } else if (docRaw.textoLimpo) {
       partesReq.push({ text: `\nTEXTO DO HTML:\n${docRaw.textoLimpo.substring(0, 200000)}` });
     } else if (docRaw.isDOCX && docRaw.buffer) {
+      const tempFilename = crypto.randomUUID() + '.docx';
+      arquivoTemporarioPath = path.join(os.tmpdir(), tempFilename);
+      fs.writeFileSync(arquivoTemporarioPath, docRaw.buffer);
+
+      const uploadResult = await fileManager.uploadFile(arquivoTemporarioPath, {
+        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        displayName: `Edital-DOCX-${edital.cidade}`
+      });
+
+      geminiFileName = uploadResult.file.name;
+
       partesReq.push({
-        inlineData: {
-          data: docRaw.buffer.toString('base64'),
-          mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        fileData: {
+          mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          fileUri: uploadResult.file.uri
         }
       });
     } else {
