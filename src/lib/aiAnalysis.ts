@@ -132,11 +132,12 @@ INSTRUÇÕES RÍGIDAS DE FORMATAÇÃO:
    - Datas principais (se aplicável)
    
 3. CONCURSO (Chave de Agrupamento): Extraia a referência do concurso e PADRONIZE RIGOROSAMENTE para o formato:
-   - PARTE 1: EXATAMENTE "Processo Seletivo" ou "Concurso Público".
+   - PARTE 1: EXATAMENTE "Processo Seletivo" ou EXATAMENTE  "Concurso Público".
    - PARTE 2: Número no formato nn/aaaa. CONVERTA QUALQUER NÚMERO PARA EXATAMENTE 2 DÍGITOS ANTES DA BARRA (Ex: 001/2020 deve virar 01/2020. 1/2020 deve virar 01/2020). O ano deve ter 4 dígitos.
    - PARTE 3 (Opcional): Se for para estagiários, adicione "(Estagiários)" no final.
    Exemplo Perfeito: "Processo Seletivo 01/2026" ou "Processo Seletivo 01/2026 (Estagiários)".
-   Se não conseguir identificar a que concurso o edital pertence, deixe como string vazia "".
+   Se conseguir identificar o certame a que o edital pertence, gere a chave "concurso" usando obrigatoria mente as duas partes (PARTE 1 + PARTE 2) e opcionalmente a parte 3 (PARTE 1 + PARTE 2 + PARTE 3)
+   Se não conseguir identificar a que concurso o edital pertence, gere a chave "concurso" como string vazia "".
 
 4. DATA: Extraia a data exata de publicação oficial ou assinatura do edital (se houver) no formato DD/MM/AAAA.
    ATENÇÃO: Em caso de conflito entre múltiplas datas encontradas, analise com cuidado para descobrir qual data se refere à publicação do documento, dê preferência para datas associadas à assinatura que costuma vir em uma sequencia que segue o formato [nome da cidade] ao lado de [data de publicação do documento] e embaixo [nome da pessoa e/ou instituição/cargo].
