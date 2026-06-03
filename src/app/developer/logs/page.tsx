@@ -2,6 +2,7 @@
 
 import { carregarScrapingLogs, ScrapingLog } from '@/lib/storage';
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 
 function formatDateTime(isoString: string) {
   try {
@@ -89,22 +90,33 @@ export default function DeveloperLogs() {
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6 md:p-8 text-gray-800">
       <div className="max-w-5xl mx-auto animate-fade-in">
-        <header className="flex justify-between items-end mb-8 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 bg-white p-6 rounded-xl shadow-sm border border-gray-100 gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 flex items-center gap-3">
-              <span>📡</span> Logs de Raspagem
-            </h1>
+            <div className="flex items-center gap-3 mb-2">
+              <Link href="/" className="text-gray-400 hover:text-gray-600 transition-colors" title="Voltar à Tela Inicial">
+                🏠 Início
+              </Link>
+              <span className="text-gray-300">|</span>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 flex items-center gap-2">
+                <span>📡</span> Logs
+              </h1>
+            </div>
             <p className="text-gray-500 mt-1 font-medium text-sm">Histórico detalhado dos últimos 20 blocos de automação</p>
           </div>
-          <div className="flex flex-col gap-2 items-end">
-            <button onClick={loadLogs} className="bg-blue-50 hover:bg-blue-100 text-blue-700 p-2 px-4 rounded-lg font-bold transition-colors text-sm flex items-center gap-2">
-              {loading ? '⏳ Atualizando...' : '🔄 Atualizar Agora'}
-            </button>
+          <div className="flex flex-col gap-2 items-end w-full md:w-auto">
+            <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-end">
+              <Link href="/" className="bg-gray-100 hover:bg-gray-200 text-gray-700 p-2 px-4 rounded-lg font-bold transition-colors text-sm flex items-center gap-2 md:hidden">
+                🏠 Voltar
+              </Link>
+              <button onClick={loadLogs} className="bg-blue-50 hover:bg-blue-100 text-blue-700 p-2 px-4 rounded-lg font-bold transition-colors text-sm flex items-center gap-2 w-full md:w-auto justify-center">
+                {loading ? '⏳ Atualizando...' : '🔄 Atualizar Agora'}
+              </button>
+            </div>
             <button onClick={() => {
               localStorage.removeItem('dev_auth');
               setAuthorized(false);
             }} className="text-xs text-gray-400 hover:text-gray-600 underline">
-              Sair
+              Sair da sessão
             </button>
           </div>
         </header>

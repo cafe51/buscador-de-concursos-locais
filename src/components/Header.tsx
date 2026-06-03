@@ -8,6 +8,7 @@ type HeaderProps = {
 };
 
 import ProfileButton from './ProfileButton';
+import AdminLogsButton from './AdminLogsButton';
 import Link from 'next/link';
 
 export default function Header({ loading, hasData, onExport, onUpdate, ultimaAtualizacao }: HeaderProps) {
@@ -27,7 +28,10 @@ export default function Header({ loading, hasData, onExport, onUpdate, ultimaAtu
             </p>
           )}
         </div>
-        <ProfileButton />
+        <div className="flex items-center gap-3">
+          <AdminLogsButton />
+          <ProfileButton />
+        </div>
       </div>
       {showDevTools && (
         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
