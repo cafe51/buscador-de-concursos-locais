@@ -22,11 +22,14 @@ export default function FolderView({ concursosAgrupados, filtroTipoGrupo, setFil
         {concursosAgrupados.length === 0 ? (
           <div className="col-span-full bg-white/80 backdrop-blur-xl border border-slate-200 p-6 rounded-xl text-center text-slate-500 shadow-sm">Nenhum concurso atende ao filtro atual.</div>
         ) : (
-          concursosAgrupados.map((grupo, idx) => (
+          concursosAgrupados.map((grupo, idx) => {
+            const todosEnriquecidos = grupo.itens && grupo.itens.length > 0 && grupo.itens.every((item: any) => item.dadosEnriquecidos && Object.keys(item.dadosEnriquecidos).length > 0);
+            
+            return (
             <div key={idx} onClick={() => onSelectFolder(grupo.chaveUnica)} className="bg-white/80 backdrop-blur-xl p-6 rounded-xl border border-slate-200 hover:border-purple-300 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group flex flex-col justify-between">
               <div>
                 <div className="flex justify-between items-start mb-4">
-                  <span className="bg-purple-50 text-purple-700 text-xs font-bold px-3 py-1 rounded-full border border-purple-100">🗂️ {grupo.nome}</span>
+                  <span className="bg-purple-50 text-purple-700 text-xs font-bold px-3 py-1 rounded-full border border-purple-100">🗂️ {todosEnriquecidos ? '✨ ' : ''}{grupo.nome}</span>
                   <span className="bg-slate-100 text-slate-600 text-xs font-semibold px-3 py-1 rounded-full border border-slate-200 whitespace-nowrap">{grupo.totalItens} {grupo.totalItens === 1 ? 'item' : 'itens'}</span>
                 </div>
                 <h3 className="text-lg font-bold text-slate-800 group-hover:text-purple-700 transition-colors">{grupo.nome}</h3>
@@ -37,7 +40,8 @@ export default function FolderView({ concursosAgrupados, filtroTipoGrupo, setFil
                 <div className="flex items-center gap-2"><span>🕒</span> <span className="font-semibold text-slate-700">Atualizado em: {grupo.ultimaAtualizacao}</span></div>
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
