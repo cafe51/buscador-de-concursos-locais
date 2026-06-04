@@ -113,7 +113,7 @@ async function baixarDocumentoBruto(url: string): Promise<{ bytes: string; mimeT
   }
 }
 
-async function analisarEditalComIA(edital: Edital): Promise<{ titulo: string; descricao: string; concurso?: string; dataPublicacao?: string; custoReq?: number } | null> {
+async function analisarEditalComIA(edital: Edital, modelOverride?: string): Promise<{ titulo: string; descricao: string; concurso?: string; dataPublicacao?: string; custoReq?: number } | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
 
@@ -151,7 +151,7 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
 }`;
 
   const model = genAI.getGenerativeModel({
-    model: MODEL_NAME,
+    model: modelOverride || MODEL_NAME,
     systemInstruction
   });
 
@@ -278,7 +278,7 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
   }
 }
 
-export async function processarComIA(editaisNovos: Edital[]): Promise<void> {
+export async function processarComIA(editaisNovos: Edital[], modelOverride?: string): Promise<void> {
   if (!process.env.GEMINI_API_KEY) {
     console.log("🧠 [IA] GEMINI_API_KEY não configurada. Passo 0 ignorado.");
     return;
@@ -305,7 +305,7 @@ export async function processarComIA(editaisNovos: Edital[]): Promise<void> {
       console.log(`🧠 [IA] [${i + 1}/${editaisNovos.length}] Analisando: "${edital.titulo}" (${edital.cidade} - ${edital.orgao})...`);
 
       try {
-        const resultado = await analisarEditalComIA(edital);
+        const resultado = await analisarEditalComIA(edital, modelOverride);
         if (resultado) {
           if (resultado.custoReq) custoGeralUSD += resultado.custoReq;
           edital.dadosEnriquecidos = {
