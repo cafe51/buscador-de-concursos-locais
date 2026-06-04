@@ -5,6 +5,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import { obterBufferDoDocumento } from './docParser';
+import { converterWordParaPdf } from './wordToPdf';
 import { PDFDocument } from 'pdf-lib';
 import * as crypto from 'crypto';
 
@@ -138,6 +139,8 @@ INSTRUÇÕES RÍGIDAS DE FORMATAÇÃO:
    Exemplo Perfeito: "Processo Seletivo 01/2026" ou "Processo Seletivo 01/2026 (Estagiários)".
    Se conseguir identificar o certame a que o edital pertence, gere a chave "concurso" usando obrigatoria mente as duas partes (PARTE 1 + PARTE 2) e opcionalmente a parte 3 (PARTE 1 + PARTE 2 + PARTE 3)
    Se não conseguir identificar a que concurso o edital pertence, gere a chave "concurso" como string vazia "".
+   Exemplos ruins de casos proibidos: "Concurso Público", "Concurso", "Processo", "Processo Seletivo", "Processo Seletivo Simplificado", "Concurso (estágio)", etc. 
+   A parte 1 sempre deve vir acompanhada da parte 2.
 
 4. DATA: Extraia a data exata de publicação oficial ou assinatura do edital (se houver) no formato DD/MM/AAAA.
    ATENÇÃO: Em caso de conflito entre múltiplas datas encontradas, analise com cuidado para descobrir qual data se refere à publicação do documento, dê preferência para datas associadas à assinatura que costuma vir em uma sequencia que segue o formato [nome da cidade] ao lado de [data de publicação do documento] e embaixo [nome da pessoa e/ou instituição/cargo].
@@ -199,21 +202,24 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
 
     } else if (docRaw.textoLimpo) {
       partesReq.push({ text: `\nTEXTO DO HTML:\n${docRaw.textoLimpo.substring(0, 200000)}` });
-    } else if (docRaw.isDOCX && docRaw.buffer) {
-      const tempFilename = crypto.randomUUID() + '.docx';
+    } else if ((docRaw.isDOCX || docRaw.isDOC) && docRaw.buffer) {
+      console.log(`[IA] Convertendo Word para PDF usando LibreOffice...`);
+      const pdfBufferConvertido = await converterWordParaPdf(docRaw.buffer, !!docRaw.isDOCX);
+      
+      const tempFilename = crypto.randomUUID() + '-convertido.pdf';
       arquivoTemporarioPath = path.join(os.tmpdir(), tempFilename);
-      fs.writeFileSync(arquivoTemporarioPath, docRaw.buffer);
+      fs.writeFileSync(arquivoTemporarioPath, pdfBufferConvertido);
 
       const uploadResult = await fileManager.uploadFile(arquivoTemporarioPath, {
-        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        displayName: `Edital-DOCX-${edital.cidade}`
+        mimeType: "application/pdf",
+        displayName: `Edital-${edital.cidade}`
       });
 
       geminiFileName = uploadResult.file.name;
 
       partesReq.push({
         fileData: {
-          mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          mimeType: "application/pdf",
           fileUri: uploadResult.file.uri
         }
       });

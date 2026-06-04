@@ -3,6 +3,8 @@
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import * as mammoth from 'mammoth';
 import * as cheerio from 'cheerio';
+// @ts-ignore
+import WordExtractor from 'word-extractor';
 import { PDFs_IGNORADOS } from './blacklist';
 
 process.noDeprecation = true;
@@ -28,6 +30,7 @@ export async function obterBufferDoDocumento(url: string, depth = 0, tentativas 
   textoLimpo?: string;
   isPDF?: boolean;
   isDOCX?: boolean;
+  isDOC?: boolean;
   buffer?: Buffer;
 } | null> {
   if (depth > 2) return null; // Limite de 2 saltos de redirecionamento
@@ -46,6 +49,19 @@ export async function obterBufferDoDocumento(url: string, depth = 0, tentativas 
     });
     clearTimeout(timeoutId);
 
+    // =========================================================================
+    // 🔀 INTERCEPTAÇÃO DE GOOGLE DRIVE (Contorna a tela de preview HTML)
+    // =========================================================================
+    if (res.url && res.url.includes('drive.google.com/file/d/')) {
+      const match = res.url.match(/file\/d\/([a-zA-Z0-9_-]+)/);
+      if (match && match[1]) {
+        const fileId = match[1];
+        const directUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+        console.log(`[docParser] Google Drive detectado. Redirecionando para download direto: ${fileId}`);
+        return obterBufferDoDocumento(directUrl, depth + 1, tentativas);
+      }
+    }
+
     if (!res.ok) {
       if (tentativas > 0) {
         await new Promise(r => setTimeout(r, 3000));
@@ -60,11 +76,12 @@ export async function obterBufferDoDocumento(url: string, depth = 0, tentativas 
 
     const isPDF = contentType.includes('pdf') || contentType.includes('octet-stream') || buffer.toString('hex', 0, 4) === '25504446';
     const isDOCX = contentType.includes('wordprocessingml') || buffer.toString('hex', 0, 4) === '504b0304';
+    const isDOC = contentType.includes('msword') || buffer.toString('hex', 0, 4) === 'd0cf11e0';
 
     // =========================================================================
     // 🔀 LIDANDO COM REDIRECIONAMENTOS JAVASCRIPT / META HTML (SILENCIOSO)
     // =========================================================================
-    if (contentType.includes('text/html') && !isPDF && !isDOCX) {
+    if (contentType.includes('text/html') && !isPDF && !isDOCX && !isDOC) {
       const htmlText = buffer.toString('utf-8');
       const $ = cheerio.load(htmlText);
 
@@ -100,7 +117,7 @@ export async function obterBufferDoDocumento(url: string, depth = 0, tentativas 
       return null;
     }
 
-    return { isPDF, isDOCX, buffer };
+    return { isPDF, isDOCX, isDOC, buffer };
 
   } catch (err) {
     if (tentativas > 0) {
@@ -139,6 +156,15 @@ export async function extrairTextoBruto(url: string, depth = 0, tentativas = 2):
   } else if (doc.isDOCX && doc.buffer) {
     const result = await mammoth.extractRawText({ buffer: doc.buffer });
     return result.value;
+  } else if (doc.isDOC && doc.buffer) {
+    try {
+      const extractor = new WordExtractor();
+      const extracted = await extractor.extract(doc.buffer);
+      return extracted.getBody();
+    } catch (e) {
+      urlsParaBlacklist.add(url);
+      return null;
+    }
   }
 
   urlsParaBlacklist.add(url);

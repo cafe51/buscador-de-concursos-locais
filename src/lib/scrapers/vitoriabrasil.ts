@@ -452,8 +452,7 @@ export async function buscarVitoriaBrasil(opcoes?: import('../../types').Scraper
 
       pastasDoConcurso.sort((a, b) => {
         if (a.dataTimestamp !== b.dataTimestamp) return a.dataTimestamp - b.dataTimestamp;
-        if (a.documentos.length !== b.documentos.length) return b.documentos.length - a.documentos.length;
-        // Desempate determinístico pelo título da pasta
+        // Desempate determinístico pelo título da pasta (ESTÁVEL)
         return a.tituloPasta.localeCompare(b.tituloPasta);
       });
 

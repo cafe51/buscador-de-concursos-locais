@@ -8,6 +8,7 @@ import { obterBufferDoDocumento } from './docParser';
 import { PDFDocument } from 'pdf-lib';
 import * as crypto from 'crypto';
 import { delay, calcularCusto, extrairJSONSeguro, obterCotacaoDolar } from './aiAnalysis';
+import { converterWordParaPdf } from './wordToPdf';
 
 export const AUDITOR_MODEL_NAME = 'gemini-3.5-flash';
 
@@ -44,10 +45,15 @@ REGRAS RÍGIDAS DE AUDITORIA:
 3. Se a IA júnior cometeu um erro (extraiu errado ou deixou vazio quando a informação existia), o veredicto é "INCORRETO". Você deve fornecer a correção exata no campo "dadosCorrigidos".
 4. "justificativa" deve ser direta ao ponto e ter NO MÁXIMO 600 caracteres. Quando o veredicto for "INCORRETO", você deve obrigatoriamente explicar qual foi a provável causa da confusão da IA júnior e por que ela cometeu esse erro.
 
-Lembrete de padronização da IA júnior para concursos:
-- PARTE 1: EXATAMENTE "Processo Seletivo" ou "Concurso Público".
-- PARTE 2: nn/aaaa (sempre com 2 dígitos antes da barra e 4 depois). Ex: 01/2026.
-- A data de publicação deve ser no formato DD/MM/AAAA.
+Lembrete de padronização da IA júnior para gerar a chave "concurso":
+   - PARTE 1: EXATAMENTE "Processo Seletivo" ou EXATAMENTE  "Concurso Público".
+   - PARTE 2: Número no formato nn/aaaa. CONVERTA QUALQUER NÚMERO PARA EXATAMENTE 2 DÍGITOS ANTES DA BARRA (Ex: 001/2020 deve virar 01/2020. 1/2020 deve virar 01/2020). O ano deve ter 4 dígitos.
+   - PARTE 3 (Opcional): Se for para estagiários, adicione "(Estagiários)" no final.
+   Exemplo Perfeito: "Processo Seletivo 01/2026" ou "Processo Seletivo 01/2026 (Estagiários)".
+   Se conseguir identificar o certame a que o edital pertence, gere a chave "concurso" usando obrigatoria mente as duas partes (PARTE 1 + PARTE 2) e opcionalmente a parte 3 (PARTE 1 + PARTE 2 + PARTE 3)
+   Se não conseguir identificar a que concurso o edital pertence, gere a chave "concurso" como string vazia "".
+   Exemplos ruins de casos proibidos: "Concurso Público", "Concurso", "Processo", "Processo Seletivo", "Processo Seletivo Simplificado", "Concurso (estágio)", etc. 
+   A parte 1 sempre deve vir acompanhada da parte 2.
 
 Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
 {
@@ -110,11 +116,25 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
 
     } else if (docRaw.textoLimpo) {
       partesReq.push({ text: `\nTEXTO DO HTML:\n${docRaw.textoLimpo.substring(0, 200000)}` });
-    } else if (docRaw.isDOCX && docRaw.buffer) {
+    } else if ((docRaw.isDOCX || docRaw.isDOC) && docRaw.buffer) {
+      console.log(`[Auditor IA] Convertendo Word para PDF usando LibreOffice...`);
+      const pdfBufferConvertido = await converterWordParaPdf(docRaw.buffer, !!docRaw.isDOCX);
+      
+      const tempFilename = crypto.randomUUID() + '-auditoria-convertida.pdf';
+      arquivoTemporarioPath = path.join(os.tmpdir(), tempFilename);
+      fs.writeFileSync(arquivoTemporarioPath, pdfBufferConvertido);
+
+      const uploadResult = await fileManager.uploadFile(arquivoTemporarioPath, {
+        mimeType: "application/pdf",
+        displayName: `Auditoria-Convertida`
+      });
+
+      geminiFileName = uploadResult.file.name;
+
       partesReq.push({
-        inlineData: {
-          data: docRaw.buffer.toString('base64'),
-          mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        fileData: {
+          mimeType: "application/pdf",
+          fileUri: uploadResult.file.uri
         }
       });
     } else {
