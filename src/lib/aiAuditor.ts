@@ -244,9 +244,9 @@ export async function processarAuditoria(itensParaAuditar: EditalAuditavel[]): P
   const custoTotalBRL = custoGeralUSD * cotacaoDolar;
   console.log("🕵️ ══════════════════════════════════════════════════════");
   console.log(`🕵️ [AUDITOR] RESUMO DA AUDITORIA:`);
-  console.log(`🕵️ ✅ Aprovados sem ressalvas: ${sucesso}`);
-  console.log(`🕵️ 🛠️ Incorretos interceptados e corrigidos automaticamente: ${incorretosCorrigidos}`);
-  console.log(`🕵️ ❌ Falhas técnicas na auditoria: ${falhaTecnica}`);
+  console.log(`🕵️ ✅ Aprovados: ${sucesso}`);
+  console.log(`🕵️ 🛠️ Correções: ${incorretosCorrigidos}`);
+  console.log(`🕵️ ❌ Falhas técnicas: ${falhaTecnica}`);
   console.log(`🕵️ 💰 Custo Total Estimado da Auditoria: R$ ${custoTotalBRL.toFixed(4)}`);
   console.log("🕵️ ══════════════════════════════════════════════════════\n");
 }
