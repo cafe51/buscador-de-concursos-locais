@@ -216,10 +216,9 @@ export async function enriquecerArquivosAction(editais: Edital[]) {
   let linksEnriquecidos: string[] = [];
 
   if (editaisEnriquecidosComSucesso.length > 0) {
-    await salvarEnriquecimentoEmLote(editaisEnriquecidosComSucesso);
     linksEnriquecidos = editaisEnriquecidosComSucesso.map((e) => e.link);
     console.log("===================================================");
-    console.log(`✅ ${linksEnriquecidos.length} arquivos enriquecidos com sucesso!`);
+    console.log(`✅ ${linksEnriquecidos.length} arquivos analisados. Iniciando auditoria...`);
     console.log("Links:");
     console.log(linksEnriquecidos);
 
@@ -290,6 +289,10 @@ export async function enriquecerArquivosAction(editais: Edital[]) {
     } else {
       console.log(`\n🔍 Nenhuma mudança significativa foi encontrada em relação aos dados originais.`);
     }
+    
+    // Agora que a auditoria corrigiu os objetos em memória (se necessário), salvamos no banco
+    await salvarEnriquecimentoEmLote(editaisEnriquecidosComSucesso);
+    console.log(`✅ Dados salvos no MongoDB com sucesso!`);
     // ==============================================================
 
     console.log("===================================================");

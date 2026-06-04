@@ -26,6 +26,7 @@
     "resend": "^6.12.4",
     "rss-parser": "^3.13.0",
     "undici": "^8.3.0",
+    "word-extractor": "^1.0.4",
     "zod": "^4.4.3"
   },
   "devDependencies": {

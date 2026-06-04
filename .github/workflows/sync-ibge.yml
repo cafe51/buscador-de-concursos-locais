@@ -1,0 +1,33 @@
+name: Sincronização Automática IBGE
+
+on:
+  schedule:
+    # Roda todos os dias às 07:00 e 19:00 (UTC)
+    # Isso corresponde aproximadamente às 04:00 e 16:00 no horário de Brasília (BRT)
+    - cron: '0 7,19 * * *'
+  # O workflow_dispatch permite que você ative a execução manualmente no GitHub
+  workflow_dispatch: 
+
+jobs:
+  sync-and-update:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm' # Usa o cache do npm para deixar a pipeline mais rápida
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Executar sincronização do IBGE
+        env:
+          # Injeta os tokens necessários para o script funcionar
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          PORTAL_TRANSPARENCIA_API_KEY: ${{ secrets.PORTAL_TRANSPARENCIA_API_KEY }}
+        run: npx tsx scripts/sync-ibge.ts

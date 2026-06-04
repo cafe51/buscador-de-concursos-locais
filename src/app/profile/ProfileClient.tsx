@@ -165,6 +165,7 @@ export default function ProfileClient({
           >
             <Lock size={18} /> Segurança
           </button>
+
           {isAdmin && (
             <button 
               onClick={() => setActiveTab('admin')}
@@ -481,6 +482,8 @@ export default function ProfileClient({
             <AdminScraperConfigs initialConfigs={adminConfigs} />
           </div>
         )}
+
+
 
       </div>
 
