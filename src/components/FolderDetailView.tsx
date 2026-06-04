@@ -8,13 +8,14 @@ import { enriquecerArquivosAction, reverterEnriquecimentoAction } from '../app/a
 type FolderDetailViewProps = {
   grupo: any;
   onBack: () => void;
+  onUpdateGlobal?: (link: string, novosDados: any | null) => void;
 };
 
 function formatarNomeArquivo(nome: string) {
   return nome.replace(/[\/\s]/g, '-').toLowerCase();
 }
 
-export default function FolderDetailView({ grupo, onBack }: FolderDetailViewProps) {
+export default function FolderDetailView({ grupo, onBack, onUpdateGlobal }: FolderDetailViewProps) {
   const [isEnriching, setIsEnriching] = useState(false);
   const [isEnrichMode, setIsEnrichMode] = useState(false);
   const [selectedLinks, setSelectedLinks] = useState<string[]>([]);
@@ -59,6 +60,8 @@ export default function FolderDetailView({ grupo, onBack }: FolderDetailViewProp
     try {
       const res = await reverterEnriquecimentoAction(link);
       if (res.sucesso) {
+        if (onUpdateGlobal) onUpdateGlobal(link, null);
+
         setLocalItens(prev => prev.map(item => {
           if (item.link === link) {
             const newItem = { ...item };
@@ -89,22 +92,23 @@ export default function FolderDetailView({ grupo, onBack }: FolderDetailViewProp
     try {
       const result = await enriquecerArquivosAction(itemsParaEnriquecer);
       if (result.sucesso) {
-        if (result.count > 0) {
-          console.log("Editais enriquecidos:", result.links);
-
-          // Atualiza estado local da interface sem piscar a página inteira
-          const atualizadosMap = new Map();
-          if (result.atualizados) {
-            result.atualizados.forEach((e: any) => atualizadosMap.set(e.link, e));
+        if (result.count > 0 && result.atualizados) {
+          if (onUpdateGlobal) {
+            result.atualizados.forEach((a: any) => {
+              onUpdateGlobal(a.link, a.dadosEnriquecidos);
+            });
           }
 
-          setLocalItens((prevItens) => prevItens.map(item => {
-            if (atualizadosMap.has(item.link)) {
-              return { ...item, dadosEnriquecidos: atualizadosMap.get(item.link).dadosEnriquecidos };
+          setLocalItens(prev => prev.map(item => {
+            const atualizado = result.atualizados.find((a: any) => a.link === item.link);
+            if (atualizado) {
+              return { ...item, dadosEnriquecidos: atualizado.dadosEnriquecidos };
             }
             return item;
           }));
 
+          const atualizadosMap = new Map();
+          result.atualizados.forEach((e: any) => atualizadosMap.set(e.link, e));
           setSelectedLinks((prev) => prev.filter(link => !atualizadosMap.has(link)));
 
         } else {

@@ -541,6 +541,20 @@ export default function Home() {
           <FolderDetailView
             grupo={grupoAtual}
             onBack={() => setConcursoSelecionado(null)}
+            onUpdateGlobal={(link, novosDados) => {
+              setEditais(prev => prev.map(e => {
+                if (e.link === link) {
+                  const newE = { ...e };
+                  if (novosDados === null) {
+                    delete newE.dadosEnriquecidos;
+                  } else {
+                    newE.dadosEnriquecidos = novosDados;
+                  }
+                  return newE;
+                }
+                return e;
+              }));
+            }}
           />
         ) : (
           <FolderView

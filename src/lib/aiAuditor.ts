@@ -33,6 +33,7 @@ async function auditarEditalComIA(item: EditalAuditavel): Promise<AuditoriaResul
 
   const systemInstruction = `Você é um Auditor IA Especialista.
 Seu papel é verificar o trabalho de uma IA júnior que extraiu dados de um documento de concurso público.
+O trabalho da IA júnior é classificar corretamente o documento quanto a qual certame esse documento se refere e quando ele foi publicado.
 
 Você receberá o documento PDF (ou texto) original, e um log com as alterações que a IA júnior fez.
 Sua tarefa é analisar SE a decisão da IA júnior foi CORRETA ou INCORRETA baseando-se EXCLUSIVAMENTE nas informações do documento original.
@@ -41,7 +42,7 @@ REGRAS RÍGIDAS DE AUDITORIA:
 1. Se a IA júnior extraiu um dado ("concurso" ou "dataPublicacao") corretamente, o veredicto é "CORRETO".
 2. Se a IA júnior preencheu com string vazia ("") E a informação realmente não existe no documento, o veredicto é "CORRETO", e tipoVazio é "JUSTIFICADO".
 3. Se a IA júnior cometeu um erro (extraiu errado ou deixou vazio quando a informação existia), o veredicto é "INCORRETO". Você deve fornecer a correção exata no campo "dadosCorrigidos".
-4. "justificativa" deve ser direta ao ponto e ter NO MÁXIMO 300 caracteres.
+4. "justificativa" deve ser direta ao ponto e ter NO MÁXIMO 600 caracteres. Quando o veredicto for "INCORRETO", você deve obrigatoriamente explicar qual foi a provável causa da confusão da IA júnior e por que ela cometeu esse erro.
 
 Lembrete de padronização da IA júnior para concursos:
 - PARTE 1: EXATAMENTE "Processo Seletivo" ou "Concurso Público".
@@ -52,7 +53,7 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
 {
   "veredicto": "CORRETO" ou "INCORRETO",
   "tipoVazio": "JUSTIFICADO" ou "INJUSTIFICADO" ou "NAO_SE_APLICA",
-  "justificativa": "Sua justificativa (máx 300 caracteres)",
+  "justificativa": "Sua justificativa (máx 600 caracteres. Se INCORRETO, explique também a causa da confusão da IA júnior)",
   "dadosCorrigidos": {
     "concurso": "nova string (ou vazia)",
     "dataPublicacao": "nova string (ou vazia)"
@@ -140,9 +141,9 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
     const dados = extrairJSONSeguro(responseText);
 
     if (dados.veredicto) {
-      // Forçar limite de 300 chars na justificativa caso a IA ultrapasse
-      if (dados.justificativa && dados.justificativa.length > 300) {
-        dados.justificativa = dados.justificativa.substring(0, 297) + '...';
+      // Forçar limite de 600 chars na justificativa caso a IA ultrapasse
+      if (dados.justificativa && dados.justificativa.length > 600) {
+        dados.justificativa = dados.justificativa.substring(0, 597) + '...';
       }
       return {
         veredicto: dados.veredicto,
@@ -203,6 +204,7 @@ export async function processarAuditoria(itensParaAuditar: EditalAuditavel[]): P
         console.log("──────────────────────────────────────────────────────");
         console.log(`🕵️ [AUDITOR] [${i + 1}/${itensParaAuditar.length}] ${mudancasCurtas} ${resultado.veredicto}  ${icone}`);
         console.log(`   ↳ Justificativa: "${resultado.justificativa}"  [💰 R$ ${custoBRL.toFixed(4)}]`);
+        console.log(`   🔗 Link: ${edital.link}`);
 
 
         if (resultado.veredicto === 'CORRETO') {
