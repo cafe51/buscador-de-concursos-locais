@@ -37,7 +37,9 @@ async function syncIBGE() {
     await connectToDatabase();
     console.log('Iniciando sincronização COMPLETA dos servidores do IBGE...');
 
-    let totalSaved = 0;
+    let totalProcessados = 0;
+    let docsAdded = 0;
+    let docsUpdated = 0;
     let page = 1;
 
     while (true) {
@@ -65,31 +67,42 @@ async function syncIBGE() {
           uorgLotacao = item.fichasCargoEfetivo[0].uorgLotacao || '';
         }
 
-        await ServidorIBGE.findOneAndUpdate(
+        const result = await ServidorIBGE.updateOne(
           { idServidor: servidor.id },
           {
-            idServidor: servidor.id,
-            nome: servidor.pessoa?.nome || 'Desconhecido',
-            cpfFormatado: servidor.pessoa?.cpfFormatado,
-            situacao: servidor.situacao,
-            uorgExercicio: uorgExercicio,
-            uorgLotacao: uorgLotacao,
-            ufExercicio: servidor.estadoExercicio?.sigla || '',
-            rawData: item,
-            ultimaAtualizacao: new Date()
+            $set: {
+              idServidor: servidor.id,
+              nome: servidor.pessoa?.nome || 'Desconhecido',
+              cpfFormatado: servidor.pessoa?.cpfFormatado,
+              situacao: servidor.situacao,
+              uorgExercicio: uorgExercicio,
+              uorgLotacao: uorgLotacao,
+              ufExercicio: servidor.estadoExercicio?.sigla || '',
+              rawData: item,
+              ultimaAtualizacao: new Date()
+            }
           },
-          { upsert: true, returnDocument: 'after' }
+          { upsert: true }
         );
+
+        if (result.upsertedCount > 0) {
+          docsAdded++;
+        } else {
+          docsUpdated++;
+        }
       }
 
-      totalSaved += data.length;
+      totalProcessados += data.length;
       page++;
 
       // Delay de 200ms para respeitar limite de ~400 requisições por minuto da API
       await delay(200);
     }
 
-    console.log(`✅ Sincronização Completa finalizada! Total processado: ${totalSaved}`);
+    console.log(`\n✅ Sincronização Completa finalizada!`);
+    console.log(`📊 Total processado: ${totalProcessados}`);
+    console.log(`🆕 Novos registros adicionados: ${docsAdded}`);
+    console.log(`🔄 Registros atualizados: ${docsUpdated}\n`);
     process.exit(0);
 
   } catch (error) {
