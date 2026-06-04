@@ -8,7 +8,6 @@ import { Edital } from '../types';
 import { exportarParaJSON } from '../utils/exportJson';
 
 import FilterPanel from '../components/FilterPanel';
-import DevToolsPanel from '../components/DevToolsPanel';
 import Header from '../components/Header';
 import ControlsBar from '../components/ControlsBar';
 import ListView from '../components/ListView';
@@ -564,16 +563,6 @@ export default function Home() {
           />
         )}
       </div>
-
-      <DevToolsPanel
-        todasCidades={TODAS_CIDADES}
-        concursosAgrupados={concursosAgrupados}
-        onUpdateCityData={handleUpdateCityData}
-        onScrapeAndSave={rasparESalvarNaNuvem}
-        isSavingToCloud={isSavingToCloud}
-        onCreateNewDb={criarNovoBancoNaNuvem}
-        isCreatingNewDb={isCreatingNewDb}
-      />
 
     </main>
   );

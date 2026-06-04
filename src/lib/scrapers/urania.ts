@@ -5,7 +5,13 @@ import { ehSujeira, extrairIdConcurso } from '../filtrosGlobais';
 import { extrairDataDoArquivo } from '../docParser';
 import { fetchHtml, extrairData } from './utils';
 
-export async function buscarUrania(): Promise<Edital[]> {
+export async function buscarUrania(opcoes?: import('../../types').ScraperOptions): Promise<Edital[]> {
+  if (opcoes?.verificarDisponibilidade) {
+    const { verificaDisponibilidade } = await import('./utils');
+    await verificaDisponibilidade('https://www.urania.sp.gov.br/');
+    return [];
+  }
+
   const resultados: Edital[] = [];
   const linkPagina = 'https://www.urania.sp.gov.br/transparencia/concursos-e-editais/concursos-publicos-editais-processo-seletivo';
 

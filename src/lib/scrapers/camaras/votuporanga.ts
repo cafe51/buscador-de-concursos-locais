@@ -4,39 +4,34 @@ import { Edital } from '../../../types';
 import { ehSujeira, extrairIdConcurso } from '../../filtrosGlobais';
 import { fetchHtml } from '../utils';
 
-export async function buscarCamaraVotuporanga(): Promise<Edital[]> {
-  const resultados: Edital[] = [];
-  let ordemGlobal = 0;
-
-  const urlPagina = 'https://camaravotuporanga.sp.gov.br/concursos';
-
-  try {
-    // 🚀 INJEÇÃO DE HEADERS: Disfarça a requisição para não ser bloqueada pelo Cloudflare/Firewall
-    const res = await fetchHtml(urlPagina, false, 20000);
-
-    if (!res.ok) {
-      throw new Error(`Erro HTTP ${res.status} ao acessar Câmara Votuporanga`);
+export async function buscarCamaraVotuporanga(opcoes?: import('../../../types').ScraperOptions): Promise<Edital[]> {
+  if (opcoes?.verificarDisponibilidade) {
+    const url = 'https://camaravotuporanga.sp.gov.br/concursos';
+    let html = '';
+    try {
+      const response = await fetchHtml(url);
+      html = response.html;
+    } catch (e) {
+      throw new Error('SITE_INDISPONIVEL');
     }
 
-    const html = res.html;
     const $ = cheerio.load(html);
-
-    const textoPagina = $('body').text();
-    if (html.includes('Nenhum registro encontrado') || textoPagina.includes('Nenhum registro encontrado')) {
-      // Sucesso: a página ainda não tem concursos publicados.
-      // Retornamos um array vazio para não acionar as retentativas e poupar 30 minutos.
-      return [];
+    
+    // Verifica se a mensagem de "vazio" ainda existe na página
+    const temMensagemVazia = html.includes('Nenhum registro encontrado') || $('.listing-no-results__message span').text().trim() === 'Nenhum registro encontrado';
+    
+    if (temMensagemVazia) {
+      // Lança erro para ser tratado como OFFLINE pelo runner.
+      // Assim, o email de "sucesso" não será enviado até que a mensagem de fato suma da página.
+      throw new Error('SITE_INDISPONIVEL: Nenhum registro encontrado ainda');
     }
 
-    // Se o texto não for encontrado, significa que a prefeitura publicou algo.
-    // Lançamos erro para alertar nos logs.
-    throw new Error('O texto "Nenhum registro encontrado" não foi localizado na página. A prefeitura publicou novos concursos, atualize o scraper!');
-
-  } catch (error: any) {
-    const cause = (error as any).cause;
-    const causeMsg = cause ? " - Detalhes: " + (cause.message || cause.code || JSON.stringify(cause)) : "";
-    throw new Error('Erro geral ao buscar Câmara Votuporanga' + ": " + (error as Error).message + causeMsg);
+    // Se a mensagem sumiu, significa que publicaram algo novo!
+    // Retorna vazio. O runner tratará como ONLINE e enviará o e-mail de alerta para o administrador.
+    return [];
   }
+
+  const resultados: Edital[] = [];
 
   return resultados;
 }

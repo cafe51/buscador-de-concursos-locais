@@ -43,7 +43,7 @@ import { buscarSantaSalete } from './santasalete';
 // ==============================================================
 // 🗺️ MAPEAMENTO GLOBAL DE SCRAPERS
 // ==============================================================
-export const MAPA_SCRAPERS: Record<string, () => Promise<Edital[]>> = {
+export const MAPA_SCRAPERS: Record<string, (opcoes?: import('../../types').ScraperOptions) => Promise<Edital[]>> = {
   'Fernandópolis': buscarFernandopolis,
   'Fernandópolis (Câmara)': buscarCamaraFernandopolis,
   'Votuporanga': buscarVotuporanga,
@@ -90,7 +90,7 @@ export const CIDADES_ATIVAS: string[] = [
   'Pedranópolis',
   'Votuporanga',
 
-  // 'Votuporanga (Câmara)',
+  'Votuporanga (Câmara)',
   'Ouroeste',
 
   'Mira Estrela',

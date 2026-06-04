@@ -3,7 +3,13 @@ import { Edital } from '../../types';
 import { ehSujeira, extrairIdConcurso } from '../filtrosGlobais';
 import { fetchHtml, extrairData, limparTituloDoc } from './utils';
 
-export async function buscarJales(): Promise<Edital[]> {
+export async function buscarJales(opcoes?: import('../../types').ScraperOptions): Promise<Edital[]> {
+  if (opcoes?.verificarDisponibilidade) {
+    const { verificaDisponibilidade } = await import('./utils');
+    await verificaDisponibilidade('https://www.jales.sp.gov.br/');
+    return [];
+  }
+
   const resultados: Edital[] = [];
   let ordemGlobal = 0;
   const linksProcessados = new Set<string>();

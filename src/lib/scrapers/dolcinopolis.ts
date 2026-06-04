@@ -3,7 +3,13 @@ import { Edital } from '../../types';
 import { ehSujeira, extrairIdConcurso } from '../filtrosGlobais';
 import { fetchHtml, extrairData, limparTituloDoc } from './utils';
 
-export async function buscarDolcinopolis(): Promise<Edital[]> {
+export async function buscarDolcinopolis(opcoes?: import('../../types').ScraperOptions): Promise<Edital[]> {
+  if (opcoes?.verificarDisponibilidade) {
+    const { verificaDisponibilidade } = await import('./utils');
+    await verificaDisponibilidade('https://dolcinopolis.sp.gov.br');
+    return [];
+  }
+
   const resultados: Edital[] = [];
   let ordemGlobal = 0;
 

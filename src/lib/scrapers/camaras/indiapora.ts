@@ -3,7 +3,13 @@ import * as cheerio from 'cheerio';
 import { Edital } from '../../../types';
 import { ehSujeira, extrairIdConcurso } from '../../filtrosGlobais';
 
-export async function buscarCamaraIndiapora(): Promise<Edital[]> {
+export async function buscarCamaraIndiapora(opcoes?: import('../../../types').ScraperOptions): Promise<Edital[]> {
+  if (opcoes?.verificarDisponibilidade) {
+    const { verificaDisponibilidade } = await import('../utils');
+    await verificaDisponibilidade('https://www.indiapora.sp.leg.br');
+    return [];
+  }
+
   const resultados: Edital[] = [];
   let ordemGlobal = 0;
 

@@ -4,7 +4,13 @@ import { Edital } from '../../types';
 import { ehSujeira, extrairIdConcurso } from '../filtrosGlobais';
 import { fetchHtml, extrairData } from './utils';
 
-export async function buscarMacedonia(): Promise<Edital[]> {
+export async function buscarMacedonia(opcoes?: import('../../types').ScraperOptions): Promise<Edital[]> {
+  if (opcoes?.verificarDisponibilidade) {
+    const { verificaDisponibilidade } = await import('./utils');
+    await verificaDisponibilidade('https://www.macedonia.sp.gov.br/');
+    return [];
+  }
+
   const resultados: Edital[] = [];
 
   const anoAtual = new Date().getFullYear();

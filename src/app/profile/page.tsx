@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import ProfileClient from './ProfileClient'
+import { getScraperConfigsAction } from '@/app/admin/actions'
 
 export default async function ProfilePage({
   searchParams,
@@ -21,6 +22,15 @@ export default async function ProfilePage({
   const params = await searchParams
   const error = params?.error
   const message = params?.message
+
+  const isAdmin = user.user_metadata?.role === 'admin'
+  let adminConfigs = undefined
+  if (isAdmin) {
+    const res = await getScraperConfigsAction()
+    if (!res.error) {
+      adminConfigs = res.configs
+    }
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-8 relative overflow-hidden flex flex-col items-center">
@@ -47,7 +57,7 @@ export default async function ProfilePage({
           </div>
         )}
 
-        <ProfileClient user={user} />
+        <ProfileClient user={user} isAdmin={isAdmin} adminConfigs={adminConfigs} />
       </div>
     </div>
   )

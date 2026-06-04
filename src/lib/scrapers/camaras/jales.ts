@@ -4,7 +4,13 @@ import { Edital } from '../../../types';
 import { ehSujeira, extrairIdConcurso, corrigirErrosDigitacao } from '../../filtrosGlobais';
 import { extrairTextoBruto } from '../../docParser';
 
-export async function buscarCamaraJales(): Promise<Edital[]> {
+export async function buscarCamaraJales(opcoes?: import('../../../types').ScraperOptions): Promise<Edital[]> {
+  if (opcoes?.verificarDisponibilidade) {
+    const { verificaDisponibilidade } = await import('../utils');
+    await verificaDisponibilidade('https://www.jales.sp.leg.br');
+    return [];
+  }
+
   const resultados: Edital[] = [];
   let ordemGlobal = 0;
   const baseUrl = 'https://www.jales.sp.leg.br';

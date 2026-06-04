@@ -4,7 +4,13 @@ import { Edital } from '../../../types';
 import { ehSujeira, extrairIdConcurso } from '../../filtrosGlobais';
 import { fetchHtml } from '../utils';
 
-export async function buscarCamaraMeridiano(): Promise<Edital[]> {
+export async function buscarCamaraMeridiano(opcoes?: import('../../../types').ScraperOptions): Promise<Edital[]> {
+  if (opcoes?.verificarDisponibilidade) {
+    const { verificaDisponibilidade } = await import('../utils');
+    await verificaDisponibilidade('https://camarameridiano.sp.gov.br/');
+    return [];
+  }
+
   const resultados: Edital[] = [];
   let ordemGlobal = 0;
 

@@ -1,36 +1,49 @@
-// src/components/DevToolsPanel.tsx
 'use client'
 import { useState, useEffect } from 'react';
-import { buscarEditaisPorCidade } from '../app/actions';
-import { auditarQuantidadesInstar, extrairDadosRawInstar, Discrepancia } from '../lib/diagnostics';
-import { sincronizarBanco } from '../lib/storage';
+import { auditarQuantidadesInstar, Discrepancia } from '../lib/diagnostics';
 import { Edital } from '../types';
 
-type DevToolsProps = {
-  todasCidades: string[];
-  concursosAgrupados: any[];
-  onUpdateCityData: (cidade: string, novosEditais: Edital[]) => void;
-  onScrapeAndSave: (options: { enableAI: boolean; enableEmails: boolean; cidadesSelecionadas: string[] }) => void; // 🚀 Adicionado
-  isSavingToCloud: boolean;    // 🚀 Adicionado
-  onCreateNewDb: () => void;   // 🚀 Adicionado
-  isCreatingNewDb: boolean;    // 🚀 Adicionado
-};
+const CIDADES_ATIVAS = [
+  'Álvares Florence',
+  'Dolcinópolis',
+  "Estrela d'Oeste",
+  'Fernandópolis',
+  'Fernandópolis (Câmara)',
+  "Guarani d'Oeste",
+  'Indiaporã',
+  'Indiaporã (Câmara)',
+  'Jales',
+  'Jales (Câmara)',
+  'Macedônia',
+  'Meridiano',
+  'Meridiano (Câmara)',
+  'Mira Estrela',
+  'Mira Estrela (Câmara)',
+  'Ouroeste',
+  'Parisi',
+  'Parisi (Câmara)',
+  'Pedranópolis',
+  'Pontalinda',
+  'Santa Salete',
+  'São João das Duas Pontes',
+  'Urânia',
+  'Valentim Gentil',
+  'Vitória Brasil',
+  'Votuporanga',
+  'Votuporanga (Câmara)'
+].sort();
 
-export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpdateCityData, onScrapeAndSave, isSavingToCloud, onCreateNewDb, isCreatingNewDb }: DevToolsProps) {
+export default function DevToolsPanel() {
   const [auditando, setAuditando] = useState(false);
   const [resultadoAuditoria, setResultadoAuditoria] = useState<Discrepancia[] | null>(null);
-
-  // const [urlRaw, setUrlRaw] = useState('');
-  // const [isRawScraping, setIsRawScraping] = useState(false);
-
-  // const [cidadeAlvoDev, setCidadeAlvoDev] = useState<string>(todasCidades[0]);
-  // const [isRefreshingCity, setIsRefreshingCity] = useState(false);
+  
+  const [isSavingToCloud, setIsSavingToCloud] = useState(false);
   const [isMinimized, setIsMinimized] = useState(true);
 
   // ⚙️ CONFIGURAÇÕES DE TESTE LOCAL
   const [devEnableAI, setDevEnableAI] = useState(true);
   const [devEnableEmails, setDevEnableEmails] = useState(false);
-  const [devSelectedCities, setDevSelectedCities] = useState<string[]>(todasCidades);
+  const [devSelectedCities, setDevSelectedCities] = useState<string[]>([]);
   const [configLoaded, setConfigLoaded] = useState(false);
 
   useEffect(() => {
@@ -42,7 +55,13 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
 
     const citiesSaved = localStorage.getItem('devSelectedCities');
     if (citiesSaved) {
-      try { setDevSelectedCities(JSON.parse(citiesSaved)); } catch (e) { }
+      try { 
+        setDevSelectedCities(JSON.parse(citiesSaved)); 
+      } catch (e) { 
+        setDevSelectedCities(CIDADES_ATIVAS);
+      }
+    } else {
+      setDevSelectedCities(CIDADES_ATIVAS);
     }
     setConfigLoaded(true);
   }, []);
@@ -63,69 +82,83 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
     }
   };
 
-  const selectAllCities = () => setDevSelectedCities(todasCidades);
+  const selectAllCities = () => setDevSelectedCities(CIDADES_ATIVAS);
   const deselectAllCities = () => setDevSelectedCities([]);
+
+  async function rasparESalvarNaNuvem() {
+    setIsSavingToCloud(true);
+    try {
+      const { rodarFluxoCompletoServerAction } = await import('../app/actions');
+      
+      const response = await rodarFluxoCompletoServerAction({
+        isLocalUI: true,
+        enableAI: devEnableAI,
+        enableEmails: devEnableEmails,
+        cidadesSelecionadas: devSelectedCities
+      });
+
+      if (response.sucesso) {
+        if (response.syncInfo) {
+           alert(`✅ Fluxo Completo Executado com Sucesso!\n\n📈 Novos Itens Adicionados: ${response.syncInfo.adicionados}\n🔄 Itens Atualizados: ${response.syncInfo.atualizados}\n\nO processo incluiu Análise com IA, Emails e Salvamento de Logs.`);
+        } else {
+           alert(`✅ Fluxo Completo Executado com Sucesso! Nenhuma modificação necessária no banco.`);
+        }
+        window.location.reload();
+      } else {
+        alert("❌ Erro ao completar fluxo na Nuvem. Verifique o terminal.");
+      }
+    } catch (e) {
+      alert("❌ Falha crítica ao raspar as cidades (Verifique se não houve timeout na interface, veja o terminal).");
+    }
+    setIsSavingToCloud(false);
+  }
 
   async function rodarAuditoria() {
     setAuditando(true);
     setResultadoAuditoria(null);
-    const payload = concursosAgrupados
-      .filter(g => g.linksOrigem && g.linksOrigem.length > 0)
-      .map(g => ({
-        nome: g.nome,
-        cidade: g.cidade,
-        linksOrigem: g.linksOrigem,
-        qtdNossa: g.totalItens,
-        temRestricao: g.itens.some((item: Edital) => item.titulo.includes('Acesso Restrito'))
-      }));
-    const discrepancias = await auditarQuantidadesInstar(payload);
-    setResultadoAuditoria(discrepancias);
+    try {
+      const { carregarDoBanco } = await import('../lib/storage');
+      const editais = await carregarDoBanco();
+      
+      const mapa = new Map<string, Edital[]>();
+      editais.forEach((edital: Edital) => {
+        const concursoFinal = edital.dadosEnriquecidos?.concurso || edital.concurso;
+        if (concursoFinal) {
+          const chaveUnica = `${edital.cidade}_${edital.orgao}_${concursoFinal}`;
+          if (!mapa.has(chaveUnica)) mapa.set(chaveUnica, []);
+          mapa.get(chaveUnica)!.push(edital);
+        }
+      });
+
+      const concursosAgrupados = Array.from(mapa.entries()).map(([chaveUnica, listaEditais]) => {
+        const primeiroItem = listaEditais[0];
+        const concursoFinal = primeiroItem.dadosEnriquecidos?.concurso || primeiroItem.concurso;
+        return {
+          nome: concursoFinal as string,
+          cidade: primeiroItem.cidade,
+          totalItens: listaEditais.length,
+          itens: listaEditais,
+          linksOrigem: Array.from(new Set(listaEditais.map((e: Edital) => e.linkOrigem).filter(Boolean))) as string[]
+        };
+      });
+
+      const payload = concursosAgrupados
+        .filter(g => g.linksOrigem && g.linksOrigem.length > 0)
+        .map(g => ({
+          nome: g.nome,
+          cidade: g.cidade,
+          linksOrigem: g.linksOrigem,
+          qtdNossa: g.totalItens,
+          temRestricao: g.itens.some((item: Edital) => item.titulo.includes('Acesso Restrito'))
+        }));
+        
+      const discrepancias = await auditarQuantidadesInstar(payload);
+      setResultadoAuditoria(discrepancias);
+    } catch (e) {
+      alert("Erro ao carregar dados do banco para auditoria.");
+    }
     setAuditando(false);
   }
-
-  // async function rodarRawScraper() {
-  //   if (!urlRaw) return;
-  //   setIsRawScraping(true);
-  //   try {
-  //     const dados = await extrairDadosRawInstar(urlRaw);
-  //     const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
-  //     const urlBlob = URL.createObjectURL(blob);
-  //     const link = document.createElement('a');
-  //     link.href = urlBlob;
-  //     link.download = `raio-x-instar-${Date.now()}.json`;
-  //     document.body.appendChild(link);
-  //     link.click();
-  //     document.body.removeChild(link);
-  //     URL.revokeObjectURL(urlBlob);
-  //   } catch (e) {
-  //     alert("Falha ao rodar o Raw Scraper. Verifique a URL.");
-  //   }
-  //   setIsRawScraping(false);
-  // }
-
-  // async function rodarAtualizacaoIndividual() {
-  //   if (!cidadeAlvoDev) return;
-  //   setIsRefreshingCity(true);
-  //   try {
-  //     const resultado = await buscarEditaisPorCidade(cidadeAlvoDev);
-  //     if (resultado.falhas.length > 0) {
-  //       alert(`Falha ao buscar editais de ${cidadeAlvoDev}. Verifique os logs no terminal.`);
-  //     } else {
-  //       // Envia os dados frescos para fundir com os antigos na nuvem
-  //       const syncResult = await sincronizarBanco(resultado.editais);
-  //       if (syncResult.sucesso) {
-  //         alert(`✅ Cidade [${cidadeAlvoDev}] Atualizada e Salva na Nuvem!\n\n📈 Novos Editais: ${syncResult.adicionados}\n🔄 Editais Atualizados: ${syncResult.atualizados.length}`);
-  //       } else {
-  //         alert(`⚠️ Cidade [${cidadeAlvoDev}] atualizada localmente, mas falhou ao salvar na Nuvem.`);
-  //       }
-  //     }
-  //     onUpdateCityData(cidadeAlvoDev, resultado.editais);
-  //   } catch (e) {
-  //     console.error(e);
-  //     alert("Erro ao executar o scraper da cidade selecionada.");
-  //   }
-  //   setIsRefreshingCity(false);
-  // }
 
   const showDevTools = process.env.NODE_ENV === 'development';
   if (!showDevTools) return null;
@@ -143,7 +176,7 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
   }
 
   return (
-    <div className="fixed inset-0 sm:inset-auto sm:bottom-6 sm:right-6 z-50 flex flex-col items-center sm:items-end gap-4 p-4 sm:p-0 bg-slate-900/40 sm:bg-transparent backdrop-blur-md sm:backdrop-blur-none overflow-y-auto">
+    <div className="fixed inset-0 sm:inset-auto sm:bottom-6 sm:right-6 z-[9999] flex flex-col items-center sm:items-end gap-4 p-4 sm:p-0 bg-slate-900/40 sm:bg-transparent backdrop-blur-md sm:backdrop-blur-none overflow-y-auto">
       <div className="w-full sm:w-auto flex justify-end mb-2 mt-4 sm:mt-0">
         <button
           onClick={() => setIsMinimized(true)}
@@ -153,7 +186,6 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
         </button>
       </div>
 
-      {/* ⚙️ CONFIGURAÇÕES GLOBAIS DE TESTE */}
       <div className="bg-white/90 backdrop-blur-xl border border-slate-200 p-4 rounded-2xl shadow-xl w-full max-w-md sm:w-96 animate-fade-in flex flex-col gap-3">
         <h3 className="font-bold text-indigo-700 mb-1 flex items-center gap-2">⚙️ Configurações Locais</h3>
 
@@ -170,14 +202,14 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
 
         <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col gap-2">
           <div className="flex justify-between items-center mb-1">
-            <span className="text-sm font-bold text-slate-700">Cidades ({devSelectedCities.length}/{todasCidades.length})</span>
+            <span className="text-sm font-bold text-slate-700">Cidades ({devSelectedCities.length}/{CIDADES_ATIVAS.length})</span>
             <div className="flex gap-2">
               <button onClick={selectAllCities} className="text-xs text-indigo-600 hover:underline">Todas</button>
               <button onClick={deselectAllCities} className="text-xs text-indigo-600 hover:underline">Nenhuma</button>
             </div>
           </div>
           <div className="max-h-32 overflow-y-auto space-y-1 pr-2">
-            {todasCidades.map(cidade => (
+            {CIDADES_ATIVAS.map(cidade => (
               <label key={cidade} className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer hover:bg-slate-100 p-1 rounded">
                 <input type="checkbox" checked={devSelectedCities.includes(cidade)} onChange={() => toggleCity(cidade)} className="rounded text-indigo-600 focus:ring-indigo-500" />
                 {cidade}
@@ -187,68 +219,20 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
         </div>
       </div>
 
-      {/* ☁️ NUVEM VERCEL BLOB */}
       <div className="bg-white/90 backdrop-blur-xl border border-slate-200 p-4 rounded-2xl shadow-xl w-full max-w-md sm:w-96 animate-fade-in flex flex-col gap-3">
         <div>
           <h3 className="font-bold text-sky-700 mb-2">☁️ Atualizar Nuvem</h3>
           <p className="text-xs text-slate-500 mb-3">Raspa as cidades selecionadas obedecendo às configurações locais. (Fazendo upsert na nuvem)</p>
           <button
-            onClick={() => onScrapeAndSave({ enableAI: devEnableAI, enableEmails: devEnableEmails, cidadesSelecionadas: devSelectedCities })}
-            disabled={isSavingToCloud || isCreatingNewDb || devSelectedCities.length === 0}
+            onClick={rasparESalvarNaNuvem}
+            disabled={isSavingToCloud || devSelectedCities.length === 0}
             className="bg-sky-600 text-white w-full py-3 rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-sky-500 transition-colors shadow-lg"
           >
             {isSavingToCloud ? '⏳ Raspando e Salvando...' : '🚀 Raspar TUDO e Atualizar Nuvem'}
           </button>
         </div>
-        {/* <div className="border-t border-slate-200 pt-3">
-          <h3 className="font-bold text-red-600 mb-2">🛑 Criar Novo Banco</h3>
-          <p className="text-xs text-slate-500 mb-3">Zera a nuvem atual e recria o banco APENAS com os dados encontrados agora (Destrutivo).</p>
-          <button
-            onClick={onCreateNewDb} disabled={isSavingToCloud || isCreatingNewDb}
-            className="bg-red-50 border border-red-200 text-red-600 w-full py-2 rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-red-100 transition-colors shadow-lg"
-          >
-            {isCreatingNewDb ? '⏳ Recriando Banco...' : '💥 Zerar e Criar Novo Banco'}
-          </button>
-        </div> */}
       </div>
 
-      {/* RASPAGEM INDIVIDUAL */}
-      {/* <div className="bg-white/90 backdrop-blur-xl border border-slate-200 p-4 rounded-2xl shadow-xl w-full max-w-md sm:w-96 animate-fade-in">
-        <h3 className="font-bold text-emerald-700 mb-2">⚡ Testar Cidade Única</h3>
-        <p className="text-xs text-slate-500 mb-3">Atualiza a cidade selecionada e salva as modificações diretamente no servidor.</p>
-        <select
-          value={cidadeAlvoDev}
-          onChange={(e) => setCidadeAlvoDev(e.target.value)}
-          className="bg-white border border-slate-200 text-emerald-700 p-2 w-full text-xs font-bold rounded-xl mb-2 outline-none focus:border-emerald-500"
-        >
-          {todasCidades.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <button
-          onClick={rodarAtualizacaoIndividual} disabled={isRefreshingCity}
-          className="bg-emerald-600 text-white w-full py-2 rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-emerald-500 transition-colors shadow-lg"
-        >
-          {isRefreshingCity ? '⏳ Raspando e Sincronizando...' : `Atualizar ${cidadeAlvoDev} na Nuvem`}
-        </button>
-      </div> */}
-
-      {/* RAW SCRAPER */}
-      {/* <div className="bg-white/90 backdrop-blur-xl border border-slate-200 p-4 rounded-2xl shadow-xl w-full max-w-md sm:w-96 animate-fade-in">
-        <h3 className="font-bold text-purple-700 mb-2">🛠️ Raio-X Instar (Raw)</h3>
-        <input
-          type="text"
-          placeholder="Ex: https://.../numero-ano-processo-decrescente/0"
-          value={urlRaw} onChange={(e) => setUrlRaw(e.target.value)}
-          className="bg-white text-slate-800 border border-slate-200 p-2 w-full text-xs rounded-xl mb-2 outline-none focus:border-purple-500 placeholder:text-slate-400"
-        />
-        <button
-          onClick={rodarRawScraper} disabled={isRawScraping || !urlRaw}
-          className="bg-purple-600 text-white w-full py-2 rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-purple-500 transition-colors"
-        >
-          {isRawScraping ? '⏳ Extraindo...' : 'Extrair JSON'}
-        </button>
-      </div> */}
-
-      {/* AUDITOR */}
       <div className="flex flex-col items-center sm:items-end w-full max-w-md sm:w-auto">
         {resultadoAuditoria && (
           <div className="bg-white/90 backdrop-blur-xl border border-slate-200 p-4 rounded-2xl shadow-xl mb-4 w-full sm:w-96 max-h-[50vh] overflow-y-auto animate-fade-in">
@@ -274,7 +258,7 @@ export default function DevToolsPanel({ todasCidades, concursosAgrupados, onUpda
           </div>
         )}
         <button
-          onClick={rodarAuditoria} disabled={auditando || concursosAgrupados.length === 0}
+          onClick={rodarAuditoria} disabled={auditando}
           className={`px-6 py-3 rounded-full font-bold shadow-xl flex items-center gap-2 transition-all w-full sm:w-auto justify-center ${auditando ? 'bg-slate-100 text-slate-400' : 'bg-white text-slate-800 border border-slate-200 hover:bg-slate-50 hover:-translate-y-1'}`}
         >
           {auditando ? '⏳ Auditando...' : '🕵️ Auditar Instar'}

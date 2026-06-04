@@ -325,3 +325,68 @@ export async function processarNotificacoes(novasAdicoes: SyncLogAddition[], env
     console.error("=====================================================================\n");
   }
 }
+
+export async function enviarAlertaDisponibilidadeAdmin(cidadesDisponiveis: string[]) {
+  if (!cidadesDisponiveis || cidadesDisponiveis.length === 0) return;
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://buscador-de-concursos-locais.vercel.app';
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) return;
+
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    });
+
+    let page = 1;
+    const todosUsuarios: any[] = [];
+    while (true) {
+      const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 100 });
+      if (error || !data?.users || data.users.length === 0) break;
+      todosUsuarios.push(...data.users);
+      if (data.users.length < 100) break;
+      page++;
+    }
+
+    const admins = todosUsuarios.filter(u => u.user_metadata?.role === 'admin' && u.email);
+    if (admins.length === 0) return;
+
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"></head>
+      <body style="margin: 0; padding: 20px; font-family: sans-serif; background-color: #f8fafc;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0;">
+          <h2 style="color: #10b981; margin-top: 0;">🌐 Alerta do Modo Disponibilidade</h2>
+          <p style="color: #334155; font-size: 15px;">Os seguintes scrapers configurados no <strong>Modo Verificação de Disponibilidade</strong> reportaram status ONLINE (sucesso) na última rotina de raspagem global:</p>
+          
+          <ul style="color: #475569; font-size: 15px; margin-bottom: 24px;">
+            ${cidadesDisponiveis.map(c => `<li><strong>${c}</strong></li>`).join('')}
+          </ul>
+          
+          <p style="color: #334155; font-size: 15px;">
+            Você pode desligar este modo para que eles voltem a raspar editais normalmente acessando o seu <a href="${siteUrl}/profile" style="color: #4f46e5;">Painel de Administração</a>.
+          </p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const assunto = `[Sistema] Scrapers Online detectados no Modo Disponibilidade`;
+
+    for (const admin of admins) {
+      if (!admin.email) continue;
+      const resultEmail = await enviarEmail(admin.email, assunto, emailHtml);
+      if (resultEmail.error) {
+        console.error(`    ❌ Falha ao enviar alerta admin para ${admin.email}:`, resultEmail.error);
+      } else {
+        console.log(`    ✅ Alerta admin de disponibilidade enviado para: ${admin.email}`);
+      }
+    }
+  } catch (e) {
+    console.error("❌ Erro ao enviar email de disponibilidade para admins:", e);
+  }
+}

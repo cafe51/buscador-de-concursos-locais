@@ -111,3 +111,28 @@ export function limparTituloDoc(tituloOriginal: string, textoFallback: string = 
 
   return titulo.trim();
 }
+
+/**
+ * Função global que verifica a conectividade básica com o site alvo.
+ * Pode rodar uma função extra customizada se o scraper demandar.
+ * 
+ * Lança um erro se o site for inatingível.
+ */
+export async function verificaDisponibilidade(urlPadrao: string, funcaoPropria?: () => Promise<boolean>): Promise<void> {
+  let disponivel = false;
+
+  if (funcaoPropria) {
+    disponivel = await funcaoPropria();
+  } else {
+    try {
+      const res = await fetchHtml(urlPadrao, false, 15000); // timeout 15s
+      disponivel = res.ok;
+    } catch {
+      disponivel = false;
+    }
+  }
+
+  if (!disponivel) {
+    throw new Error('SITE_INDISPONIVEL');
+  }
+}

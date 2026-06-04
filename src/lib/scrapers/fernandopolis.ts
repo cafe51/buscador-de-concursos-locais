@@ -122,7 +122,13 @@ async function processarLoteDetalhes(lote: any[], resultados: Edital[], detalhes
   }));
 }
 
-export async function buscarFernandopolis(): Promise<Edital[]> {
+export async function buscarFernandopolis(opcoes?: import('../../types').ScraperOptions): Promise<Edital[]> {
+  if (opcoes?.verificarDisponibilidade) {
+    const { verificaDisponibilidade } = await import('./utils');
+    await verificaDisponibilidade('https://fernandopolis.sp.gov.br');
+    return [];
+  }
+
   const resultados: Edital[] = [];
   let ordemGlobal = 0;
   let encontrouAlvoDeParada = false;

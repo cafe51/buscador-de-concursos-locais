@@ -2,7 +2,13 @@
 import { Edital } from '../../types';
 import { buscarInstarBase } from './instar';
 
-export async function buscarParisi(): Promise<Edital[]> {
+export async function buscarParisi(opcoes?: import('../../types').ScraperOptions): Promise<Edital[]> {
+  if (opcoes?.verificarDisponibilidade) {
+    const { verificaDisponibilidade } = await import('./utils');
+    await verificaDisponibilidade('https://www.parisi.sp.gov.br');
+    return [];
+  }
+
   return buscarInstarBase({
     cidade: 'Parisi',
     baseUrl: 'https://www.parisi.sp.gov.br',

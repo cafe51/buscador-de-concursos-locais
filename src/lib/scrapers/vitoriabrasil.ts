@@ -12,7 +12,13 @@ type PastaExtraida = {
   documentos: Omit<Edital, 'ordemOriginal'>[];
 };
 
-export async function buscarVitoriaBrasil(): Promise<Edital[]> {
+export async function buscarVitoriaBrasil(opcoes?: import('../../types').ScraperOptions): Promise<Edital[]> {
+  if (opcoes?.verificarDisponibilidade) {
+    const { verificaDisponibilidade } = await import('./utils');
+    await verificaDisponibilidade('https://www.vitoriabrasil.sp.gov.br');
+    return [];
+  }
+
   const resultados: Edital[] = [];
   const pastasExtraidas: PastaExtraida[] = [];
 

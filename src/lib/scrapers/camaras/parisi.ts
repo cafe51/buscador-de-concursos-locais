@@ -3,7 +3,13 @@ import * as cheerio from 'cheerio';
 import { Edital } from '../../../types';
 import { ehSujeira, extrairIdConcurso, corrigirErrosDigitacao } from '../../filtrosGlobais';
 
-export async function buscarCamaraParisi(): Promise<Edital[]> {
+export async function buscarCamaraParisi(opcoes?: import('../../../types').ScraperOptions): Promise<Edital[]> {
+  if (opcoes?.verificarDisponibilidade) {
+    const { verificaDisponibilidade } = await import('../utils');
+    await verificaDisponibilidade('https://www.parisi.sp.leg.br/');
+    return [];
+  }
+
   const resultados: Edital[] = [];
   let ordemGlobal = 0;
 

@@ -3,7 +3,13 @@ import * as cheerio from 'cheerio';
 import { Edital } from '../../../types';
 import { ehSujeira, extrairIdConcurso } from '../../filtrosGlobais';
 
-export async function buscarCamaraFernandopolis(): Promise<Edital[]> {
+export async function buscarCamaraFernandopolis(opcoes?: import('../../../types').ScraperOptions): Promise<Edital[]> {
+  if (opcoes?.verificarDisponibilidade) {
+    const { verificaDisponibilidade } = await import('../utils');
+    await verificaDisponibilidade('https://camarafernandopolis.sp.gov.br');
+    return [];
+  }
+
   const resultados: Edital[] = [];
   const baseUrl = 'https://camarafernandopolis.sp.gov.br';
   const urlInicial = `${baseUrl}/?pag=T0RZPU9EYz1PR009T1RrPU9EWT1PVEE9T1dFPQ==&view=LISTA_EDITAIS&tp=2`;

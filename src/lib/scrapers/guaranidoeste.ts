@@ -2,7 +2,13 @@
 import { Edital } from '../../types';
 import { buscarWeblineBase } from './webline';
 
-export async function buscarGuaraniDOeste(): Promise<Edital[]> {
+export async function buscarGuaraniDOeste(opcoes?: import('../../types').ScraperOptions): Promise<Edital[]> {
+  if (opcoes?.verificarDisponibilidade) {
+    const { verificaDisponibilidade } = await import('./utils');
+    await verificaDisponibilidade('https://www.guaranidoeste.sp.gov.br');
+    return [];
+  }
+
   return buscarWeblineBase({
     cidade: "Guarani d'Oeste",
     baseUrl: 'https://www.guaranidoeste.sp.gov.br',

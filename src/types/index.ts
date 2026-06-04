@@ -22,3 +22,7 @@ export type Edital = {
     dataPublicacao?: string;
   };
 };
+
+export interface ScraperOptions {
+  verificarDisponibilidade?: boolean;
+}

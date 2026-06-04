@@ -28,7 +28,20 @@ export async function buscarEditaisPorCidade(nomeCidade: string): Promise<Result
   console.log(`⏳ INICIANDO RASPAGEM INDIVIDUAL: ${nomeCidade}...`);
   console.log(`===================================================`);
 
-  const resultado = await rodarComProtecao(nomeCidade, funcaoScraper);
+  let verificarDisponibilidade = false;
+  try {
+    const connectToDatabase = (await import('../lib/mongodb')).default;
+    await connectToDatabase();
+    const { ScraperConfigModel } = await import('../models/ScraperConfig');
+    const config = await ScraperConfigModel.findOne({ nome: nomeCidade });
+    if (config && config.verificarDisponibilidade) {
+      verificarDisponibilidade = true;
+    }
+  } catch (e) {
+    console.error("Falha ao buscar config em buscarEditaisPorCidade:", e);
+  }
+
+  const resultado = await rodarComProtecao(nomeCidade, funcaoScraper, { verificarDisponibilidade });
 
   let listaLimpa: Edital[] = [];
   if (resultado.sucesso) {
@@ -61,6 +74,22 @@ export async function buscarTodosEditais(cidadesAlvo?: string[]): Promise<Result
 
   urlsParaBlacklist.clear();
 
+  // Busca configurações de disponibilidade no banco
+  let configMap = new Map<string, boolean>();
+  try {
+    const connectToDatabase = (await import('../lib/mongodb')).default;
+    await connectToDatabase();
+    const { ScraperConfigModel } = await import('../models/ScraperConfig');
+    const configs = await ScraperConfigModel.find();
+    configs.forEach((c: any) => {
+      if (c.verificarDisponibilidade) {
+        configMap.set(c.nome, true);
+      }
+    });
+  } catch (e) {
+    console.error("Falha ao buscar ScraperConfigModel, usando padrão (falso).", e);
+  }
+
   console.log("\n===================================================");
   console.log("⏳ INICIANDO RASPAGEM DE DADOS...");
   console.log("===================================================");
@@ -72,7 +101,8 @@ export async function buscarTodosEditais(cidadesAlvo?: string[]): Promise<Result
 
     const tarefas = cidadesParaRaspar.map(cidade => {
       const scraper = MAPA_SCRAPERS[cidade];
-      return () => rodarComProtecao(cidade, scraper);
+      const verificarDisponibilidade = configMap.get(cidade) === true;
+      return () => rodarComProtecao(cidade, scraper, { verificarDisponibilidade });
     });
 
     const promessas: any[] = [];
@@ -85,6 +115,9 @@ export async function buscarTodosEditais(cidadesAlvo?: string[]): Promise<Result
     }
 
     promessas.forEach((resultado) => {
+      if (resultado.ignorado) {
+        return; // Pula contagem de falha e de sucesso, não entra na raspagem total
+      }
       if (resultado.sucesso) {
         todosOsEditais = [...todosOsEditais, ...resultado.dados];
       } else {

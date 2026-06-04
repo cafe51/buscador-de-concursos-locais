@@ -5,7 +5,13 @@ import { extrairDataDoArquivo } from '../docParser';
 import { ehSujeira, extrairIdConcurso } from '../filtrosGlobais';
 import { fetchHtml, extrairData } from './utils';
 
-export async function buscarPedranopolis(): Promise<Edital[]> {
+export async function buscarPedranopolis(opcoes?: import('../../types').ScraperOptions): Promise<Edital[]> {
+  if (opcoes?.verificarDisponibilidade) {
+    const { verificaDisponibilidade } = await import('./utils');
+    await verificaDisponibilidade('https://www.pedranopolis.sp.gov.br/');
+    return [];
+  }
+
   const resultados: Edital[] = [];
   let ordemGlobal = 0;
 

@@ -4,7 +4,13 @@ import { Edital } from '../../types';
 import { ehSujeira, extrairIdConcurso } from '../filtrosGlobais';
 import { fetchHtml, extrairData } from './utils';
 
-export async function buscarMeridiano(): Promise<Edital[]> {
+export async function buscarMeridiano(opcoes?: import('../../types').ScraperOptions): Promise<Edital[]> {
+  if (opcoes?.verificarDisponibilidade) {
+    const { verificaDisponibilidade } = await import('./utils');
+    await verificaDisponibilidade('https://meridiano.sp.gov.br/');
+    return [];
+  }
+
   const resultados: Edital[] = [];
   let ordemGlobal = 0;
   const detalhesFalhas: string[] = [];

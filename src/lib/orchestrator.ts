@@ -237,6 +237,15 @@ export async function runFullScraperWorkflow(options: {
     console.log(`⏱️ Tempo total do bloco de execução: ${((fim - inicio) / 1000).toFixed(2)}s`);
     console.log("===================================================");
 
+    if (options.enableEmails !== false) {
+      const scrapersDisponiveis = resultadosDetalhes.filter((r: any) => r.ignorado && r.sucesso).map((r: any) => r.cidade);
+      if (scrapersDisponiveis.length > 0) {
+        console.log(`\n📢 [ADMIN] Enviando alerta para administradores sobre scrapers online no Modo Disponibilidade: ${scrapersDisponiveis.join(', ')}`);
+        const { enviarAlertaDisponibilidadeAdmin } = await import('./notifications');
+        await enviarAlertaDisponibilidadeAdmin(scrapersDisponiveis);
+      }
+    }
+
     return { 
       sucesso: syncSuccess || todosEditais.length === 0, 
       syncInfo 

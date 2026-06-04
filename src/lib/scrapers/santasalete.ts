@@ -4,7 +4,13 @@ import { Edital } from '../../types';
 import { ehSujeira, extrairIdConcurso, corrigirErrosDigitacao } from '../filtrosGlobais';
 import { fetchHtml, extrairData } from './utils';
 
-export async function buscarSantaSalete(): Promise<Edital[]> {
+export async function buscarSantaSalete(opcoes?: import('../../types').ScraperOptions): Promise<Edital[]> {
+  if (opcoes?.verificarDisponibilidade) {
+    const { verificaDisponibilidade } = await import('./utils');
+    await verificaDisponibilidade('https://www.santasalete.sp.gov.br');
+    return [];
+  }
+
   const resultados: Edital[] = [];
   const baseUrl = 'https://www.santasalete.sp.gov.br';
   const mainUrl = `${baseUrl}/consultas/concursos-e-processo-seletivo`;

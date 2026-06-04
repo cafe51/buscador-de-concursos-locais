@@ -3,7 +3,13 @@ import * as cheerio from 'cheerio';
 import { Edital } from '../../../types';
 import { ehSujeira, extrairIdConcurso } from '../../filtrosGlobais';
 
-export async function buscarCamaraMiraEstrela(): Promise<Edital[]> {
+export async function buscarCamaraMiraEstrela(opcoes?: import('../../../types').ScraperOptions): Promise<Edital[]> {
+  if (opcoes?.verificarDisponibilidade) {
+    const { verificaDisponibilidade } = await import('../utils');
+    await verificaDisponibilidade('https://www.camaramiraestrela.sp.gov.br');
+    return [];
+  }
+
   const resultados: Edital[] = [];
   const baseUrl = 'https://www.camaramiraestrela.sp.gov.br';
   const urlInicial = `${baseUrl}/?pag=T0RZPU9EYz1PR009T1RrPU9EWT1PVEE9T1dFPQ==&view=LIST-EDT&tipo=7`;

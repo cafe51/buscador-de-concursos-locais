@@ -2,7 +2,13 @@
 import { Edital } from '../../types';
 import { buscarWeblineBase } from './webline';
 
-export async function buscarEstrela(): Promise<Edital[]> {
+export async function buscarEstrela(opcoes?: import('../../types').ScraperOptions): Promise<Edital[]> {
+  if (opcoes?.verificarDisponibilidade) {
+    const { verificaDisponibilidade } = await import('./utils');
+    await verificaDisponibilidade('https://www.pmestrela.sp.gov.br');
+    return [];
+  }
+
   return buscarWeblineBase({
     cidade: "Estrela d'Oeste",
     baseUrl: 'https://www.pmestrela.sp.gov.br',
