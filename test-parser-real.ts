@@ -4,7 +4,7 @@ async function main() {
   console.log("Result type:", result ? Object.keys(result) : "null");
   if (result && result.isPDF) {
     console.log("It's a PDF!");
-    console.log("Buffer size:", result.buffer.length);
+    console.log("Buffer size:", result.buffer?.length);
   }
 }
 main().catch(console.error);
