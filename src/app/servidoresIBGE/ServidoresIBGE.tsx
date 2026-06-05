@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ChevronDown, ChevronUp, ExternalLink, ArrowUpRight } from 'lucide-react'
+import { ChevronDown, ChevronUp, ExternalLink, ArrowUpRight, Search } from 'lucide-react'
 
 const ESTADOS_MAP: Record<string, string> = {
   'AC': 'Acre', 'AL': 'Alagoas', 'AP': 'Amapá', 'AM': 'Amazonas',
@@ -62,11 +62,12 @@ const SearchableDropdown = ({ options, value, onChange, placeholder, disabled }:
       
       {isOpen && !disabled && (
         <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-72 flex flex-col">
-          <div className="p-2 border-b border-slate-100 shrink-0">
+          <div className="p-2 border-b border-slate-100 shrink-0 relative">
+            <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               autoFocus
-              className="w-full px-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full pl-8 pr-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
               placeholder="Pesquisar..."
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -241,7 +242,7 @@ export default function ServidoresIBGE() {
   }, [cidadeQuery])
 
   return (
-    <div className="bg-white/80 backdrop-blur-xl border border-slate-200 p-6 rounded-2xl shadow-sm animate-fade-in">
+    <div className="bg-slate-100/80 sm:bg-white/80 backdrop-blur-xl border border-slate-200 p-4 sm:p-6 rounded-2xl shadow-sm animate-fade-in w-full overflow-hidden">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <div>
           <h3 className="text-lg font-medium text-indigo-900 mb-1">
@@ -299,136 +300,205 @@ export default function ServidoresIBGE() {
           <span className="text-xs mt-2 block">(Pode ser que a sincronização em background ainda esteja rodando)</span>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
+        <div className="w-full">
+          <table className="w-full text-left block sm:table border-separate sm:border-collapse" style={{ borderSpacing: '0 12px' }}>
+            <thead className="hidden sm:table-header-group bg-slate-50 text-slate-600 text-sm font-medium border-b border-slate-200">
               <tr>
-                <th className="px-4 py-3 rounded-tl-lg w-8"></th>
+                <th className="px-4 py-3 w-8"></th>
                 <th className="px-4 py-3">Nome</th>
                 <th className="px-4 py-3">Situação</th>
                 <th className="px-4 py-3">Cargo / Função</th>
-                <th className="px-4 py-3 rounded-tr-lg">Remuneração Bruta</th>
+                <th className="px-4 py-3">Remuneração Bruta</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {servidores.map(srv => {
-                const isExpanded = expandedId === srv.idServidor;
-                const ficha = srv.rawData?.fichasCargoEfetivo?.[0] || srv.rawData?.fichasDemaisSituacoes?.[0];
-                return (
-                  <React.Fragment key={srv.idServidor}>
-                    <tr 
-                      className={`hover:bg-slate-50 transition-colors cursor-pointer ${isExpanded ? 'bg-slate-50' : ''}`}
+            <tbody className="block sm:table-row-group space-y-3 sm:space-y-0">
+                {servidores.map(srv => {
+                  const isExpanded = expandedId === srv.idServidor;
+                  const fichaEfetivo = srv.rawData?.fichasCargoEfetivo?.[0] || srv.rawData?.fichasDemaisSituacoes?.[0];
+                  const fichaFuncao = srv.rawData?.fichasFuncao?.[0];
+                  
+                  const cargoEfetivo = fichaEfetivo?.cargo || fichaEfetivo?.situacaoServidor || 'Não informado';
+                  
+                  let isChefe = false;
+                  let funcaoOficial = '';
+
+                  if (fichaFuncao) {
+                    const atividade = (fichaFuncao.atividade || '').toLowerCase();
+                    const funcao = (fichaFuncao.funcao || '').toLowerCase();
+                    if (atividade.includes('chefe') || atividade.includes('gerente') || atividade.includes('coordenador') || 
+                        funcao.includes('chefe') || funcao.includes('gerente') || funcao.includes('coordenador')) {
+                      isChefe = true;
+                      funcaoOficial = fichaFuncao.atividade || fichaFuncao.funcao;
+                    }
+                  }
+
+                  if (!isChefe) {
+                    const c = cargoEfetivo.toLowerCase();
+                    if (c.includes('chefe') || c.includes('gerencia') || c.includes('coordenador')) {
+                      isChefe = true;
+                      funcaoOficial = cargoEfetivo;
+                    }
+                  }
+                  
+                  return (
+                    <React.Fragment key={srv.idServidor}>
+                      <tr 
+                      className={`block sm:table-row bg-white sm:bg-transparent border border-slate-200 sm:border-none rounded-xl sm:rounded-none shadow-sm sm:shadow-none hover:bg-slate-50 transition-all duration-200 cursor-pointer relative active:scale-[0.98] sm:active:scale-100 ${isExpanded ? 'ring-2 ring-indigo-500/80 sm:ring-0 sm:bg-slate-50/80' : ''}`}
                       onClick={() => toggleExpand(srv)}
                     >
-                      <td className="px-4 py-3 text-slate-400">
-                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      <td className="hidden sm:table-cell px-4 py-4 text-slate-400 border-b border-slate-100">
+                        <ChevronDown size={16} className={`transition-transform duration-300 ease-in-out ${isExpanded ? 'rotate-180 text-indigo-500' : ''}`} />
                       </td>
-                      <td className="px-4 py-3 font-medium text-slate-900">
-                        <div className="flex items-center justify-between gap-4">
-                          <span className="truncate">{srv.nome}</span>
+                      <td className="block sm:table-cell px-4 pt-4 pb-2 sm:py-4 font-medium text-slate-900 border-b border-slate-100/0 sm:border-slate-100">
+                        <div className="flex items-center gap-2 pr-8 sm:pr-0">
+                          <span className="text-[15px] sm:text-sm leading-tight">{srv.nome}</span>
                           {srv.rawData?.servidor?.idServidorAposentadoPensionista && (
                             <a
                               href={`https://portaldatransparencia.gov.br/servidores/${srv.rawData.servidor.idServidorAposentadoPensionista}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
-                              className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded-lg transition-all duration-200 text-[11px] font-bold uppercase tracking-wider shadow-sm"
-                              title="Abrir página oficial do servidor no Portal da Transparência"
+                              className="shrink-0 inline-flex items-center justify-center p-1.5 sm:px-3 sm:py-1.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded-lg transition-all duration-200 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider"
+                              title="Abrir página oficial"
                             >
                               <ArrowUpRight size={14} strokeWidth={2.5} />
-                              Portal
+                              <span className="hidden sm:inline ml-1.5">Portal</span>
                             </a>
                           )}
                         </div>
+                        <div className="absolute top-4 right-4 sm:hidden text-slate-400">
+                          <ChevronDown size={20} className={`transition-transform duration-300 ease-in-out ${isExpanded ? 'rotate-180 text-indigo-500' : ''}`} />
+                        </div>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                          srv.situacao === 'Ativo' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
-                        }`}>
-                          {srv.situacao}
-                        </span>
+                      <td className="block sm:table-cell px-4 py-1.5 sm:py-4 border-b border-slate-100/0 sm:border-slate-100">
+                        <div className="flex justify-between items-center sm:block">
+                          <span className="sm:hidden text-[11px] font-bold text-slate-400 uppercase tracking-wide">Situação</span>
+                          <span className={`inline-flex px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-semibold uppercase tracking-wide ${
+                            srv.situacao === 'Ativo' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {srv.situacao}
+                          </span>
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-slate-500 text-xs truncate max-w-[200px]" title={ficha?.cargo || ficha?.situacaoServidor || 'Não informado'}>
-                        {ficha?.cargo || ficha?.situacaoServidor || 'Não informado'}
+                      <td className="block sm:table-cell px-4 py-1.5 sm:py-4 border-b border-slate-100/0 sm:border-slate-100">
+                        <div className="flex justify-between items-center sm:block">
+                          <span className="sm:hidden text-[11px] font-bold text-slate-400 uppercase tracking-wide">Cargo / Função</span>
+                          <div className="text-right sm:text-left">
+                            {isChefe ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200 uppercase tracking-wider">
+                                Chefe / Gerente
+                              </span>
+                            ) : (
+                              <span className="text-slate-500 text-[13px] sm:text-xs" title={cargoEfetivo}>{cargoEfetivo}</span>
+                            )}
+                          </div>
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-slate-700 font-medium whitespace-nowrap">
-                        {remuneracoes[srv.idServidor]?.loading ? (
-                          <span className="animate-pulse bg-slate-200 h-4 w-16 block rounded"></span>
-                        ) : remuneracoes[srv.idServidor]?.data ? (
-                          `R$ ${remuneracoes[srv.idServidor].data.bruta}`
-                        ) : (
-                          <span className="text-xs text-slate-400">N/D</span>
-                        )}
+                      <td className="block sm:table-cell px-4 pb-4 pt-1.5 sm:py-4 font-medium text-slate-700 border-b border-slate-100/0 sm:border-slate-100 rounded-b-xl sm:rounded-none">
+                        <div className="flex justify-between items-center sm:block pt-3 mt-1 border-t border-dashed border-slate-200 sm:pt-0 sm:mt-0 sm:border-none">
+                          <span className="sm:hidden text-[11px] font-bold text-slate-400 uppercase tracking-wide">Salário Bruto</span>
+                          {remuneracoes[srv.idServidor]?.loading ? (
+                            <span className="animate-pulse bg-slate-200 h-4 w-16 block rounded"></span>
+                          ) : remuneracoes[srv.idServidor]?.data ? (
+                            <span className="text-[15px] sm:text-sm">R$ {remuneracoes[srv.idServidor].data.bruta}</span>
+                          ) : (
+                            <span className="text-xs text-slate-400">N/D</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                     {isExpanded && (
-                      <tr className="bg-slate-50/50">
-                        <td colSpan={4} className="px-8 py-4 border-t border-slate-100">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                            <div>
-                              <p className="text-xs text-slate-500 font-medium uppercase mb-1">CPF</p>
-                              <p className="text-slate-800">{srv.cpfFormatado || 'Não informado'}</p>
+                      <tr className="animate-[fadeIn_0.3s_ease-out]">
+                        <style dangerouslySetInnerHTML={{__html: `
+                          @keyframes fadeIn {
+                            from { opacity: 0; transform: translateY(-10px); }
+                            to { opacity: 1; transform: translateY(0); }
+                          }
+                        `}} />
+                        <td colSpan={5} className="block sm:table-cell px-4 sm:px-8 py-4 sm:py-6 bg-slate-50/80 sm:bg-slate-50/50 rounded-b-xl sm:rounded-none border-t border-slate-200 sm:border-slate-100 -mt-2 sm:mt-0">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-[13px] sm:text-sm">
+                            {isChefe && (
+                              <div className="col-span-full mb-2 bg-amber-50/80 p-3 sm:p-4 rounded-xl border border-amber-200/60 shadow-sm">
+                                <p className="text-[11px] text-amber-700 font-extrabold uppercase tracking-wider mb-1">Função de Liderança</p>
+                                <p className="text-amber-900 font-bold text-sm sm:text-base">{funcaoOficial}</p>
+                                <p className="text-[11px] sm:text-xs text-amber-700 mt-1.5 opacity-90"><span className="font-semibold">Cargo Efetivo:</span> {cargoEfetivo}</p>
+                              </div>
+                            )}
+                            <div className="bg-white p-3 rounded-lg border border-slate-200/60 shadow-sm">
+                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">CPF</p>
+                              <p className="text-slate-700 font-medium">{srv.cpfFormatado || 'Não informado'}</p>
                             </div>
-                            <div>
-                              <p className="text-xs text-slate-500 font-medium uppercase mb-1">Regime Jurídico</p>
-                              <p className="text-slate-800">{ficha?.regimeJuridico || 'Não informado'}</p>
+                            <div className="bg-white p-3 rounded-lg border border-slate-200/60 shadow-sm">
+                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Regime Jurídico</p>
+                              <p className="text-slate-700 font-medium">{fichaEfetivo?.regimeJuridico || 'Não informado'}</p>
                             </div>
-                            <div>
-                              <p className="text-xs text-slate-500 font-medium uppercase mb-1">Jornada</p>
-                              <p className="text-slate-800">{ficha?.jornadaTrabalho || 'Não informada'}</p>
+                            <div className="bg-white p-3 rounded-lg border border-slate-200/60 shadow-sm">
+                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Jornada</p>
+                              <p className="text-slate-700 font-medium">{fichaEfetivo?.jornadaTrabalho || 'Não informada'}</p>
                             </div>
-                            <div>
-                              <p className="text-xs text-slate-500 font-medium uppercase mb-1">Ingresso no Órgão</p>
-                              <p className="text-slate-800">{ficha?.dataIngressoOrgao || 'Não informada'}</p>
+                            <div className="bg-white p-3 rounded-lg border border-slate-200/60 shadow-sm">
+                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Ingresso no Órgão</p>
+                              <p className="text-slate-700 font-medium">{fichaEfetivo?.dataIngressoOrgao || 'Não informada'}</p>
                             </div>
                           </div>
 
-                          <div className="col-span-full border-t border-slate-200 mt-4 pt-4">
-                            <p className="text-xs text-slate-500 font-medium uppercase mb-3 flex items-center gap-2">
-                              Remuneração Transparência 
-                              {remuneracoes[srv.idServidor]?.loading && (
-                                <span className="animate-spin h-3 w-3 border-2 border-indigo-600 border-t-transparent rounded-full inline-block"></span>
-                              )}
+                          <div className="col-span-full border-t border-slate-200/80 mt-5 pt-5">
+                            <p className="text-xs text-indigo-900 font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
+                              Detalhamento da Remuneração
                             </p>
-                            {remuneracoes[srv.idServidor]?.error ? (
-                              <p className="text-xs text-red-500">{remuneracoes[srv.idServidor].error}</p>
+                            {remuneracoes[srv.idServidor]?.loading ? (
+                              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
+                                {[1, 2, 3, 4, 5, 6].map(i => (
+                                  <div key={i} className="bg-slate-200/60 h-[72px] rounded-xl border border-slate-200"></div>
+                                ))}
+                                <div className="bg-red-100/50 h-[72px] rounded-xl border border-red-100"></div>
+                                <div className="bg-red-100/50 h-[72px] rounded-xl border border-red-100"></div>
+                                <div className="col-span-2 lg:col-span-4 h-[84px] bg-emerald-100/50 rounded-xl mt-2 border border-emerald-100"></div>
+                              </div>
+                            ) : remuneracoes[srv.idServidor]?.error ? (
+                              <p className="text-[13px] text-red-500 bg-red-50 p-3 rounded-lg border border-red-100">{remuneracoes[srv.idServidor].error}</p>
                             ) : remuneracoes[srv.idServidor]?.data ? (
-                              <div className="flex flex-wrap gap-x-8 gap-y-4">
-                                <div>
-                                  <p className="text-[10px] text-slate-400 uppercase font-semibold">Mês Ref.</p>
-                                  <p className="font-medium text-slate-700 text-sm">{remuneracoes[srv.idServidor].data.mesReferencia}</p>
+                              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-[fadeIn_0.4s_ease-out]">
+                                <div className="bg-white p-3 rounded-xl border border-slate-200/60 shadow-sm transition-shadow hover:shadow-md">
+                                  <p className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Mês Ref.</p>
+                                  <p className="font-semibold text-slate-700 text-[13px]">{remuneracoes[srv.idServidor].data.mesReferencia}</p>
                                 </div>
-                                <div>
-                                  <p className="text-[10px] text-slate-400 uppercase font-semibold">Bruta</p>
-                                  <p className="font-medium text-slate-800 text-sm">R$ {remuneracoes[srv.idServidor].data.bruta}</p>
+                                <div className="bg-white p-3 rounded-xl border border-slate-200/60 shadow-sm transition-shadow hover:shadow-md">
+                                  <p className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Bruta</p>
+                                  <p className="font-bold text-slate-800 text-sm">R$ {remuneracoes[srv.idServidor].data.bruta}</p>
                                 </div>
-                                <div>
-                                  <p className="text-[10px] text-slate-400 uppercase font-semibold">Imposto Retido</p>
-                                  <p className="font-medium text-red-500 text-sm">{remuneracoes[srv.idServidor].data.impostoRetido}</p>
+                                <div className="bg-white p-3 rounded-xl border border-slate-200/60 shadow-sm transition-shadow hover:shadow-md">
+                                  <p className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Férias</p>
+                                  <p className="font-semibold text-slate-700 text-[13px]">R$ {remuneracoes[srv.idServidor].data.ferias}</p>
                                 </div>
-                                <div>
-                                  <p className="text-[10px] text-slate-400 uppercase font-semibold">Previdência</p>
-                                  <p className="font-medium text-red-500 text-sm">{remuneracoes[srv.idServidor].data.previdencia}</p>
+                                <div className="bg-white p-3 rounded-xl border border-slate-200/60 shadow-sm transition-shadow hover:shadow-md">
+                                  <p className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Grat. Natalina</p>
+                                  <p className="font-semibold text-slate-700 text-[13px]">R$ {remuneracoes[srv.idServidor].data.gratificacaoNatalina}</p>
                                 </div>
-                                <div>
-                                  <p className="text-[10px] text-slate-400 uppercase font-semibold">Líquida</p>
-                                  <p className="font-medium text-emerald-600 text-sm">R$ {remuneracoes[srv.idServidor].data.liquida}</p>
+                                <div className="bg-white p-3 rounded-xl border border-slate-200/60 shadow-sm transition-shadow hover:shadow-md">
+                                  <p className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Verbas Indenizatórias</p>
+                                  <p className="font-semibold text-slate-700 text-[13px]">R$ {remuneracoes[srv.idServidor].data.verbasIndenizatorias}</p>
                                 </div>
-                                <div>
-                                  <p className="text-[10px] text-slate-400 uppercase font-semibold">Férias</p>
-                                  <p className="font-medium text-slate-700 text-sm">R$ {remuneracoes[srv.idServidor].data.ferias}</p>
+                                <div className="bg-white p-3 rounded-xl border border-slate-200/60 shadow-sm transition-shadow hover:shadow-md">
+                                  <p className="text-[9px] text-slate-400 uppercase font-bold tracking-wider" title="Outras Remunerações Eventuais (Ex: Auxílio Alimentação)">Outras Remunerações</p>
+                                  <p className="font-semibold text-slate-700 text-[13px]">R$ {remuneracoes[srv.idServidor].data.outrasRemuneracoes}</p>
                                 </div>
-                                <div>
-                                  <p className="text-[10px] text-slate-400 uppercase font-semibold">Grat. Natalina</p>
-                                  <p className="font-medium text-slate-700 text-sm">R$ {remuneracoes[srv.idServidor].data.gratificacaoNatalina}</p>
+                                <div className="bg-red-50 p-3 rounded-xl border border-red-100 shadow-sm transition-shadow hover:shadow-md">
+                                  <p className="text-[9px] text-red-500 uppercase font-bold tracking-wider">Imposto Retido</p>
+                                  <p className="font-bold text-red-700 text-[13px]">{remuneracoes[srv.idServidor].data.impostoRetido}</p>
                                 </div>
-                                <div>
-                                  <p className="text-[10px] text-slate-400 uppercase font-semibold">Verbas Indeniz.</p>
-                                  <p className="font-medium text-slate-700 text-sm">R$ {remuneracoes[srv.idServidor].data.verbasIndenizatorias}</p>
+                                <div className="bg-red-50 p-3 rounded-xl border border-red-100 shadow-sm transition-shadow hover:shadow-md">
+                                  <p className="text-[9px] text-red-500 uppercase font-bold tracking-wider">Previdência Oficial</p>
+                                  <p className="font-bold text-red-700 text-[13px]">{remuneracoes[srv.idServidor].data.previdencia}</p>
+                                </div>
+                                <div className="bg-gradient-to-r from-emerald-50 to-teal-50/50 p-4 rounded-xl border border-emerald-200 shadow-[inset_0_2px_10px_rgba(16,185,129,0.04)] col-span-2 lg:col-span-4 flex justify-between items-center mt-2 relative overflow-hidden group">
+                                  <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:scale-110 transition-transform duration-500"></div>
+                                  <p className="text-[11px] text-emerald-800 uppercase font-extrabold tracking-widest relative z-10">Remuneração Líquida</p>
+                                  <p className="font-black text-xl sm:text-2xl bg-gradient-to-br from-emerald-600 to-teal-700 bg-clip-text text-transparent relative z-10 drop-shadow-sm">R$ {remuneracoes[srv.idServidor].data.liquida}</p>
                                 </div>
                               </div>
                             ) : !remuneracoes[srv.idServidor]?.loading ? (
-                              <p className="text-xs text-slate-400">Informação não disponível no Portal.</p>
+                              <p className="text-[13px] text-slate-400 bg-slate-50 p-4 rounded-lg border border-slate-100 text-center">Informação não disponível no Portal da Transparência.</p>
                             ) : null}
                           </div>
 
@@ -437,9 +507,9 @@ export default function ServidoresIBGE() {
                     )}
                   </React.Fragment>
                 );
-              })}
-            </tbody>
-          </table>
+                })}
+              </tbody>
+            </table>
         </div>
       )}
     </div>
