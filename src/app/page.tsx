@@ -361,11 +361,11 @@ export default function Home() {
   ]);
 
   const cidadesDisponiveis = useMemo(() => {
-    return Array.from(new Set(editais.map(e => e.cidade))).sort();
+    return Array.from(new Set(editais.map(e => e.cidade))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }, [editais]);
 
   const orgaosDisponiveis = useMemo(() => {
-    return Array.from(new Set(editais.map(e => e.orgao))).filter(Boolean).sort();
+    return Array.from(new Set(editais.map(e => e.orgao))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }, [editais]);
 
   const editaisFiltrados = useMemo(() => {
