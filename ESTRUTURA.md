@@ -2,7 +2,7 @@
 
 Este documento apresenta a organização e a estrutura de pastas do projeto **Achador de Editais** (Buscador de Concursos Locais), detalhando a função de cada arquivo para guiar desenvolvedores e leitores no entendimento técnico da arquitetura da aplicação.
 
-O projeto é construído sobre o ecossistema moderno do **Next.js** (App Router, Server Actions, React 19) estilizado com **Tailwind CSS v4** (PostCSS), integrado ao **Supabase Auth + SSR** para gerenciamento de contas, **MongoDB** como banco de dados NoSQL de alta performance, e **Resend** para fluxos de e-mail e notificações.
+O projeto é construído sobre o ecossistema moderno do **Next.js** (App Router, Server Actions, React 19) estilizado com **Tailwind CSS v4** (PostCSS), integrado a um sistema de **autenticação local baseada em cookies seguros e tokens JWT** (com credenciais e preferências salvas no **MongoDB**), utilizando o **Resend** para fluxos de e-mail e notificações.
 
 ---
 
@@ -18,7 +18,7 @@ achadordeeditais/
 ├── eslint.config.mjs          # Configuração do ESLint (padronização e qualidade de código)
 ├── next-env.d.ts              # Definições de tipos globais automáticas do Next.js
 ├── next.config.ts             # Configurações do Next.js (reactCompiler, origins autorizados e limites de payload)
-├── package.json               # Dependências do projeto (Next.js v16, Tailwind CSS v4, Supabase, Resend, etc.)
+├── package.json               # Dependências do projeto (Next.js v16, Tailwind CSS v4, JWT/Bcryptjs, Resend, etc.)
 ├── postcss.config.mjs         # Configuração do PostCSS para compilação do Tailwind v4
 ├── tsconfig.json              # Configuração do compilador TypeScript
 ├── ESTRUTURA.md               # Esta documentação de arquitetura e estrutura do projeto
@@ -30,23 +30,21 @@ achadordeeditais/
 ├── scripts/
 │   └── run-scraper.ts         # Script principal de execução e sincronização do scraper em lote com retentativas
 └── src/
-    ├── proxy.ts               # Proxy de middleware de rotas para gerenciamento e atualização de sessão do Supabase
+    ├── proxy.ts               # Proxy de middleware global do Next.js 16 para controle de rotas protegidas e sessão JWT local
     ├── app/
     │   ├── actions.ts         # Server Actions principais (execução em lote dos scrapers, auditorias e buscas)
     │   ├── globals.css        # Configurações globais e injeção do Tailwind CSS v4
     │   ├── layout.tsx         # Layout HTML base da aplicação (metadados e injeção de fontes Geist)
     │   ├── page.tsx           # Página inicial e painel principal do buscador de editais
     │   ├── auth/
-    │   │   ├── actions.ts     # Server Actions de autenticação (login, cadastro, senhas, exclusão)
-    │   │   └── callback/
-    │   │       └── route.ts   # Rota de callback do Supabase para redirecionamento de confirmação
+    │   │   └── actions.ts     # Server Actions de autenticação (login, cadastro, senhas, exclusão no MongoDB)
     │   ├── developer/
     │   │   └── logs/
     │   │       └── page.tsx   # Painel administrativo de monitoramento de logs de execuções do scraper
     │   ├── login/
     │   │   └── page.tsx       # Tela moderna de autenticação de usuários
     │   ├── profile/
-    │   │   ├── page.tsx       # Tela servidora de perfil do usuário (Supabase Auth SSR)
+    │   │   ├── page.tsx       # Tela servidora de perfil do usuário (MongoDB + Sessão JWT)
     │   │   └── ProfileClient.tsx # Lógica interativa de alteração cadastral e exclusão de conta
     │   ├── reset-password/
     │   │   └── page.tsx       # Tela de recuperação de senha esquecida
@@ -112,15 +110,12 @@ achadordeeditais/
     ├── models/
     │   ├── Edital.ts          # Schema do Mongoose para os Editais
     │   ├── Metadata.ts        # Schema do Mongoose para variáveis globais do sistema
-    │   └── ScrapingLog.ts     # Schema do Mongoose para registro de histórico do scraper
+    │   ├── ScrapingLog.ts     # Schema do Mongoose para registro de histórico do scraper
+    │   └── User.ts            # Schema do Mongoose para os Usuários, credenciais e preferências
     ├── types/
     │   └── index.ts           # Definição e tipagem central do objeto TypeScript `Edital`
     └── utils/
-        ├── exportJson.ts      # Utilitário para formatação e download do arquivo JSON dos editais no navegador
-        └── supabase/
-            ├── client.ts      # Inicializador do cliente Supabase para o lado cliente (Browser)
-            ├── middleware.ts  # Interceptador e renovador de cookies da sessão ativa do usuário autenticado
-            └── server.ts      # Inicializador do cliente Supabase para Server Components e Server Actions
+        └── exportJson.ts      # Utilitário para formatação e download do arquivo JSON dos editais no navegador
 ```
 
 ---
@@ -137,24 +132,21 @@ achadordeeditais/
 ### ⚙️ 2. Diretório `scripts/` (Rotinas do Servidor / Actions)
 *   **`run-scraper.ts`**: Script disparado automaticamente em intervalos programados (três vezes ao dia) pela pipeline do GitHub Actions. Ele executa a raspagem geral de todas as prefeituras e câmaras com um mecanismo inteligente de **até 3 retentativas** (separadas por 10 minutos) para recuperar dados de portais municipais lentos ou instáveis. No final, consolida os resultados, sincroniza o banco central no MongoDB e registra os logs de execução.
 
-### 🕷️ 3. Módulo `src/proxy.ts` e Diretório `src/utils/supabase/` (Middlewares & Sessões)
-*   **`src/proxy.ts`**: Atua como o middleware global do Next.js. Ele intercepta as chamadas a páginas e recursos estáticos do sistema para renovar a sessão do Supabase (através de `updateSession`), garantindo autenticação persistente.
-*   **`supabase/client.ts`**: Fornece a instância do cliente Supabase utilizada em componentes do lado cliente (usando variáveis de ambiente públicas do Supabase).
-*   **`supabase/server.ts`**: Configura o cliente Supabase seguro e baseado em cookies para execução no lado servidor (usado em Server Actions e Server Components).
-*   **`supabase/middleware.ts`**: Lógica que lê os cookies do request, verifica a sessão com a API do Supabase Auth e devolve os cookies atualizados na resposta HTTP para manter o usuário logado com segurança.
+### 🕷️ 3. Módulo `src/proxy.ts` e Módulo `src/lib/auth.ts` (Segurança, Cookies & JWT)
+*   **`src/proxy.ts`**: Atua como o proxy de middleware global do Next.js 16. Ele intercepta as chamadas a páginas e recursos estáticos do sistema para validar os cookies de sessão JWT dos usuários, protegendo as rotas administrativas e de perfil.
+*   **`src/lib/auth.ts`**: Reúne utilitários de backend para geração e validação de tokens JWT (via biblioteca `jose`) e criptografia unidirecional de senhas com `bcryptjs`.
 
 ### 🖥️ 4. Diretório `src/app/` (Páginas, Telas & Controles do Usuário)
 *   **`actions.ts`**: Concentra as Server Actions essenciais da página principal. Gerencia a execução paralela dos scrapers com controle de timeout e auditorias de badges.
 *   **`page.tsx`**: Interface inicial da aplicação. Consome as ações de carregamento de editais em tempo real a partir da nuvem e orquestra a exibição, o cabeçalho e a barra lateral de filtros.
 *   **`globals.css`**: Arquivo de folha de estilos global do Next.js. Nele é injetado o Tailwind CSS v4 (`@import "tailwindcss";`) e aplicadas regras de transições fluidas.
-*   **`auth/actions.ts`**: Server Actions responsáveis por toda a lógica de autenticação no Supabase. Lida com:
-    *   `login()`: Validação e autenticação de usuários.
-    *   `signup()`: Cadastro seguro, injeção de metadados (`username`) e redirecionamento de confirmação de e-mail.
-    *   `logout()`: Desconexão e invalidação de sessão ativa.
-    *   `requestPasswordReset()` / `updatePassword()`: Fluxo completo de recuperação e atualização de senha por e-mail.
-    *   `updateEmail()`: Solicitação e verificação de nova caixa postal.
-    *   `deleteAccount()`: Remoção completa e irreversível da conta de usuário no banco de autenticação através de uma chamada administrativa segura usando a chave `SUPABASE_SERVICE_ROLE_KEY`.
-*   **`auth/callback/route.ts`**: Endpoint de redirecionamento (Handler de rotas) utilizado pelo provedor do Supabase Auth para verificar tokens temporários de login/senha e converter para cookies permanentes.
+*   **`auth/actions.ts`**: Server Actions responsáveis por toda a lógica de autenticação integrada ao MongoDB. Lida com:
+    *   `login()`: Validação de e-mail e senha utilizando `bcryptjs` e emissão do cookie de sessão JWT.
+    *   `signup()`: Cadastro direto no MongoDB, login automático e redirecionamento de boas-vindas.
+    *   `logout()`: Desconexão por remoção e invalidação do cookie de sessão ativa.
+    *   `requestPasswordReset()` / `updatePassword()`: Geração de token UUID de redefinição no MongoDB e disparo do link via e-mail utilizando o Resend.
+    *   `updateEmail()`: Atualização de caixa postal e re-emissão da sessão.
+    *   `deleteAccount()`: Validação de senha e exclusão física definitiva da conta de usuário no MongoDB.
 *   **`developer/logs/page.tsx`**: Painel administrativo de controle. Exibe um sumário de execuções (últimos 20 blocos) contendo tempo total de raspagem, quantidade de itens adicionados ou modificados, e relatórios de falhas individuais de cada cidade/câmara.
 *   **`login/` / `signup/` / `reset-password/` / `update-password/` / `profile/`**: Páginas Next.js que abrigam os fluxos de telas de conta do usuário, todas integradas a formulários modernos com validação detalhada e estilização elegante.
 
@@ -170,7 +162,7 @@ achadordeeditais/
 ### 🔧 6. Diretório `src/lib/` (Módulos de Negócio, IA, e Raspadores)
 *   **`orchestrator.ts`**: O Orquestrador Central da aplicação. Define o pipeline primário ("Run Full Scraper Workflow") unindo de ponta-a-ponta a extração, armazenamento no banco, enriquecimento via Gemini AI e roteamento de notificações. Em desenvolvimento local, obedece as configurações passadas pelo `DevToolsPanel`.
 *   **`aiAnalysis.ts`**: Módulo de Inteligência Artificial implementado com o SDK `@google/generative-ai` (Gemini 2.5 Flash). Ele acessa o link dos editais, lê o texto bruto (ou o arquivo binário em caso de PDFs não mapeados) e utiliza a técnica de **"Few-Shot Prompting"** (fornecendo um histórico Multi-Turn instrucional e mockado) para forçar que o modelo devolva as informações extraídas no mais absoluto padrão de segurança e em JSON.
-*   **`notifications.ts`**: O filtro humano-protetor do sistema. Uma vez que o orquestrador acuse novos editais persistidos, eles caem aqui. Funciona em 4 passos: (1) O Filtro Burocrático de 41 termos destrói qualquer postagem de acompanhamento ou administrativa; (2) Busca os perfis que possuem e-mails ativos no Supabase Admin; (3) Monta a estrutura HTML moderna de alerta; (4) Comunica a Resend API para expedir o e-mail transacional.
+*   **`notifications.ts`**: O filtro humano-protetor do sistema. Uma vez que o orquestrador acuse novos editais persistidos, eles caem aqui. Funciona em 4 passos: (1) O Filtro Burocrático de 41 termos destrói qualquer postagem de acompanhamento ou administrativa; (2) Busca os perfis que possuem e-mails ativos diretamente no MongoDB; (3) Monta a estrutura HTML moderna de alerta; (4) Comunica a Resend API para expedir o e-mail transacional.
 *   **`blacklist.ts`**: Armazena links diretos (especialmente PDFs) catalogados como impróprios, vazios ou sem valor que devem ser cortados da renderização.
 *   **`docParser.ts`**: Biblioteca que baixa temporariamente PDFs/DOCX em buffers locais na memória e varre seu conteúdo de texto com Regex para decifrar a data de publicação original contida no documento.
 *   **`email.ts`**: Abstração direta da biblioteca `resend` para chamadas da API de expedição e gestão dos templates HTML.
@@ -195,6 +187,7 @@ Contém as definições estritas (Schemas) do Mongoose para garantir consistênc
 *   **`Edital.ts`**: Schema das publicações e editais, garantindo que os links sejam únicos para impedir duplicatas.
 *   **`ScrapingLog.ts`**: Schema focado em registrar as métricas e resumos diários de sucesso e falhas do motor de raspagem.
 *   **`Metadata.ts`**: Schema simples de chave-valor para guardar a data da última atualização do sistema.
+*   **`User.ts`**: Schema das credenciais de acesso, papéis administrativos e configurações de monitoramento por e-mail dos usuários.
 
 ### 📐 9. Diretório `src/types/` (Tipos e Modelagem de Dados)
 *   **`index.ts`**: Define a interface `Edital`, padronizando todas as propriedades que compõem o objeto manipulado na aplicação inteira:
