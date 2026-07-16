@@ -373,3 +373,347 @@ export async function adicionarScrapingLog(novoLog: ScrapingLog): Promise<boolea
     return false;
   }
 }
+
+// ==============================================================
+// 📋 PAGINAÇÃO E FILTROS SERVER-SIDE
+// ==============================================================
+
+export type FiltrosEditais = {
+  filtroAno: number | 'todos';
+  filtroCidade: string | 'todas';
+  filtroOrgao: string | 'todos';
+  palavrasDesejadas: string[];
+  palavrasIgnoradas: string[];
+};
+
+function construirQueryFiltros(filtros: FiltrosEditais) {
+  const query: any = {};
+
+  if (filtros.filtroCidade && filtros.filtroCidade !== 'todas') {
+    query.cidade = filtros.filtroCidade;
+  }
+
+  if (filtros.filtroOrgao && filtros.filtroOrgao !== 'todos') {
+    query.orgao = filtros.filtroOrgao;
+  }
+
+  if (filtros.filtroAno && filtros.filtroAno !== 'todos') {
+    query.ano = filtros.filtroAno;
+  }
+
+  const buildAccentInsensitiveRegex = (pattern: string): string => {
+    const map: Record<string, string> = {
+      'a': '[aáàâãäå]',
+      'e': '[eéèêë]',
+      'i': '[iíìîï]',
+      'o': '[oóòôõöø]',
+      'u': '[uúùûü]',
+      'c': '[cç]',
+      'n': '[nñ]'
+    };
+    
+    const normalized = pattern.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    
+    let regexStr = '';
+    for (const char of normalized) {
+      if (map[char]) {
+        regexStr += map[char];
+      } else {
+        if (['\\', '^', '$', '*', '+', '?', '.', '(', ')', '[', ']', '{', '}', '|'].includes(char)) {
+          regexStr += '\\' + char;
+        } else {
+          regexStr += char;
+        }
+      }
+    }
+    return regexStr;
+  };
+
+  const buildFieldMatches = (regexPattern: string) => {
+    const regex = new RegExp(regexPattern, 'i');
+    return [
+      { cidade: regex },
+      { orgao: regex },
+      { titulo: regex },
+      { "dadosEnriquecidos.titulo": regex },
+      { descricao: regex },
+      { "dadosEnriquecidos.descricao": regex },
+      { concurso: regex },
+      { "dadosEnriquecidos.concurso": regex },
+      { dataPublicacao: regex },
+      { "dadosEnriquecidos.dataPublicacao": regex },
+      { metadados: regex },
+      { statusGeral: regex }
+    ];
+  };
+
+  if (filtros.palavrasDesejadas && filtros.palavrasDesejadas.length > 0) {
+    const orConditions = filtros.palavrasDesejadas.flatMap(word => {
+      const pattern = buildAccentInsensitiveRegex(word);
+      return buildFieldMatches(pattern);
+    });
+    query.$or = orConditions;
+  }
+
+  if (filtros.palavrasIgnoradas && filtros.palavrasIgnoradas.length > 0) {
+    const norConditions = filtros.palavrasIgnoradas.flatMap(word => {
+      const pattern = buildAccentInsensitiveRegex(word);
+      return buildFieldMatches(pattern);
+    });
+    query.$nor = norConditions;
+  }
+
+  return query;
+}
+
+export async function carregarEditaisPaginados(
+  filtros: FiltrosEditais,
+  pagina: number,
+  itensPorPagina: number
+): Promise<{ editais: Edital[]; totalFiltrados: number; cidadesDisponiveis: string[]; orgaosDisponiveis: string[] }> {
+  try {
+    await connectToDatabase();
+    const query = construirQueryFiltros(filtros);
+
+    const totalFiltrados = await EditalModel.countDocuments(query);
+    
+    const skip = (pagina - 1) * itensPorPagina;
+    const dados = await EditalModel.find(query)
+      .sort({ dataTimestamp: -1, ordemOriginal: 1 })
+      .skip(skip)
+      .limit(itensPorPagina)
+      .lean();
+
+    const dadosLimpos = dados.map(({ _id, __v, createdAt, updatedAt, ...resto }) => resto) as unknown as Edital[];
+
+    const cidadesDisponiveis = await EditalModel.distinct("cidade");
+    const orgaosDisponiveis = await EditalModel.distinct("orgao");
+
+    return {
+      editais: dadosLimpos,
+      totalFiltrados,
+      cidadesDisponiveis: cidadesDisponiveis.sort((a, b) => a.localeCompare(b, 'pt-BR')),
+      orgaosDisponiveis: orgaosDisponiveis.sort((a, b) => a.localeCompare(b, 'pt-BR'))
+    };
+  } catch (e) {
+    console.error("Erro ao carregar editais paginados do MongoDB:", e);
+    return { editais: [], totalFiltrados: 0, cidadesDisponiveis: [], orgaosDisponiveis: [] };
+  }
+}
+
+export async function carregarPastasPaginadas(
+  filtros: FiltrosEditais,
+  pagina: number,
+  pastasPorPagina: number,
+  filtroTipoGrupo: 'todos' | 'concurso' | 'seletivo'
+): Promise<{ pastas: any[]; totalPastas: number; cidadesDisponiveis: string[]; orgaosDisponiveis: string[] }> {
+  try {
+    await connectToDatabase();
+    const query = construirQueryFiltros(filtros);
+
+    const pipeline: any[] = [
+      { $match: query },
+      {
+        $addFields: {
+          concursoFinal: {
+            $trim: {
+              input: {
+                $ifNull: ["$dadosEnriquecidos.concurso", "$concurso"]
+              }
+            }
+          }
+        }
+      },
+      {
+        $match: {
+          concursoFinal: { $type: "string", $ne: "" }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            cidade: "$cidade",
+            orgao: "$orgao",
+            concurso: "$concursoFinal"
+          },
+          maxTimestamp: { $max: "$dataTimestamp" },
+          totalItens: { $sum: 1 },
+          hasUnenriched: {
+            $sum: {
+              $cond: [
+                {
+                  $or: [
+                    { $eq: ["$dadosEnriquecidos", null] },
+                    { $eq: ["$dadosEnriquecidos.titulo", null] },
+                    { $eq: ["$dadosEnriquecidos.titulo", ""] }
+                  ]
+                },
+                1,
+                0
+              ]
+            }
+          }
+        }
+      }
+    ];
+
+    const rawGroups = await EditalModel.aggregate(pipeline);
+
+    let grupos = rawGroups.map(g => ({
+      chaveUnica: `${g._id.cidade}_${g._id.orgao}_${g._id.concurso}`,
+      nome: g._id.concurso,
+      cidade: g._id.cidade,
+      orgao: g._id.orgao,
+      totalItens: g.totalItens,
+      maxTimestamp: g.maxTimestamp,
+      todosEnriquecidos: g.hasUnenriched === 0
+    }));
+
+    if (filtroTipoGrupo === 'concurso') {
+      grupos = grupos.filter(g => g.nome && g.nome.toUpperCase().includes('CONCURSO'));
+    } else if (filtroTipoGrupo === 'seletivo') {
+      grupos = grupos.filter(g => g.nome && g.nome.toUpperCase().includes('PROCESSO SELETIVO'));
+    }
+
+    grupos.sort((a, b) => {
+      const extrairAnoNumero = (nome: string) => {
+        if (!nome || typeof nome !== 'string') return { ano: 0, numero: 0 };
+        const match = nome.match(/(\d{2})\/(\d{4})/);
+        if (!match) return { ano: 0, numero: 0 };
+        return { ano: parseInt(match[2], 10), numero: parseInt(match[1], 10) };
+      };
+
+      const valA = extrairAnoNumero(a.nome);
+      const valB = extrairAnoNumero(b.nome);
+
+      if (valB.ano !== valA.ano) return valB.ano - valA.ano;
+      return valB.numero - valA.numero;
+    });
+
+    const totalPastas = grupos.length;
+    const skip = (pagina - 1) * pastasPorPagina;
+    const gruposPagina = grupos.slice(skip, skip + pastasPorPagina);
+
+    let pastasHidratadas: any[] = [];
+
+    if (gruposPagina.length > 0) {
+      const matchQueries = gruposPagina.map(g => ({
+        cidade: g.cidade,
+        orgao: g.orgao,
+        $or: [
+          { "dadosEnriquecidos.concurso": g.nome },
+          { concurso: g.nome }
+        ]
+      }));
+
+      const editaisRaw = await EditalModel.find({ $or: matchQueries })
+        .sort({ dataTimestamp: -1, ordemOriginal: 1 })
+        .lean();
+
+      const editais = editaisRaw.map(({ _id, __v, createdAt, updatedAt, ...resto }) => resto) as unknown as Edital[];
+
+      const mapaEditais = new Map<string, Edital[]>();
+      editais.forEach(e => {
+        const concursoFinal = e.dadosEnriquecidos?.concurso || e.concurso;
+        const chave = `${e.cidade}_${e.orgao}_${concursoFinal}`;
+        if (!mapaEditais.has(chave)) {
+          mapaEditais.set(chave, []);
+        }
+        mapaEditais.get(chave)!.push(e);
+      });
+
+      pastasHidratadas = gruposPagina.map(g => {
+        const itensGrupo = mapaEditais.get(g.chaveUnica) || [];
+        const primeiroItem = itensGrupo[0];
+        const ultimaAtualizacao = primeiroItem 
+          ? (primeiroItem.dadosEnriquecidos?.dataPublicacao || primeiroItem.dataPublicacao || "")
+          : "";
+
+        return {
+          chaveUnica: g.chaveUnica,
+          nome: g.nome,
+          cidade: g.cidade,
+          orgao: g.orgao,
+          ultimaAtualizacao,
+          totalItens: g.totalItens,
+          todosEnriquecidos: g.todosEnriquecidos,
+          itens: itensGrupo,
+          linksOrigem: Array.from(new Set(itensGrupo.map(e => e.linkOrigem).filter(Boolean))) as string[]
+        };
+      });
+    }
+
+    const cidadesDisponiveis = await EditalModel.distinct("cidade");
+    const orgaosDisponiveis = await EditalModel.distinct("orgao");
+
+    return {
+      pastas: pastasHidratadas,
+      totalPastas,
+      cidadesDisponiveis: cidadesDisponiveis.sort((a, b) => a.localeCompare(b, 'pt-BR')),
+      orgaosDisponiveis: orgaosDisponiveis.sort((a, b) => a.localeCompare(b, 'pt-BR'))
+    };
+  } catch (e) {
+    console.error("Erro ao carregar pastas paginadas do MongoDB:", e);
+    return { pastas: [], totalPastas: 0, cidadesDisponiveis: [], orgaosDisponiveis: [] };
+  }
+}
+
+export async function carregarTodosEditaisFiltrados(filtros: FiltrosEditais): Promise<Edital[]> {
+  try {
+    await connectToDatabase();
+    const query = construirQueryFiltros(filtros);
+    const dados = await EditalModel.find(query)
+      .sort({ dataTimestamp: -1, ordemOriginal: 1 })
+      .lean();
+    return dados.map(({ _id, __v, createdAt, updatedAt, ...resto }) => resto) as unknown as Edital[];
+  } catch (e) {
+    console.error("Erro ao carregar todos os editais filtrados:", e);
+    return [];
+  }
+}
+
+export async function carregarGrupoPorChave(chaveUnica: string): Promise<any | null> {
+  try {
+    await connectToDatabase();
+    const parts = chaveUnica.split('_');
+    if (parts.length < 3) return null;
+    const cidade = parts[0];
+    const orgao = parts[1];
+    const nome = parts.slice(2).join('_');
+
+    const editaisRaw = await EditalModel.find({
+      cidade,
+      orgao,
+      $or: [
+        { "dadosEnriquecidos.concurso": nome },
+        { concurso: nome }
+      ]
+    })
+      .sort({ dataTimestamp: -1, ordemOriginal: 1 })
+      .lean();
+
+    if (editaisRaw.length === 0) return null;
+
+    const editais = editaisRaw.map(({ _id, __v, createdAt, updatedAt, ...resto }) => resto) as unknown as Edital[];
+    const primeiroItem = editais[0];
+    const ultimaAtualizacao = primeiroItem 
+      ? (primeiroItem.dadosEnriquecidos?.dataPublicacao || primeiroItem.dataPublicacao || "")
+      : "";
+    const hasUnenriched = editais.some(e => !e.dadosEnriquecidos || !e.dadosEnriquecidos.titulo);
+
+    return {
+      chaveUnica,
+      nome,
+      cidade,
+      orgao,
+      ultimaAtualizacao,
+      totalItens: editais.length,
+      todosEnriquecidos: !hasUnenriched,
+      itens: editais,
+      linksOrigem: Array.from(new Set(editais.map(e => e.linkOrigem).filter(Boolean))) as string[]
+    };
+  } catch (e) {
+    console.error("Erro ao carregar grupo por chave:", e);
+    return null;
+  }
+}

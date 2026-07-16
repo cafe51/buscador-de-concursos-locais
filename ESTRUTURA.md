@@ -1,219 +1,450 @@
-# 🗂️ Estrutura do Projeto - Achador de Editais
+# 🗂️ Estrutura do Projeto — Achador de Editais
 
-Este documento apresenta a organização e a estrutura de pastas do projeto **Achador de Editais** (Buscador de Concursos Locais), detalhando a função de cada arquivo para guiar desenvolvedores e leitores no entendimento técnico da arquitetura da aplicação.
+Este documento descreve a arquitetura, a organização de arquivos e o funcionamento completo do projeto **Achador de Editais** (também referenciado como *Buscador de Concursos Locais*), um sistema automatizado de monitoramento de editais de concursos públicos e processos seletivos de prefeituras e câmaras municipais da região noroeste de São Paulo.
 
-O projeto é construído sobre o ecossistema moderno do **Next.js** (App Router, Server Actions, React 19) estilizado com **Tailwind CSS v4** (PostCSS), integrado a um sistema de **autenticação local baseada em cookies seguros e tokens JWT** (com credenciais e preferências salvas no **MongoDB**), utilizando o **Resend** para fluxos de e-mail e notificações.
+O projeto é construído sobre o ecossistema **Next.js 16** (App Router, Server Actions, React 19) com **Tailwind CSS v4**, integrado a um banco **MongoDB** (Mongoose), com enriquecimento de dados via **Google Gemini AI** e notificações por e-mail via **Resend**.
 
 ---
 
 ## 🌳 Árvore de Diretórios
 
-Abaixo está a representação visual da estrutura completa de pastas e arquivos do projeto:
-
 ```text
 achadordeeditais/
 ├── .github/
 │   └── workflows/
-│       └── scraper.yml        # Workflow do GitHub Actions para raspagem automática diária
-├── eslint.config.mjs          # Configuração do ESLint (padronização e qualidade de código)
-├── next-env.d.ts              # Definições de tipos globais automáticas do Next.js
-├── next.config.ts             # Configurações do Next.js (reactCompiler, origins autorizados e limites de payload)
-├── package.json               # Dependências do projeto (Next.js v16, Tailwind CSS v4, JWT/Bcryptjs, Resend, etc.)
-├── postcss.config.mjs         # Configuração do PostCSS para compilação do Tailwind v4
-├── tsconfig.json              # Configuração do compilador TypeScript
-├── ESTRUTURA.md               # Esta documentação de arquitetura e estrutura do projeto
-├── INFRAESTRUTURA.md          # Documentação do servidor self-hosted (VM na Oracle Cloud) para execução dos scrapers
-├── README.md                  # Manual introdutório do projeto e guia de inicialização rápida
-├── AGENTS.md                  # Regras e restrições para agentes de Inteligência Artificial
-├── CLAUDE.md                  # Configurações rápidas de comandos para assistentes de desenvolvimento
-├── ssh-key-2026-05-27.key     # Chave de segurança para conexões SSH ao servidor Runner na Oracle Cloud
+│       ├── scraper.yml              # Workflow GitHub Actions: raspagem 3x/dia (self-hosted)
+│       └── sync-ibge.yml            # Workflow GitHub Actions: sincronização IBGE 2x/dia
+├── .env / .env.local                # Variáveis de ambiente (chaves de API, MongoDB URI)
+├── .gitignore
+├── AGENTS.md                        # Regras para agentes de IA (Next.js 16 tem breaking changes)
+├── CLAUDE.md                        # Referência a AGENTS.md
+├── ESTRUTURA.md                     # Este documento
+├── INFRAESTRUTURA.md                # Documentação do self-hosted runner (Oracle Cloud)
+├── README.md                        # Manual introdutório e guia de início rápido
+├── eslint.config.mjs               # Configuração ESLint
+├── next-env.d.ts                   # Tipos globais automáticos do Next.js
+├── next.config.ts                  # Config: reactCompiler, devOrigins, bodySizeLimit 5MB
+├── package.json                    # Dependências e scripts
+├── package-lock.json
+├── postcss.config.mjs             # PostCSS para Tailwind CSS v4
+├── tsconfig.json                   # Config TypeScript (alias @/*)
+├── tsconfig.tsbuildinfo
+├── ssh-key-2026-05-27.key         # Chave SSH para o self-hosted runner (Oracle Cloud)
+├── test.doc / test.pdf            # Arquivos de teste para docParser/wordToPdf
+├── test-drive.ts / test-parser.ts / test-parser-real.ts / test-word.ts  # Scripts de teste manuais
 ├── scripts/
-│   └── run-scraper.ts         # Script principal de execução e sincronização do scraper em lote com retentativas
+│   ├── run-scraper.ts             # Entry point do GitHub Actions: pipeline completo de raspagem
+│   ├── sync-ibge.ts               # Sincronização de servidores IBGE via Portal da Transparência
+│   ├── initScraperConfigs.ts      # Inicializa ScraperConfig no MongoDB para todas as cidades
+│   ├── testConfig.ts              # Testa/força configuração de disponibilidade de scraper
+│   └── testScraper.ts             # Testa raspagem de uma cidade isolada
 └── src/
-    ├── proxy.ts               # Proxy de middleware global do Next.js 16 para controle de rotas protegidas e sessão JWT local
+    ├── proxy.ts                   # Middleware global: protege rotas, valida JWT do cookie
     ├── app/
-    │   ├── actions.ts         # Server Actions principais (execução em lote dos scrapers, auditorias e buscas)
-    │   ├── globals.css        # Configurações globais e injeção do Tailwind CSS v4
-    │   ├── layout.tsx         # Layout HTML base da aplicação (metadados e injeção de fontes Geist)
-    │   ├── page.tsx           # Página inicial e painel principal do buscador de editais
+    │   ├── actions.ts             # Server Actions: buscarTodosEditais, buscarEditaisPorCidade, enriquecer
+    │   ├── globals.css            # Estilos globais + import do Tailwind CSS v4
+    │   ├── layout.tsx             # Layout HTML base (fontes Geist, metadados)
+    │   ├── page.tsx               # Página inicial: painel principal com editais
+    │   ├── favicon.ico
+    │   ├── admin/
+    │   │   └── actions.ts         # Server Actions admin: ScraperConfig CRUD (require role=admin)
+    │   ├── api/
+    │   │   ├── dev/
+    │   │   │   └── logs/
+    │   │   │       └── route.ts   # SSE endpoint: streaming de logs do backend (dev only)
+    │   │   └── servidores-ibge/
+    │   │       ├── route.ts       # GET: busca servidores IBGE por cidade
+    │   │       ├── agencias/route.ts    # GET: lista agências do IBGE agrupadas por estado
+    │   │       └── remuneracao/route.ts # GET: busca remuneração de servidor (Portal da Transparência)
     │   ├── auth/
-    │   │   └── actions.ts     # Server Actions de autenticação (login, cadastro, senhas, exclusão no MongoDB)
+    │   │   └── actions.ts         # Server Actions: login, signup, logout, reset senha, update email, delete conta
     │   ├── developer/
     │   │   └── logs/
-    │   │       └── page.tsx   # Painel administrativo de monitoramento de logs de execuções do scraper
+    │   │       └── page.tsx       # Painel admin: métricas das últimas 20 execuções do scraper
     │   ├── login/
-    │   │   └── page.tsx       # Tela moderna de autenticação de usuários
+    │   │   └── page.tsx           # Tela de login
     │   ├── profile/
-    │   │   ├── page.tsx       # Tela servidora de perfil do usuário (MongoDB + Sessão JWT)
-    │   │   └── ProfileClient.tsx # Lógica interativa de alteração cadastral e exclusão de conta
+    │   │   ├── page.tsx            # Página de perfil (servidora, busca configs admin)
+    │   │   ├── ProfileClient.tsx   # Lógica client: alteração de email, senha, notificações, exclusão
+    │   │   └── AdminScraperConfigs.tsx # Painel admin: toggle Modo Disponibilidade por cidade
     │   ├── reset-password/
-    │   │   └── page.tsx       # Tela de recuperação de senha esquecida
+    │   │   └── page.tsx           # Tela de solicitação de recuperação de senha
     │   ├── signup/
-    │   │   └── page.tsx       # Tela elegante de cadastro de novos usuários
-    │   └── update-password/
-    │       └── page.tsx       # Tela de definição de nova senha pós-link de recuperação
+    │   │   └── page.tsx           # Tela de cadastro de novos usuários
+    │   ├── update-password/
+    │   │   └── page.tsx           # Tela de definição de nova senha (via token de reset)
+    │   └── servidoresIBGE/
+    │       ├── page.tsx            # Página servidora do módulo IBGE
+    │       └── ServidoresIBGE.tsx  # Componente client: busca de servidores com filtros por estado/cidade
     ├── components/
-    │   ├── ControlsBar.tsx    # Barra de controle de visualização (pesquisa global, modos e download JSON)
-    │   ├── DevToolsPanel.tsx  # Painel de ferramentas de desenvolvimento (auditoria, simulação de falhas, disparos)
-    │   ├── EditalCard.tsx     # Card de exibição visual contendo badges, links e detalhes de um edital
-    │   ├── FilterPanel.tsx    # Painel lateral expansível para filtragem refinada (cidade, termo, exclusão de licitações)
-    │   ├── FolderDetailView.tsx # Visualização de pasta contendo a lista de documentos e anexos de um certame
-    │   ├── FolderView.tsx     # Modo de exibição virtual agrupando editais e anexos em pastas por concurso
-    │   ├── Footer.tsx         # Rodapé moderno e de contatos da aplicação
-    │   ├── Header.tsx         # Cabeçalho da aplicação (logo, navegação principal e botões de conta)
-    │   ├── ListView.tsx       # Modo de visualização de lista linear (cronológica) dos editais
-    │   └── ProfileButton.tsx  # Botão do header que reflete o estado do usuário logado (links para perfil e logout)
-    │   ├── aiAnalysis.ts      # Módulo de Inteligência Artificial (Gemini) utilizando Few-Shot Prompting para leitura e padronização inteligente de editais e arquivos
-    │   ├── blacklist.ts       # Banco de URLs de documentos inválidos que devem ser ignorados
-    │   ├── diagnostics.ts     # Auditorias e raw scrapers focados em portais no padrão "Instar"
-    │   ├── docParser.ts       # Baixador e analisador de anexos (PDF/DOCX) para extração automática de datas via Regex
-    │   ├── email.ts           # Integração com serviço Resend para despachar e-mails de alertas e recuperação
-    │   ├── filtrosGlobais.ts  # Regras globais de filtragem e heurística anti-ruído (eliminação de compras públicas)
-    │   ├── mockScrapingLogs.ts # Gerador de registros realistas de logs de scraping para testes em desenvolvimento
-    │   ├── mongodb.ts         # Módulo gerenciador de conexões com o MongoDB (Connection Caching)
-    │   ├── notifications.ts   # Motor de notificações, que processa o filtro burocrático (limpeza de ruídos) e envia e-mails para novos editais
-    │   ├── orchestrator.ts    # Orquestrador Central que une a raspagem de dados, a Inteligência Artificial e as Notificações, além de suportar configurações locais avançadas
-    │   ├── runner.ts          # Executor resiliente de scrapers com proteção contra timeouts (290s por cidade)
-    │   ├── storage.ts         # Módulo de persistência e sincronização de dados (editais, logs) no MongoDB
+    │   ├── AdminLogsButton.tsx     # Botão no header: link para /developer/logs (visível para admins)
+    │   ├── ControlsBar.tsx         # Barra de controle: busca global, modos de view, export JSON
+    │   ├── DevToolsPanel.tsx       # Painel flutuante admin: disparar raspagens, toggle IA/emails, auditorias
+    │   ├── EditalCard.tsx          # Card visual de um edital (badges, links, datas, dados enriquecidos)
+    │   ├── FilterPanel.tsx         # Painel lateral: filtros por cidade, termo, licitações, expirados
+    │   ├── FolderDetailView.tsx    # Visualização expandida: documentos de um concurso
+    │   ├── FolderView.tsx          # Modo de visualização: editais agrupados em pastas por concurso
+    │   ├── Footer.tsx             # Rodapé
+    │   ├── Header.tsx             # Cabeçalho (logo, navegação, ProfileButton, AdminLogsButton)
+    │   ├── ListView.tsx           # Modo de visualização: lista cronológica de editais
+    │   ├── ProfileButton.tsx      # Botão de conta no header (Entrar / Meu Perfil / Logout)
+    │   └── TerminalPanel.tsx      # Terminal flutuante: logs do backend em tempo real via SSE (dev only)
+    ├── lib/
+    │   ├── aiAnalysis.ts           # IA Júnior (Gemini 3.1 Flash Lite): extrai dados de editais via few-shot
+    │   ├── aiAuditor.ts            # IA Auditora (Gemini 3.5 Flash): audita e corrige extração da IA Júnior
+    │   ├── auth.ts                 # Utilitários JWT (jose) + bcrypt: sign, verify, hash, cookies
+    │   ├── blacklist.ts            # Lista de URLs de PDFs inválidos/vazios a ignorar
+    │   ├── devLogger.ts            # Intercepta console.log/warn/error e emite via EventEmitter (SSE para dev)
+    │   ├── diagnostics.ts          # Auditoria de portais Instar: compara contagem de arquivos no site vs banco
+    │   ├── docParser.ts            # Baixa PDF/DOCX/DOC, resolve redirects, extrai texto e datas
+    │   ├── email.ts                # Abstração da API Resend para envio de e-mails transacionais
+    │   ├── filtrosGlobais.ts       # Heurísticas anti-ruído: ehSujeira, ehAndamentoOrfao, extrairIdConcurso
+    │   ├── mockScrapingLogs.ts      # Gerador de logs de scraping realistas para desenvolvimento
+    │   ├── mongodb.ts              # Gerenciador de conexão MongoDB com cache (evita pool exhaustion em serverless)
+    │   ├── notifications.ts        # Pipeline de notificações: filtro burocrático → preferências → e-mail
+    │   ├── orchestrator.ts         # Orquestrador central: pipeline completo de raspagem → IA → notificações
+    │   ├── runner.ts               # Executor resiliente: timeout 290s/cidade, dados parciais, logs formatados
+    │   ├── storage.ts              # Persistência MongoDB: CRUD de editais, logs, metadata, enriquecimento
+    │   ├── wordToPdf.ts            # Conversão .doc/.docx → PDF via LibreOffice headless (soffice)
     │   └── scrapers/
-    │       ├── alvaresflorence.ts # Scraper para Álvares Florence
-    │       ├── dolcinopolis.ts   # Scraper para Dolcinópolis
-    │       ├── estrela.ts        # Scraper para Estrela d'Oeste
-    │       ├── fernandopolis.ts  # Scraper para Fernandópolis
-    │       ├── guaranidoeste.ts  # Scraper para Guarani d'Oeste
-    │       ├── indiapora.ts      # Scraper para Indiaporã
-    │       ├── instar.ts         # Motor base adaptável e genérico para portais no formato padrão "Instar"
-    │       ├── jales.ts          # Scraper para Jales
-    │       ├── macedonia.ts      # Scraper para Macedônia
-    │       ├── meridiano.ts      # Scraper para Meridiano
-    │       ├── miraestrela.ts    # Scraper para Mira Estrela
-    │       ├── ouroeste.ts       # Scraper para Ouroeste (utiliza a infraestrutura do Instar)
-    │       ├── parisi.ts         # Scraper para Parisi
-    │       ├── pedranopolis.ts   # Scraper para Pedranópolis
-    │       ├── registry.ts       # Registro central de scrapers ativos (`MAPA_SCRAPERS`) e lista de cidades (`CIDADES_ATIVAS`)
-    │       ├── santasalete.ts    # Scraper para Santa Salete
-    │       ├── saojoao.ts        # Scraper para São João das Duas Pontes
-    │       ├── urania.ts         # Scraper para Urânia
-    │       ├── utils.ts          # Utilitários de scrapers (requisição HTTP com retentativas, datas e nomes de arquivos)
-    │       ├── valentimgentil.ts # Scraper para Valentim Gentil
-    │       ├── vitoriabrasil.ts  # Scraper para Vitória Brasil
-    │       ├── votuporanga.ts    # Scraper para Votuporanga
-    │       ├── webline.ts        # Módulo de suporte/parser para portais no padrão "Webline"
-    │       └── camaras/          # Raspadores das Câmaras Municipais (Poder Legislativo)
-    │           ├── fernandopolis.ts # Scraper para a Câmara de Fernandópolis
-    │           ├── indiapora.ts     # Scraper para a Câmara de Indiaporã
-    │           ├── jales.ts         # Scraper para a Câmara de Jales
-    │           ├── meridiano.ts     # Scraper para a Câmara de Meridiano
-    │           ├── miraestrela.ts   # Scraper para a Câmara de Mira Estrela
-    │           ├── parisi.ts        # Scraper para a Câmara de Parisi
-    │           └── votuporanga.ts   # Scraper para a Câmara de Votuporanga
+    │       ├── registry.ts          # MAPA_SCRAPERS (cidade→função) e CIDADES_ATIVAS (ordem de execução)
+    │       ├── utils.ts             # fetchHtml (retries, headers navegador), extrairData, limparTituloDoc
+    │       ├── instar.ts             # Motor genérico para portais Instar (paginação, pastas, download links)
+    │       ├── webline.ts            # Motor para portais Webline
+    │       ├── alvaresflorence.ts   # Scraper: Álvares Florence
+    │       ├── dolcinopolis.ts      # Scraper: Dolcinópolis
+    │       ├── estrela.ts           # Scraper: Estrela d'Oeste
+    │       ├── fernandopolis.ts     # Scraper: Fernandópolis
+    │       ├── guaranidoeste.ts     # Scraper: Guarani d'Oeste
+    │       ├── indiapora.ts         # Scraper: Indiaporã
+    │       ├── jales.ts             # Scraper: Jales
+    │       ├── macedonia.ts         # Scraper: Macedônia
+    │       ├── meridiano.ts         # Scraper: Meridiano
+    │       ├── miraestrela.ts       # Scraper: Mira Estrela
+    │       ├── ouroeste.ts          # Scraper: Ouroeste (reutiliza motor Instar)
+    │       ├── parisi.ts            # Scraper: Parisi
+    │       ├── pedranopolis.ts      # Scraper: Pedranópolis
+    │       ├── pontalinda.ts        # Scraper: Pontalinda
+    │       ├── santasalete.ts       # Scraper: Santa Salete
+    │       ├── saojoao.ts           # Scraper: São João das Duas Pontes
+    │       ├── urania.ts            # Scraper: Urânia
+    │       ├── valentimgentil.ts    # Scraper: Valentim Gentil
+    │       ├── vitoriabrasil.ts     # Scraper: Vitória Brasil
+    │       ├── votuporanga.ts       # Scraper: Votuporanga
+    │       └── camaras/              # Scrapers das Câmaras Municipais (Poder Legislativo)
+    │           ├── fernandopolis.ts
+    │           ├── indiapora.ts
+    │           ├── jales.ts
+    │           ├── meridiano.ts
+    │           ├── miraestrela.ts
+    │           ├── parisi.ts
+    │           └── votuporanga.ts
     ├── models/
-    │   ├── Edital.ts          # Schema do Mongoose para os Editais
-    │   ├── Metadata.ts        # Schema do Mongoose para variáveis globais do sistema
-    │   ├── ScrapingLog.ts     # Schema do Mongoose para registro de histórico do scraper
-    │   └── User.ts            # Schema do Mongoose para os Usuários, credenciais e preferências
+    │   ├── Edital.ts               # Schema Mongoose: editais (link único, dadosEnriquecidos, timestamps)
+    │   ├── Metadata.ts             # Schema Mongoose: chave-valor (última atualização global)
+    │   ├── ScraperConfig.ts        # Schema Mongoose: flag verificarDisponibilidade por cidade
+    │   ├── ScrapingLog.ts           # Schema Mongoose: histórico de execuções (detalhes por cidade)
+    │   ├── ServidorIBGE.ts          # Schema Mongoose: servidores IBGE (Portal da Transparência)
+    │   └── User.ts                 # Schema Mongoose: usuários, credenciais, role, preferências de notificação
     ├── types/
-    │   └── index.ts           # Definição e tipagem central do objeto TypeScript `Edital`
+    │   └── index.ts                # Tipo Edital e interface ScraperOptions
     └── utils/
-        └── exportJson.ts      # Utilitário para formatação e download do arquivo JSON dos editais no navegador
+        └── exportJson.ts           # Converte editais exibidos em arquivo .json para download no navegador
 ```
 
 ---
 
-## 📄 Detalhamento dos Componentes e Módulos
+## 📐 Arquitetura — Pipeline Completo
+
+O sistema opera em dois modos que compartilham o mesmo código-base:
+
+1. **Automático (GitHub Actions)** — 3x ao dia, um self-hosted runner na Oracle Cloud (IP brasileiro) executa o pipeline completo
+2. **Local (UI de desenvolvimento)** — um painel DevTools na própria aplicação permite disparar raspagens seletivas, ligar/desligar IA e e-mails
+
+O fluxo de ponta a ponta é orquestrado por `runFullScraperWorkflow()` em `orchestrator.ts`:
+
+```
+GitHub Actions (cron 3x/dia)  ou  DevToolsPanel (UI local)
+  └─ scripts/run-scraper.ts  ou  actions.rodarFluxoCompletoServerAction()
+       └─ orchestrator.runFullScraperWorkflow()
+            │
+            ├─ 1. RASPAGEM (actions.ts → buscarTodosEditais)
+            │     ├─ Consulta ScraperConfig no MongoDB (Modo Disponibilidade?)
+            │     ├─ Executa em lotes de 4 cidades em paralelo
+            │     └─ runner.ts (rodarComProtecao, timeout 290s/cidade)
+            │          └─ registry.ts → MAPA_SCRAPERS[cidade]
+            │               ├─ instar.ts (motor genérico para portais Instar)
+            │               ├─ webline.ts (motor para portais Webline)
+            │               └─ scrapers específicos por cidade
+            │
+            ├─ 2. RETENTATIVAS (até 3, com 10min de espera entre elas)
+            │     └─ Re-roda apenas cidades que falharam
+            │
+            ├─ 3. DEDUPLICAÇÃO (por link único)
+            │
+            ├─ 4. SINCRONIZAÇÃO COM BANCO (storage.ts)
+            │     ├─ identificarMudancas() — diff: novos vs existentes no MongoDB
+            │     └─ persistirSincronizacao() — bulkWrite (insertOne/updateOne)
+            │
+            ├─ 5. ENRIQUECIMENTO IA (aiAnalysis.ts) — apenas para novos editais
+            │     └─ processarComIA() — Gemini 3.1 Flash Lite
+            │          ├─ docParser.ts baixa o PDF/DOCX/HTML do edital
+            │          ├─ PDFs >10 páginas → extrai primeiras 5 + últimas 5
+            │          ├─ .doc/.docx → converte via LibreOffice (wordToPdf.ts)
+            │          ├─ Upload para Gemini API (File Manager)
+            │          ├─ Few-Shot Prompting → JSON { titulo, descricao, concurso, dataPublicacao }
+            │          ├─ Rate limit: 4s entre requisições, retry em 429 (60s espera)
+            │          └─ Calcula custo em USD→BRL (cotação do dólar em tempo real)
+            │
+            ├─ 6. AUDITORIA IA (aiAuditor.ts) — apenas enriquecimento manual com mudanças
+            │     └─ Gemini 3.5 Flash (modelo superior) audita a IA Júnior
+            │          ├─ Veredicto: CORRETO ou INCORRETO
+            │          └─ Se INCORRETO: corrige dados automaticamente em memória
+            │
+            ├─ 7. NOTIFICAÇÕES (notifications.ts) — apenas se houver novos editais
+            │     ├─ Passo 1: Filtro burocrático (41 termos → descarta homologação, convocação, etc.)
+            │     ├─ Passo 2: Busca usuários com notificações ativas no MongoDB
+            │     ├─ Passo 3: Filtra por preferências individuais (cidade, órgão)
+            │     └─ Passo 4: Envia e-mails individuais via Resend (email.ts)
+            │
+            └─ 8. LOG (storage.ts → adicionarScrapingLog)
+                  └─ Salva métricas do bloco no MongoDB (mantém 20 mais recentes)
+```
+
+---
+
+## 📄 Detalhamento dos Módulos
 
 ### 🚀 1. Raiz do Projeto (Configurações)
-*   **`next.config.ts`**: Habilita o compilador React e define regras de CORS para desenvolvimento local (IPs autorizados na rede). Também aumenta o limite de payload de requisições no servidor para 5MB, essencial para uploads e transações pesadas de dados.
-*   **`postcss.config.mjs`**: Gerencia a compilação do Tailwind CSS v4, que substitui o arquivo tradicional de configurações (`tailwind.config.ts`) por declarações em arquivos CSS.
-*   **`eslint.config.mjs` / `tsconfig.json`**: Garantem, respectivamente, regras de boa conduta/padronização estilística do código e as configurações do compilador TypeScript (como aliases `@/*`).
-*   **`INFRAESTRUTURA.md`**: Detalha as especificações do servidor self-hosted rodando na Oracle Cloud (Ubuntu, Swap de 2GB e Runner GitHub Actions), que serve para desviar de barreiras de Geo-Blocking e WAFs governamentais que barram IPs internacionais.
-*   **`AGENTS.md` / `CLAUDE.md`**: Manuais e atalhos contendo instruções especiais para agentes autônomos que realizam tarefas de engenharia no projeto.
 
-### ⚙️ 2. Diretório `scripts/` (Rotinas do Servidor / Actions)
-*   **`run-scraper.ts`**: Script disparado automaticamente em intervalos programados (três vezes ao dia) pela pipeline do GitHub Actions. Ele executa a raspagem geral de todas as prefeituras e câmaras com um mecanismo inteligente de **até 3 retentativas** (separadas por 10 minutos) para recuperar dados de portais municipais lentos ou instáveis. No final, consolida os resultados, sincroniza o banco central no MongoDB e registra os logs de execução.
+- **`next.config.ts`**: Habilita o React Compiler, define `allowedDevOrigins` para IP local na rede, e aumenta o limite de payload de Server Actions para 5MB (necessário para operações pesadas de dados).
+- **`postcss.config.mjs`**: Gerencia a compilação do Tailwind CSS v4, que substitui o arquivo tradicional `tailwind.config.ts` por declarações diretamente em CSS.
+- **`eslint.config.mjs` / `tsconfig.json`**: Regras de lint e configuração do TypeScript (alias `@/*` → `src/*`).
+- **`package.json`**: Define dependências (Next.js 16, React 19, Mongoose 9, Gemini SDK, Resend, Cheerio, pdf-parse, mammoth, word-extractor, jose, bcryptjs, Zod, React Hook Form, lucide-react) e scripts. Inclui scripts `link-ssd`/`install-ssd` para instalar node_modules em outro diretório, economizando espaço no SSD.
+- **`AGENTS.md`**: Alerta que o Next.js 16 tem breaking changes em relação à documentação pública — APIs e convenções podem diferir do esperado. Inclui regra para consultar `node_modules/next/dist/docs/` antes de escrever código.
+- **`CLAUDE.md`**: Referência simples a `AGENTS.md`.
 
-### 🕷️ 3. Módulo `src/proxy.ts` e Módulo `src/lib/auth.ts` (Segurança, Cookies & JWT)
-*   **`src/proxy.ts`**: Atua como o proxy de middleware global do Next.js 16. Ele intercepta as chamadas a páginas e recursos estáticos do sistema para validar os cookies de sessão JWT dos usuários, protegendo as rotas administrativas e de perfil.
-*   **`src/lib/auth.ts`**: Reúne utilitários de backend para geração e validação de tokens JWT (via biblioteca `jose`) e criptografia unidirecional de senhas com `bcryptjs`.
+### ⚙️ 2. Diretório `scripts/` (Rotinas e Entry Points)
 
-### 🖥️ 4. Diretório `src/app/` (Páginas, Telas & Controles do Usuário)
-*   **`actions.ts`**: Concentra as Server Actions essenciais da página principal. Gerencia a execução paralela dos scrapers com controle de timeout e auditorias de badges.
-*   **`page.tsx`**: Interface inicial da aplicação. Consome as ações de carregamento de editais em tempo real a partir da nuvem e orquestra a exibição, o cabeçalho e a barra lateral de filtros.
-*   **`globals.css`**: Arquivo de folha de estilos global do Next.js. Nele é injetado o Tailwind CSS v4 (`@import "tailwindcss";`) e aplicadas regras de transições fluidas.
-*   **`auth/actions.ts`**: Server Actions responsáveis por toda a lógica de autenticação integrada ao MongoDB. Lida com:
-    *   `login()`: Validação de e-mail e senha utilizando `bcryptjs` e emissão do cookie de sessão JWT.
-    *   `signup()`: Cadastro direto no MongoDB, login automático e redirecionamento de boas-vindas.
-    *   `logout()`: Desconexão por remoção e invalidação do cookie de sessão ativa.
-    *   `requestPasswordReset()` / `updatePassword()`: Geração de token UUID de redefinição no MongoDB e disparo do link via e-mail utilizando o Resend.
-    *   `updateEmail()`: Atualização de caixa postal e re-emissão da sessão.
-    *   `deleteAccount()`: Validação de senha e exclusão física definitiva da conta de usuário no MongoDB.
-*   **`developer/logs/page.tsx`**: Painel administrativo de controle. Exibe um sumário de execuções (últimos 20 blocos) contendo tempo total de raspagem, quantidade de itens adicionados ou modificados, e relatórios de falhas individuais de cada cidade/câmara.
-*   **`login/` / `signup/` / `reset-password/` / `update-password/` / `profile/`**: Páginas Next.js que abrigam os fluxos de telas de conta do usuário, todas integradas a formulários modernos com validação detalhada e estilização elegante.
+- **`run-scraper.ts`**: Ponto de entrada do GitHub Actions. Carrega variáveis de ambiente (`@next/env`), chama `runFullScraperWorkflow({ isLocalUI: false })` e força `process.exit(0)` ao final para evitar que a Action fique pendurada em conexões abertas.
+- **`sync-ibge.ts`**: Sincroniza servidores do IBGE via API do Portal da Transparência. Pagina todos os servidores do órgão SIAPE 45205, faz upsert no MongoDB, e envia e-mail de notificação para `cafecafe51@hotmail.com` quando detecta alterações em servidores de Fernandópolis (novos servidores, mudança de cargo, situação, regime, jornada, etc.).
+- **`initScraperConfigs.ts`**: Cria registros de `ScraperConfig` no MongoDB para todas as cidades em `CIDADES_ATIVAS` (com `verificarDisponibilidade: false`). Rodar uma vez ao configurar o banco pela primeira vez.
+- **`testScraper.ts`**: Testa a raspagem de uma cidade isolada (ex: Fernandópolis) e imprime resultados.
+- **`testConfig.ts`**: Testa e força o valor de `verificarDisponibilidade` para uma cidade no MongoDB.
+- **Arquivos `test-*.ts` na raiz**: Scripts de teste manual para docParser, wordToPdf e Google Drive.
 
-### 🎨 5. Diretório `src/components/` (Componentes Visuais Modulares)
-*   **`Header.tsx` / `Footer.tsx`**: Elementos de estrutura que delimitam a navegação no topo e rodapé da interface.
-*   **`ProfileButton.tsx`**: Controla o estado de identificação no topo do site, mostrando um botão de "Entrar" para anônimos ou exibindo o menu de conta / "Meu Perfil" para usuários logados.
-*   **`ControlsBar.tsx`**: Permite aos usuários realizarem buscas de texto rápidas, alternarem entre visualização linear e organização por pastas, e realizarem a exportação instantânea dos resultados em arquivo JSON estruturado.
-*   **`FilterPanel.tsx`**: Menu de filtros na barra lateral que permite restringir editais por cidades ativas, termos textuais no título e exibir/esconder concursos expirados ou licitações.
-*   **`ListView.tsx` / `FolderView.tsx`**: Dois modos de renderização concorrentes da busca. O primeiro exibe os editais cronologicamente, enquanto o segundo organiza os editais e anexos sob a forma de pastas virtuais de concursos.
-*   **`EditalCard.tsx` / `FolderDetailView.tsx`**: O card visual individual e a janela expandida de documentos agrupados, respectivamente, enriquecidos com badges de status, links diretos e datas.
-*   **`DevToolsPanel.tsx`**: Barra flutuante disponível no ambiente de desenvolvimento/administrador para acionar auditorias profundas de scrapers, disparar scrapings manuais em lote e simular cenários de falhas de comunicação. O painel inclui também **Configurações Locais Inteligentes**, conectadas ao `localStorage`, permitindo varrer apenas cidades específicas, bem como ligar/desligar de forma granular o processo de Inteligência Artificial e de Disparo de E-mails para rodadas de testes ultrarrápidas.
+### 🛡️ 3. Segurança, Middleware e Autenticação
 
-### 🔧 6. Diretório `src/lib/` (Módulos de Negócio, IA, e Raspadores)
-*   **`orchestrator.ts`**: O Orquestrador Central da aplicação. Define o pipeline primário ("Run Full Scraper Workflow") unindo de ponta-a-ponta a extração, armazenamento no banco, enriquecimento via Gemini AI e roteamento de notificações. Em desenvolvimento local, obedece as configurações passadas pelo `DevToolsPanel`.
-*   **`aiAnalysis.ts`**: Módulo de Inteligência Artificial implementado com o SDK `@google/generative-ai` (Gemini 2.5 Flash). Ele acessa o link dos editais, lê o texto bruto (ou o arquivo binário em caso de PDFs não mapeados) e utiliza a técnica de **"Few-Shot Prompting"** (fornecendo um histórico Multi-Turn instrucional e mockado) para forçar que o modelo devolva as informações extraídas no mais absoluto padrão de segurança e em JSON.
-*   **`notifications.ts`**: O filtro humano-protetor do sistema. Uma vez que o orquestrador acuse novos editais persistidos, eles caem aqui. Funciona em 4 passos: (1) O Filtro Burocrático de 41 termos destrói qualquer postagem de acompanhamento ou administrativa; (2) Busca os perfis que possuem e-mails ativos diretamente no MongoDB; (3) Monta a estrutura HTML moderna de alerta; (4) Comunica a Resend API para expedir o e-mail transacional.
-*   **`blacklist.ts`**: Armazena links diretos (especialmente PDFs) catalogados como impróprios, vazios ou sem valor que devem ser cortados da renderização.
-*   **`docParser.ts`**: Biblioteca que baixa temporariamente PDFs/DOCX em buffers locais na memória e varre seu conteúdo de texto com Regex para decifrar a data de publicação original contida no documento.
-*   **`email.ts`**: Abstração direta da biblioteca `resend` para chamadas da API de expedição e gestão dos templates HTML.
-*   **`filtrosGlobais.ts`**: Central de heurísticas anti-ruído. Garante que apenas concursos de contratação de pessoas (servidores públicos) passem pela triagem, descartando editais comerciais de licitação, compras de insumos e leilões.
-*   **`mongodb.ts`**: Gerenciador de conexão com o banco de dados que previne estouro de pool no ambiente serverless (Next.js) através de Connection Caching.
-*   **`storage.ts`**: Fornece a lógica de persistência e comunicação com o MongoDB usando Mongoose, controlando inserções otimizadas em lote (bulkWrite) e consultas dos editais, logs e metadados. O módulo agora expõe o tipo `SyncLogAddition` capaz de armazenar as variações de editais recém criados para passá-los aos pipelines de Inteligência Artificial.
-*   **`runner.ts`**: Controla a execução individual de scrapers com tratamentos de erros e timeouts por cidade (limite flexível de 290 segundos) para impedir que a lentidão de um único portal comprometa toda a raspagem.
-*   **`diagnostics.ts`**: Fornece motores de auditoria que fazem requisições diretas e rápidas aos portais das cidades, lêem o número indicado nas badges de documentos e comparam com a contagem armazenada, alertando sobre possíveis falhas ou perdas de arquivos.
+- **`src/proxy.ts`**: Middleware global do Next.js. Intercepta todas as rotas (exceto arquivos estáticos), valida o cookie `session` (JWT via `jose`). Redireciona usuários não autenticados para `/login` ao acessar `/profile`, `/developer`, `/admin`. Redireciona usuários logados para `/` ao acessar `/login`, `/signup`, `/reset-password`.
+- **`src/lib/auth.ts`**: Utilitários de backend: `hashPassword` (bcrypt, 10 rounds), `comparePassword`, `signToken` (JWT HS256, 30 dias de validade), `verifyToken`, `getSessionUser` (lê cookie via `next/headers`), `setSessionCookie` (httpOnly, secure em produção, sameSite lax), `deleteSessionCookie`.
+- **`src/app/auth/actions.ts`**: Server Actions de autenticação integradas ao MongoDB:
+  - `login()`: Valida email/senha com bcrypt, emite JWT, seta cookie.
+  - `signup()`: Cria usuário no MongoDB, login automático, redirecionamento.
+  - `logout()`: Remove cookie de sessão.
+  - `requestPasswordReset()`: Gera token UUID, salva no MongoDB (1h de validade), envia link por e-mail via Resend.
+  - `updatePassword()`: Redefine senha via token (do e-mail) ou via sessão ativa. Login automático pós-reset.
+  - `updateEmail()`: Atualiza email, re-emite JWT com novo email.
+  - `deleteAccount()`: Valida senha e exclui a conta fisicamente do MongoDB.
+  - `updateNotificationSettings()`: Atualiza preferências de notificação (enabled, organs, cities).
 
-### 🕷️ 7. Diretório `src/lib/scrapers/` (Motores de Coleta Local)
-Contém os scripts raspadores específicos para prefeituras e câmaras.
-*   **`instar.ts`**: Motor base automatizado adaptado para portais de formato "Instar" (uma das maiores empresas prestadoras de tecnologia para portais governamentais).
-*   **`webline.ts`**: Motor genérico voltado para portais baseados na tecnologia "Webline".
-*   **`ouroeste.ts`**: Raspador para Ouroeste que reutiliza o motor de `instar.ts`.
-*   **`registry.ts`**: Mapeia todas as funções coletoras das cidades e câmaras em um único objeto exportável (`MAPA_SCRAPERS`) e define a lista oficial de execução (`CIDADES_ATIVAS`).
-*   **`utils.ts`**: Reúne rotinas como `fetchHtml` (com tratamento de cabeçalhos de navegadores modernos e tentativas espaçadas), `extrairData` e `limparTituloDoc` para higienizar nomes de arquivos salvos.
-*   **Scrapers Específicos por Cidade**: `votuporanga.ts`, `fernandopolis.ts`, `jales.ts`, `meridiano.ts`, `pedranopolis.ts`, `saojoao.ts`, `estrela.ts`, `macedonia.ts`, `urania.ts`, `dolcinopolis.ts`, `alvaresflorence.ts`, `santasalete.ts`, `vitoriabrasil.ts`, `valentimgentil.ts`, `guaranidoeste.ts`, `indiapora.ts`, `miraestrela.ts`, `parisi.ts`, `pontalinda.ts`.
-*   **Scrapers de Câmaras Municipais (`camaras/`)**: Coletam os editais publicados especificamente pelas Câmaras de Vereadores dos municípios da região: `fernandopolis.ts`, `indiapora.ts`, `jales.ts`, `meridiano.ts`, `miraestrela.ts`, `parisi.ts`, `votuporanga.ts`.
+### 🖥️ 4. Diretório `src/app/` (Páginas, Telas e Server Actions)
 
-### 🧱 8. Diretório `src/models/` (Modelagem do Banco de Dados)
-Contém as definições estritas (Schemas) do Mongoose para garantir consistência dos dados que entram no MongoDB.
-*   **`Edital.ts`**: Schema das publicações e editais, garantindo que os links sejam únicos para impedir duplicatas.
-*   **`ScrapingLog.ts`**: Schema focado em registrar as métricas e resumos diários de sucesso e falhas do motor de raspagem.
-*   **`Metadata.ts`**: Schema simples de chave-valor para guardar a data da última atualização do sistema.
-*   **`User.ts`**: Schema das credenciais de acesso, papéis administrativos e configurações de monitoramento por e-mail dos usuários.
+- **`actions.ts`**: Server Actions principais:
+  - `buscarTodosEditais(cidadesAlvo?)`: Executa raspagem de todas as cidades (ou um subconjunto) em lotes de 4, consulta `ScraperConfig` para verificar modo de disponibilidade, deduplica por link, ordena por data.
+  - `buscarEditaisPorCidade(nomeCidade)`: Raspagem individual de uma cidade (usado em retentativas e testes).
+  - `rodarFluxoCompletoServerAction(options)`: Delega para `orchestrator.runFullScraperWorkflow()`.
+  - `enriquecerArquivosAction(editais)`: Enriquecimento manual de IA via UI — filtra pendentes, chama `processarComIA()`, detecta mudanças significativas (concurso ou data >3 dias de diferença), aciona auditoria IA, salva no banco.
+  - `reverterEnriquecimentoAction(link)`: Remove `dadosEnriquecidos` de um edital no MongoDB.
+- **`admin/actions.ts`**: Server Actions administrativas (requerem `role: 'admin'`):
+  - `getScraperConfigsAction()`: Lista todas as configurações de scraper.
+  - `toggleScraperConfigAction(nome, newValue)`: Liga/desliga o Modo Verificação de Disponibilidade de uma cidade.
+- **`page.tsx`**: Página inicial. Carrega editais do MongoDB em tempo real, renderiza Header, ControlsBar, FilterPanel, ListView/FolderView e DevToolsPanel.
+- **`developer/logs/page.tsx`**: Painel administrativo. Exibe métricas das últimas 20 execuções: tempo total, tentativas, status (sucesso/falha_parcial/falha), itens por cidade, adições e atualizações no banco.
+- **`servidoresIBGE/`**: Módulo IBGE. `page.tsx` é a página servidora; `ServidoresIBGE.tsx` é o componente client com dropdowns pesquisáveis de estado/cidade, tabela de servidores e busca de remuneração.
+- **`login/`, `signup/`, `reset-password/`, `update-password/`, `profile/`**: Páginas de fluxos de conta, todas com formulários e validação.
 
-### 📐 9. Diretório `src/types/` (Tipos e Modelagem de Dados)
-*   **`index.ts`**: Define a interface `Edital`, padronizando todas as propriedades que compõem o objeto manipulado na aplicação inteira:
-    ```typescript
-    export type Edital = {
-      cidade: string;
-      orgao: string;
-      titulo: string;
-      link: string;
-      dataTimestamp: number;
-      ano?: number;
-      concurso?: string;
-      descricao?: string;
-      metadados?: string[];
-      statusGeral?: string;
-      dataPublicacao?: string;
-      ordemOriginal?: number;
-      dadosEnriquecidos?: {         // Adicionado via IA Gemini
-        titulo: string;
-        descricao: string;
-        concurso: string;
-        dataPublicacao: string;
-      };
-    };
-    ```
+### 🎨 5. Diretório `src/components/` (Componentes Visuais)
 
-### 💾 10. Diretório `src/utils/` (Funções Auxiliares Comuns)
-*   **`exportJson.ts`**: Utilitário que converte a matriz de editais exibidos em tela para um arquivo `.json` estruturado, gerando uma URL temporária em memória para download instantâneo no navegador do usuário.
+- **`Header.tsx`**: Cabeçalho com logo, navegação, `ProfileButton` e `AdminLogsButton` (visível apenas para admins).
+- **`Footer.tsx`**: Rodapé da aplicação.
+- **`ProfileButton.tsx`**: Mostra "Entrar" para anônimos ou menu "Meu Perfil"/"Sair" para logados.
+- **`AdminLogsButton.tsx`**: Botão no header que linka para `/developer/logs`. Renderiza apenas se `user.role === 'admin'`.
+- **`ControlsBar.tsx`**: Barra de controle: busca textual global, alternância entre ListView e FolderView, exportação dos resultados em JSON.
+- **`FilterPanel.tsx`**: Painel lateral: filtros por cidade, termo no título, mostrar/esconder licitações e concursos expirados.
+- **`ListView.tsx`**: Visualização cronológica (linear) dos editais.
+- **`FolderView.tsx`**: Visualização agrupada por concurso (pasta virtual), com `FolderDetailView` para expandir.
+- **`EditalCard.tsx`**: Card individual: badges (cidade, órgão, IA), título, descrição, data, link direto.
+- **`FolderDetailView.tsx`**: Janela expandida com todos os documentos de um concurso.
+- **`DevToolsPanel.tsx`**: Painel flutuante (admin/dev): disparar raspagens manuais (com seleção de cidades), ligar/desligar IA e e-mails, acionar auditorias, simular falhas. Configurações salvas em `localStorage`.
+- **`TerminalPanel.tsx`**: Terminal flutuante que exibe logs do backend em tempo real via SSE (Server-Sent Events). Conecta a `/api/dev/logs`. Disponível apenas em desenvolvimento.
 
+### 🔧 6. Diretório `src/lib/` (Módulos de Negócio, IA e Raspagem)
+
+#### Orquestração e Execução
+
+- **`orchestrator.ts`**: O Orquestrador Central. `runFullScraperWorkflow(options)` executa o pipeline completo: raspagem → retentativas → deduplicação → sincronização → enriquecimento IA → notificações → log. Em modo local (`isLocalUI: true`), respeita configurações do DevToolsPanel (IA on/off, e-mails on/off, cidades selecionadas). Em modo GitHub Actions, retentativas têm 10min de espera; em UI local, 30s.
+- **`runner.ts`**: `rodarComProtecao(nomeCidade, funcaoScraper, opcoes)`: executa um scraper com `Promise.race` contra um timeout de 290s. Trata 4 cenários: sucesso (OK), falha (FALHOU), aviso com dados parciais (AVISO), e modo disponibilidade (ONLINE/OFFLINE). Logs formatados com colunas alinhadas.
+
+#### Raspagem
+
+- **`scrapers/registry.ts`**: Registro central. `MAPA_SCRAPERS` mapeia nome da cidade → função raspadora. `CIDADES_ATIVAS` define a lista ordenada de 27 cidades executadas no pipeline automático.
+- **`scrapers/utils.ts`**: `fetchHtml(url, forceCache, timeoutMs)` — requisição HTTP com headers de navegador real, até 3 tentativas com 10s de espera. `extrairData(texto)` — regex para DD/MM/YYYY (aceita separadores `/`, `.`, `-`, corrige "1º" → "01"). `limparTituloDoc()` — remove palavras genéricas (download, anexo, clique aqui) e lixo numérico. `verificaDisponibilidade(url)` — ping rápido para checar se o site está online.
+- **`scrapers/instar.ts`**: Motor genérico para portais no formato Instar. Varre múltiplos statuses (Aberto, Em Andamento, Em Julgamento, Homologado, Encerrado) e offsets de paginação (0, 1, 2, 3, 4, 10, 12, 20, 24, 30, 36, 40, 48, 50, 60, 72, 80, 90, 100). Extrai pastas de concurso, resolve links de download com redirect meta-refresh, detecta portais que exigem login. Aplica filtros globais (`ehSujeira`, `ehAndamentoOrfao`) e extrai ID do concurso. Agrupa documentos por concurso e marca duplicatas com `(*)`.
+- **`scrapers/webline.ts`**: Motor para portais baseados na tecnologia Webline.
+- **Scrapers específicos por cidade** (20 prefeituras): cada um implementa a lógica de raspagem particular do portal daquela cidade. Alguns reutilizam o motor Instar (ex: `ouroeste.ts`).
+- **Scrapers de Câmaras** (`camaras/`, 7 cidades): Raspam os portais das Câmaras de Vereadores (Poder Legislativo).
+
+#### Filtragem e Heurísticas
+
+- **`filtrosGlobais.ts`**: Central de heurísticas anti-ruído:
+  - `PALAVRAS_IGNORADAS_GLOBAIS`: ~60 termos que descartam editais que não são concursos de contratação de pessoas (habitação, conselhos tutelares, audiências públicas, voluntariado, atletas, simplificados, etc.).
+  - `ehSujeira(texto, palavrasLocais, link, excecoes)`: Verifica se o texto ou link contém termos da lista negra global + lista local, com suporte a exceções.
+  - `ehAndamentoOrfao(titulo, descricao)`: Detecta documentos de fase intermediária (convocação, retificação, homologação, resultado, etc.) sem menção ao certame original.
+  - `extrairIdConcurso(titulo, descricao, aceitarBuscaInvertida, strict)`: Regex robusto que extrai e padroniza "Concurso Público 01/2026" ou "Processo Seletivo 03/2025" de textos com erros de digitação. Aceita busca invertida (número antes da palavra) e modo estrito.
+  - `corrigirErrosDigitacao(texto)`: Normaliza erros comuns ("CONCURSO PÚBLOCO" → "CONCURSO PÚBLICO", "PROCESSO SELETIVO 0032023" → "003/2023").
+
+#### IA — Dois Níveis
+
+- **`aiAnalysis.ts`** (IA Júnior): Usa `gemini-3.1-flash-lite` (modelo barato). `analisarEditalComIA(edital)` baixa o documento via `docParser`, trunca PDFs >10 páginas para primeiras 5 + últimas 5, converte .doc/.docx via LibreOffice, faz upload para Gemini File Manager, e usa few-shot prompting (um turno de exemplo mockado) para forçar saída em JSON: `{ titulo, descricao, concurso, dataPublicacao }`. `processarComIA(editais)` itera sobre novos editais com rate limit de 4s, retry em 429 (60s), e calcula custo em USD→BRL com cotação do dólar em tempo real (AwesomeAPI). Inclui tabela de preços por modelo.
+- **`aiAuditor.ts`** (IA Auditora): Usa `gemini-3.5-flash` (modelo superior). `auditarEditalComIA(item)` recebe o documento original + log de mudanças feitas pela IA Júnior, e emite veredicto: CORRETO (aprova) ou INCORRETO (corrige `concurso` e/ou `dataPublicacao` diretamente no objeto em memória). `processarAuditoria(itens)` itera com rate limit de 4s. Só é acionada no enriquecimento manual via UI quando há mudanças relevantes (concurso diferente ou data com >3 dias de diferença).
+
+#### Parser de Documentos
+
+- **`docParser.ts`**: Biblioteca central de download e extração:
+  - `obterBufferDoDocumento(url)`: Baixa o arquivo, resolve redirects (meta-refresh HTML, JS `location.href`, Google Drive preview → direct download), detecta tipo por content-type e magic bytes (PDF: `25504446`, DOCX: `504b0304`, DOC: `d0cf11e0`). Retorna `{ textoLimpo, isPDF, isDOCX, isDOC, buffer }`.
+  - `extrairTextoBruto(url)`: Usa `pdf-parse` (PDF, até 3 páginas), `mammoth` (DOCX), `word-extractor` (DOC) para extrair texto. Silencia warnings do pdf-parse.
+  - `extrairDataDoArquivo(url)`: Algoritmo com scoring que encontra a data de publicação/assinatura no texto extraído. Penaliza datas de prazos/cronogramas (contexto: "até", "para", "às 14:00") e bonifica datas de assinatura (contexto: "Aos", "Gabinete", "Paço Municipal", "Em" no início da linha). Aceita datas em formato numérico (DD/MM/AAAA) e por extenso ("15 de março de 2026").
+  - `urlsParaBlacklist`: Set dinâmico que coleta URLs de documentos sem data ou com conteúdo insuficiente, para revisão manual.
+- **`wordToPdf.ts`**: `converterWordParaPdf(buffer, isDocx)` — escreve o buffer em arquivo temporário, invoca `soffice --headless --convert-to pdf` (LibreOffice), lê o PDF resultante e limpa os arquivos temporários.
+- **`blacklist.ts`**: Array estático de URLs de PDFs catalogados como inválidos/vazios (especialmente de São João das Duas Pontes e Urânia). Usado por `docParser` para pega e ignora.
+
+#### Notificações
+
+- **`notifications.ts`**: Pipeline de notificações em 4 passos:
+  1. **Filtro burocrático**: 41 termos (classificação, convocação, homologação, gabarito, resultado, recurso, etc.) que descartam postagens intermediárias/administrativas.
+  2. **Busca de usuários**: Consulta MongoDB por usuários com `notifications.enabled: true`.
+  3. **Filtros individuais**: Para cada usuário, filtra por cidade (lista específica ou "todas") e órgão (todos, prefeitura, câmara).
+  4. **Envio**: Monta HTML rico com badges (cidade, órgão, badge IA), descrição enriquecida, link direto. Envia um e-mail por edital via Resend.
+  - `enviarAlertaDisponibilidadeAdmin(cidades)`: Envia e-mail para admins quando scrapers em Modo Disponibilidade reportam ONLINE, sugerindo desligar o modo.
+- **`email.ts`**: Abstração da API Resend. `enviarEmail(para, assunto, conteudoHTML)`. Instancia o cliente apenas se `RESEND_API_KEY` estiver configurada. O remetente (`from`) usa domínio sandbox do Resend e deve ser alterado em produção.
+
+#### Persistência
+
+- **`storage.ts`**: Comunicação com MongoDB via Mongoose:
+  - `carregarDoBanco()`: Carrega todos os editais ordenados por data (desc) + ordemOriginal (asc). Limpa campos internos do MongoDB antes de retornar.
+  - `identificarMudancas(novosEditais, substituirTudo)`: Compara novos editais com existentes por `link`. Identifica adições (link não existe) e atualizações (compara campo a campo, ignorando metadados). Retorna operations para bulkWrite.
+  - `persistirSincronizacao(operations, substituirTudo, novosEditais, ...)`: Executa `bulkWrite` no MongoDB. Salva metadata de última atualização. Imprime relatórios detalhados de adições e alterações.
+  - `sincronizarBanco()`: Wrapper que chama identificarMudancas + persistirSincronizacao.
+  - `salvarEnriquecimentoEmLote(editais)`: Atualiza `dadosEnriquecidos` em lote via bulkWrite.
+  - `reverterEnriquecimento(link)`: Remove `dadosEnriquecidos` de um edital.
+  - `carregarScrapingLogs()`: Busca os 20 logs mais recentes. Se banco vazio, retorna mock logs.
+  - `adicionarScrapingLog(novoLog)`: Insere novo log e remove excesso além de 20.
+  - Tipos exportados: `LogCidadeDetail`, `SyncLogAddition`, `SyncLogUpdate`, `DatabaseSyncLog`, `ScrapingLog`.
+- **`mongodb.ts`**: Gerenciador de conexão com cache global (`global.mongooseConnection`) para evitar pool exhaustion em ambiente serverless. Requer `MONGODB_URI` no ambiente.
+
+#### Diagnóstico e Desenvolvimento
+
+- **`diagnostics.ts`**: Auditoria de portais Instar:
+  - `auditarQuantidadesInstar(grupos)`: Compara a contagem de arquivos na badge do site vs a quantidade que temos no banco. Reporta discrepâncias.
+  - `extrairDadosRawInstar(urlLista)`: Extrai dados crus de um portal Instar (título, situação, modalidade, número do processo, datas de inscrição, descrição, lista de arquivos) para diagnóstico.
+- **`devLogger.ts`**: Intercepta `console.log/info/warn/error` em desenvolvimento, emite eventos via `EventEmitter`, mantém histórico das últimas 200 mensagens. Usado pelo `TerminalPanel` via SSE.
+- **`mockScrapingLogs.ts`**: Gera 4 logs de scraping realistas (com dados de cidades reais, tempos, status e relatórios de adições/atualizações) para desenvolvimento quando o banco está vazio.
+
+### 🧱 7. Diretório `src/models/` (Schemas do MongoDB)
+
+- **`Edital.ts`**: Schema dos editais. Campos: `cidade`, `orgao`, `titulo`, `link` (único), `dataTimestamp`, `ano`, `concurso`, `descricao`, `metadados`, `statusGeral`, `dataPublicacao`, `ordemOriginal`, `linkOrigem`, `dadosEnriquecidos` (subdocumento: titulo, descricao, concurso, dataPublicacao). Índice composto `{ dataTimestamp: -1, ordemOriginal: 1 }`. Timestamps automáticos do Mongoose.
+- **`User.ts`**: Schema dos usuários. Campos: `email` (único, lowercase), `passwordHash`, `username`, `role` (user/admin, padrão user), `notifications` (subdocumento: enabled, organs [todos/prefeitura/camara], cities [lista ou "todas"]), `passwordResetToken`, `passwordResetExpires`.
+- **`ScrapingLog.ts`**: Schema do histórico de execuções. Campos: `id` (UUID), `inicio`, `fim`, `duracaoSegundos`, `tentativas`, `status` (sucesso/falha_parcial/falha), `totalEditais`, `detalhesCidades` (array de LogCidadeDetail), `syncInfo` (DatabaseSyncLog).
+- **`ScraperConfig.ts`**: Schema de configuração por cidade. Campos: `nome` (único), `verificarDisponibilidade` (boolean, padrão false). Quando true, o scraper apenas verifica se o site está online sem raspar editais.
+- **`Metadata.ts`**: Schema chave-valor simples. Guarda a data da última atualização do banco (`key: 'global'`, `ultimaAtualizacao`).
+- **`ServidorIBGE.ts`**: Schema dos servidores IBGE. Campos: `idServidor` (único), `nome`, `cpfFormatado`, `situacao`, `uorgExercicio`, `uorgLotacao`, `ufExercicio`, `rawData` (Mixed), `ultimaAtualizacao`.
+
+### 📐 8. Diretório `src/types/` (Tipos Compartilhados)
+
+- **`index.ts`**: Define o tipo `Edital` (usado em toda a aplicação) e a interface `ScraperOptions` (com flag `verificarDisponibilidade`).
+
+### 💾 9. Diretório `src/utils/` (Funções Auxiliares)
+
+- **`exportJson.ts`**: `exportarParaJSON(dados, prefixoNome)` — converte array de editais para JSON, cria Blob em memória e dispara download no navegador.
+
+### 🌐 10. Diretório `src/app/api/` (API Routes)
+
+- **`dev/logs/route.ts`**: Endpoint SSE (Server-Sent Events) que faz streaming de logs do backend para o `TerminalPanel`. Disponível apenas em desenvolvimento (`NODE_ENV !== 'development'` retorna 404). Envia histórico ao conectar, depois emite cada novo log em tempo real.
+- **`servidores-ibge/route.ts`**: `GET ?cidade=...` — busca servidores IBGE no MongoDB por `uorgExercicio` ou `uorgLotacao` contendo o nome da cidade. Deduplica por CPF/nome, preferindo registros com função válida.
+- **`servidores-ibge/agencias/route.ts`**: `GET` — agrega todas as agências do IBGE no banco (regex `^AGENCIA DO IBGE EM`), agrupa por estado (UF), retorna lista ordenada para popular dropdowns.
+- **`servidores-ibge/remuneracao/route.ts`**: `GET ?id=...` — consulta a API do Portal da Transparência (`api.portaldatransparencia.gov.br`) para buscar remuneração do servidor nos últimos 4 meses. Cache de 1 dia. Requer `PORTAL_TRANSPARENCIA_API_KEY`.
+
+---
+
+## 📊 Modelo de Dados — Tipo `Edital`
+
+```typescript
+export type Edital = {
+  cidade: string;           // Nome da cidade (ex: "Fernandópolis")
+  orgao: string;            // Órgão (ex: "Prefeitura" ou "Câmara")
+  titulo: string;           // Título bruto extraído do portal
+  link: string;             // URL direta do documento (chave única)
+  dataTimestamp: number;    // Timestamp da data do documento (para ordenação)
+  ano?: number;             // Ano do concurso
+  concurso?: string;        // ID padronizado (ex: "Concurso Público 01/2026")
+  descricao?: string;      // Descrição do documento
+  metadados?: string[];     // Metadados auxiliares
+  statusGeral?: string;    // Status do edital
+  dataPublicacao?: string;  // Data de publicação (DD/MM/AAAA)
+  ordemOriginal?: number;   // Ordem dentro do concurso
+  linkOrigem?: string;      // URL da página interna do portal
+  dadosEnriquecidos?: {     // Preenchido pela IA Gemini
+    titulo?: string;        // Título limpo gerado pela IA
+    descricao?: string;     // Descrição gerada pela IA
+    concurso?: string;      // Concurso padronizado pela IA
+    dataPublicacao?: string; // Data extraída pela IA
+  };
+};
+```
+
+---
+
+## 🔁 Fluxos de Dados Resumidos
+
+### Raspagem Automática (GitHub Actions)
+```
+cron (08:00, 16:00, 23:00 UTC)
+  → scraper.yml (self-hosted runner)
+    → run-scraper.ts
+      → orchestrator.runFullScraperWorkflow({ isLocalUI: false })
+        → buscarTodosEditais() → 27 cidades em lotes de 4
+        → retentativas (até 3, 10min entre elas)
+        → identificarMudancas() + persistirSincronizacao() no MongoDB
+        → processarComIA() nos novos editais (Gemini 3.1 Flash Lite)
+        → processarNotificacoes() (filtro burocrático → e-mails via Resend)
+        → adicionarScrapingLog() no MongoDB
+```
+
+### Raspagem Manual (UI Local)
+```
+DevToolsPanel (admin logado)
+  → rodarFluxoCompletoServerAction({ isLocalUI: true, enableAI, enableEmails, cidadesSelecionadas })
+    → orchestrator.runFullScraperWorkflow() (mesmo pipeline, retentativas com 30s)
+```
+
+### Sincronização IBGE (GitHub Actions)
+```
+cron (07:00, 19:00 UTC)
+  → sync-ibge.yml (self-hosted runner)
+    → sync-ibge.ts
+      → Pagina API Portal da Transparência (órgão IBGE, SIAPE 45205)
+      → Upsert no MongoDB (ServidorIBGE)
+      → Detecta alterações em Fernandópolis → envia e-mail
+```
+
+### Interface Web (Usuário)
+```
+Usuário acessa /
+  → page.tsx carrega editais do MongoDB (carregarDoBanco)
+  → Renderiza ListView ou FolderView
+  → FilterPanel filtra por cidade/termo
+  → ControlsBar: busca textual + export JSON
+  → EditalCard: exibe dados (brutos + enriquecidos pela IA)
+  → Usuário logado: pode acessar /profile (preferências de notificação)
+  → Admin: pode acessar /developer/logs (métricas) e AdminScraperConfigs
+```

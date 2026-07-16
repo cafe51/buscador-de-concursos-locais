@@ -3,7 +3,13 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 // 🚀 Importações do banco de dados adicionadas
-import { carregarDoBanco, carregarMetadata } from '../lib/storage';
+import {
+  carregarMetadata,
+  carregarEditaisPaginados,
+  carregarPastasPaginadas,
+  carregarTodosEditaisFiltrados,
+  carregarGrupoPorChave
+} from '../lib/storage';
 import { Edital } from '../types';
 import { exportarParaJSON } from '../utils/exportJson';
 
@@ -54,6 +60,12 @@ const TODAS_CIDADES = [
 
 export default function Home() {
   const [editais, setEditais] = useState<Edital[]>([]);
+  const [concursosAgrupados, setConcursosAgrupados] = useState<any[]>([]);
+  const [totalFiltrados, setTotalFiltrados] = useState(0);
+  const [totalPastas, setTotalPastas] = useState(0);
+  const [cidadesDisponiveis, setCidadesDisponiveis] = useState<string[]>([]);
+  const [orgaosDisponiveis, setOrgaosDisponiveis] = useState<string[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [erroFatal, setErroFatal] = useState('');
   const [alertas, setAlertas] = useState<string[]>([]);
@@ -72,6 +84,7 @@ export default function Home() {
 
   const [paginaAtual, setPaginaAtual] = useState(1);
   const ITENS_POR_PAGINA = 10;
+  const PASTAS_POR_PAGINA = 9;
 
   // 🚀 NOVO: Estado para bloqueio do botão da nuvem
   const [isSavingToCloud, setIsSavingToCloud] = useState(false);
@@ -82,30 +95,53 @@ export default function Home() {
   const [carregouURL, setCarregouURL] = useState(false);
   const isFirstFilterChange = useRef(true);
 
-  // 1. CARREGAMENTO RÁPIDO DO USUÁRIO COMUM (Puxa APENAS da Nuvem)
-  async function carregarDados() {
+  // Lógica de Paginação e Filtros Server-Side
+  async function carregarDadosPaginados(paginaDestino = paginaAtual) {
     setLoading(true);
     setErroFatal('');
-    setAlertas([]);
     try {
-      const dadosSalvos = await carregarDoBanco();
+      const filtros = {
+        filtroAno,
+        filtroCidade,
+        filtroOrgao,
+        palavrasDesejadas,
+        palavrasIgnoradas
+      };
 
-      if (dadosSalvos && dadosSalvos.length > 0) {
-        setEditais(dadosSalvos);
+      if (modoVisualizacao === 'lista') {
+        const res = await carregarEditaisPaginados(filtros, paginaDestino, ITENS_POR_PAGINA);
+        setEditais(res.editais);
+        setTotalFiltrados(res.totalFiltrados);
+        if (res.cidadesDisponiveis.length > 0) setCidadesDisponiveis(res.cidadesDisponiveis);
+        if (res.orgaosDisponiveis.length > 0) setOrgaosDisponiveis(res.orgaosDisponiveis);
       } else {
-        // Se o banco estiver vazio, a tela apenas avisa, sem travar o servidor!
-        setEditais([]);
-        console.warn("Banco de dados vazio ou não encontrado na Nuvem.");
+        const res = await carregarPastasPaginadas(filtros, paginaDestino, PASTAS_POR_PAGINA, filtroTipoGrupo);
+        setConcursosAgrupados(res.pastas);
+        setTotalPastas(res.totalPastas);
+        if (res.cidadesDisponiveis.length > 0) setCidadesDisponiveis(res.cidadesDisponiveis);
+        if (res.orgaosDisponiveis.length > 0) setOrgaosDisponiveis(res.orgaosDisponiveis);
       }
 
-      // 🚀 NOVA PARTE: Carregar a metadata da última atualização
       const meta = await carregarMetadata();
       if (meta && meta.ultimaAtualizacao) {
         setUltimaAtualizacao(formatarDataHora(meta.ultimaAtualizacao));
       } else {
         setUltimaAtualizacao('');
       }
+    } catch (e) {
+      console.error(e);
+      setErroFatal('Ocorreu um erro ao conectar ao banco de dados.');
+    }
+    setLoading(false);
+  }
 
+  // 1. CARREGAMENTO RÁPIDO DO USUÁRIO COMUM (Puxa APENAS da Nuvem)
+  async function carregarDados() {
+    setLoading(true);
+    setErroFatal('');
+    setAlertas([]);
+    try {
+      await carregarDadosPaginados(1);
       setPaginaAtual(1);
     } catch (e) {
       setErroFatal('Ocorreu um erro ao conectar ao banco de dados.');
@@ -337,134 +373,110 @@ export default function Home() {
     carregouURL
   ]);
 
-  // 4. RESET DE PÁGINA EM MUDANÇAS DE FILTRO DO USUÁRIO
+  // 4. RESET DE PÁGINA EM MUDANÇAS DE FILTRO DO USUÁRIO E CARREGAMENTO
+  const prevFiltersRef = useRef({
+    modoVisualizacao,
+    filtroTipoGrupo,
+    filtroCidade,
+    filtroOrgao,
+    filtroAno,
+    palavrasDesejadas,
+    palavrasIgnoradas
+  });
+
   useEffect(() => {
     if (!carregouURL) return;
 
-    if (isFirstFilterChange.current) {
-      isFirstFilterChange.current = false;
-      return;
+    const prev = prevFiltersRef.current;
+    const filtersChanged = 
+      prev.modoVisualizacao !== modoVisualizacao ||
+      prev.filtroTipoGrupo !== filtroTipoGrupo ||
+      prev.filtroCidade !== filtroCidade ||
+      prev.filtroOrgao !== filtroOrgao ||
+      prev.filtroAno !== filtroAno ||
+      JSON.stringify(prev.palavrasDesejadas) !== JSON.stringify(palavrasDesejadas) ||
+      JSON.stringify(prev.palavrasIgnoradas) !== JSON.stringify(palavrasIgnoradas);
+
+    prevFiltersRef.current = {
+      modoVisualizacao,
+      filtroTipoGrupo,
+      filtroCidade,
+      filtroOrgao,
+      filtroAno,
+      palavrasDesejadas,
+      palavrasIgnoradas
+    };
+
+    if (filtersChanged) {
+      setPaginaAtual(1);
+      if (modoVisualizacao === 'agrupado') {
+        setConcursoSelecionado(null);
+      }
+      if (paginaAtual !== 1) {
+        return;
+      }
     }
 
-    setPaginaAtual(1);
-    if (modoVisualizacao === 'agrupado') {
-      setConcursoSelecionado(null);
-    }
+    carregarDadosPaginados(paginaAtual);
   }, [
-    palavrasDesejadas,
-    palavrasIgnoradas,
-    filtroAno,
+    carregouURL,
+    paginaAtual,
+    modoVisualizacao,
+    filtroTipoGrupo,
     filtroCidade,
     filtroOrgao,
-    modoVisualizacao,
-    carregouURL
+    filtroAno,
+    palavrasDesejadas,
+    palavrasIgnoradas
   ]);
 
-  const cidadesDisponiveis = useMemo(() => {
-    return Array.from(new Set(editais.map(e => e.cidade))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [editais]);
+  // Load individual folder if selected but not in state (e.g. from URL direct load)
+  const [grupoAtual, setGrupoAtual] = useState<any | null>(null);
 
-  const orgaosDisponiveis = useMemo(() => {
-    return Array.from(new Set(editais.map(e => e.orgao))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [editais]);
-
-  const editaisFiltrados = useMemo(() => {
-    return editais.filter((edital) => {
-      if (filtroAno !== 'todos' && edital.ano !== filtroAno) return false;
-      if (filtroCidade !== 'todas' && edital.cidade !== filtroCidade) return false;
-      if (filtroOrgao !== 'todos' && edital.orgao !== filtroOrgao) return false;
-
-      const valoresTextuais = [
-        edital.cidade, edital.orgao, 
-        edital.dadosEnriquecidos?.titulo || edital.titulo, 
-        edital.dadosEnriquecidos?.descricao || edital.descricao,
-        edital.dadosEnriquecidos?.concurso || edital.concurso,
-        edital.dadosEnriquecidos?.dataPublicacao || edital.dataPublicacao,
-        edital.metadados, edital.statusGeral
-      ].filter(Boolean).join(" ");
-
-      const textoNormalizado = removerAcentos(valoresTextuais);
-
-      const passaDesejadas = palavrasDesejadas.length === 0 || palavrasDesejadas.some(p => textoNormalizado.includes(p));
-      const passaIgnoradas = palavrasIgnoradas.length === 0 || !palavrasIgnoradas.some(p => textoNormalizado.includes(p));
-
-      return passaDesejadas && passaIgnoradas;
-    });
-  }, [editais, palavrasDesejadas, palavrasIgnoradas, filtroAno, filtroCidade, filtroOrgao]);
-
-  const concursosAgrupados = useMemo(() => {
-    const mapa = new Map<string, Edital[]>();
-
-    editaisFiltrados.forEach((edital) => {
-      const concursoFinal = edital.dadosEnriquecidos?.concurso || edital.concurso;
-      if (concursoFinal) {
-        const chaveUnica = `${edital.cidade}_${edital.orgao}_${concursoFinal}`;
-        if (!mapa.has(chaveUnica)) mapa.set(chaveUnica, []);
-        mapa.get(chaveUnica)!.push(edital);
-      }
-    });
-
-    let gruposArray = Array.from(mapa.entries()).map(([chaveUnica, listaEditais]) => {
-      const primeiroItem = listaEditais[0];
-      const concursoFinal = primeiroItem.dadosEnriquecidos?.concurso || primeiroItem.concurso;
-      const dataPublicacaoFinal = primeiroItem.dadosEnriquecidos?.dataPublicacao || primeiroItem.dataPublicacao;
-      
-      return {
-        chaveUnica: chaveUnica,
-        nome: concursoFinal as string,
-        cidade: primeiroItem.cidade,
-        orgao: primeiroItem.orgao,
-        ultimaAtualizacao: dataPublicacaoFinal,
-        totalItens: listaEditais.length,
-        itens: listaEditais,
-        linksOrigem: Array.from(new Set(listaEditais.map(e => e.linkOrigem).filter(Boolean))) as string[]
-      };
-    });
-
-    gruposArray.sort((a, b) => {
-      const extrairAnoNumero = (nome: string) => {
-        const match = nome.match(/(\d{2})\/(\d{4})/);
-        if (!match) return { ano: 0, numero: 0 };
-        return { ano: parseInt(match[2], 10), numero: parseInt(match[1], 10) };
-      };
-
-      const valA = extrairAnoNumero(a.nome);
-      const valB = extrairAnoNumero(b.nome);
-
-      if (valB.ano !== valA.ano) return valB.ano - valA.ano;
-      return valB.numero - valA.numero;
-    });
-
-    if (filtroTipoGrupo === 'concurso') {
-      gruposArray = gruposArray.filter(g => g.nome.toUpperCase().includes('CONCURSO'));
-    } else if (filtroTipoGrupo === 'seletivo') {
-      gruposArray = gruposArray.filter(g => g.nome.toUpperCase().includes('PROCESSO SELETIVO'));
+  useEffect(() => {
+    if (!concursoSelecionado) {
+      setGrupoAtual(null);
+      return;
     }
+    const found = concursosAgrupados.find(c => c.chaveUnica === concursoSelecionado);
+    if (found) {
+      setGrupoAtual(found);
+    } else {
+      (async () => {
+        const { carregarGrupoPorChave } = await import('../lib/storage');
+        const res = await carregarGrupoPorChave(concursoSelecionado);
+        if (res) {
+          setGrupoAtual(res);
+        }
+      })();
+    }
+  }, [concursoSelecionado, concursosAgrupados]);
 
-    return gruposArray;
-  }, [editaisFiltrados, filtroTipoGrupo]);
+  const totalPaginas = modoVisualizacao === 'lista'
+    ? Math.ceil(totalFiltrados / ITENS_POR_PAGINA)
+    : Math.ceil(totalPastas / PASTAS_POR_PAGINA);
 
-  const grupoAtual = concursosAgrupados.find(c => c.chaveUnica === concursoSelecionado);
-  const totalPaginas = Math.ceil(editaisFiltrados.length / ITENS_POR_PAGINA);
-  const indexInicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
-  const editaisDaPaginaLista = editaisFiltrados.slice(indexInicio, indexInicio + ITENS_POR_PAGINA);
+  async function handleExport() {
+    try {
+      const filtros = {
+        filtroAno,
+        filtroCidade,
+        filtroOrgao,
+        palavrasDesejadas,
+        palavrasIgnoradas
+      };
+      setLoading(true);
+      const todosEditais = await carregarTodosEditaisFiltrados(filtros);
+      exportarParaJSON(todosEditais, 'meus-editais');
+    } catch (e) {
+      alert('Erro ao exportar dados.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   function handleUpdateCityData(cidadeAlvo: string, novosEditais: Edital[]) {
-    setEditais((prev) => {
-      const isCamara = cidadeAlvo.includes('(Câmara)');
-      const cidadeReal = cidadeAlvo.replace(' (Câmara)', '').trim();
-      const orgaoReal = isCamara ? 'Câmara Municipal' : 'Prefeitura';
-
-      const dadosOutrasCidades = prev.filter(e => !(e.cidade === cidadeReal && e.orgao === orgaoReal));
-
-      const novaLista = [...dadosOutrasCidades, ...novosEditais];
-      novaLista.sort((a, b) => {
-        if (b.dataTimestamp !== a.dataTimestamp) return b.dataTimestamp - a.dataTimestamp;
-        return (a.ordemOriginal || 0) - (b.ordemOriginal || 0);
-      });
-      return novaLista;
-    });
-
+    carregarDadosPaginados(paginaAtual);
     setConcursoSelecionado(null);
   }
 
@@ -473,9 +485,9 @@ export default function Home() {
       <div className="max-w-4xl mx-auto">
         <Header
           loading={loading}
-          hasData={editaisFiltrados.length > 0}
-          onExport={() => exportarParaJSON(editaisFiltrados, 'meus-editais')}
-          onUpdate={carregarDados} // Se ele clicar aqui, só puxa os dados recentes da Nuvem!
+          hasData={modoVisualizacao === 'lista' ? totalFiltrados > 0 : totalPastas > 0}
+          onExport={handleExport}
+          onUpdate={carregarDados}
           ultimaAtualizacao={ultimaAtualizacao}
         />
 
@@ -528,12 +540,12 @@ export default function Home() {
 
         {loading ? (
           <div className="text-center p-8 text-slate-500 font-medium animate-pulse">Carregando dados da nuvem...</div>
-        ) : editaisFiltrados.length === 0 ? (
+        ) : (modoVisualizacao === 'lista' ? totalFiltrados === 0 : totalPastas === 0) ? (
           <div className="bg-white/80 backdrop-blur-xl border border-slate-200 p-6 rounded-xl text-center text-slate-500 shadow-sm">Nenhum edital encontrado com esses filtros.</div>
         ) : modoVisualizacao === 'lista' ? (
           <ListView
-            editais={editaisDaPaginaLista}
-            totalFiltrados={editaisFiltrados.length}
+            editais={editais}
+            totalFiltrados={totalFiltrados}
             paginaAtual={paginaAtual} setPaginaAtual={setPaginaAtual} totalPaginas={totalPaginas}
           />
         ) : concursoSelecionado && grupoAtual ? (
@@ -553,6 +565,37 @@ export default function Home() {
                 }
                 return e;
               }));
+              setConcursosAgrupados(prev => prev.map(c => {
+                const newItens = c.itens.map((e: any) => {
+                  if (e.link === link) {
+                    const newE = { ...e };
+                    if (novosDados === null) {
+                      delete newE.dadosEnriquecidos;
+                    } else {
+                      newE.dadosEnriquecidos = novosDados;
+                    }
+                    return newE;
+                  }
+                  return e;
+                });
+                return { ...c, itens: newItens };
+              }));
+              setGrupoAtual((prev: any) => {
+                if (!prev) return null;
+                const newItens = prev.itens.map((e: any) => {
+                  if (e.link === link) {
+                    const newE = { ...e };
+                    if (novosDados === null) {
+                      delete newE.dadosEnriquecidos;
+                    } else {
+                      newE.dadosEnriquecidos = novosDados;
+                    }
+                    return newE;
+                  }
+                  return e;
+                });
+                return { ...prev, itens: newItens };
+              });
             }}
           />
         ) : (
@@ -560,6 +603,8 @@ export default function Home() {
             concursosAgrupados={concursosAgrupados}
             filtroTipoGrupo={filtroTipoGrupo} setFiltroTipoGrupo={setFiltroTipoGrupo}
             onSelectFolder={setConcursoSelecionado}
+            paginaAtual={paginaAtual} setPaginaAtual={setPaginaAtual} totalPaginas={totalPaginas}
+            totalPastas={totalPastas}
           />
         )}
       </div>

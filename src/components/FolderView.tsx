@@ -4,13 +4,26 @@ type FolderViewProps = {
   filtroTipoGrupo: 'todos' | 'concurso' | 'seletivo';
   setFiltroTipoGrupo: (tipo: 'todos' | 'concurso' | 'seletivo') => void;
   onSelectFolder: (chave: string) => void;
+  paginaAtual: number;
+  setPaginaAtual: (p: number | ((prev: number) => number)) => void;
+  totalPaginas: number;
+  totalPastas: number;
 };
 
-export default function FolderView({ concursosAgrupados, filtroTipoGrupo, setFiltroTipoGrupo, onSelectFolder }: FolderViewProps) {
+export default function FolderView({
+  concursosAgrupados,
+  filtroTipoGrupo,
+  setFiltroTipoGrupo,
+  onSelectFolder,
+  paginaAtual,
+  setPaginaAtual,
+  totalPaginas,
+  totalPastas
+}: FolderViewProps) {
   return (
     <div className="animate-fade-in">
       <div className="flex flex-col sm:flex-row justify-between sm:items-end mb-4 gap-4">
-        <p className="text-sm text-slate-500">{concursosAgrupados.length} pastas encontradas</p>
+        <p className="text-sm text-slate-500">{totalPastas} {totalPastas === 1 ? 'pasta encontrada' : 'pastas encontradas'}</p>
         <div className="bg-white border border-slate-200 p-1 rounded-xl inline-flex w-full sm:w-auto overflow-x-auto shadow-sm">
           <button onClick={() => setFiltroTipoGrupo('todos')} className={`flex-1 sm:flex-none px-3 py-1 text-xs font-semibold rounded-lg whitespace-nowrap ${filtroTipoGrupo === 'todos' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:text-slate-700'}`}>Todos</button>
           <button onClick={() => setFiltroTipoGrupo('concurso')} className={`flex-1 sm:flex-none px-3 py-1 text-xs font-semibold rounded-lg whitespace-nowrap ${filtroTipoGrupo === 'concurso' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:text-slate-700'}`}>Concursos</button>
@@ -44,6 +57,22 @@ export default function FolderView({ concursosAgrupados, filtroTipoGrupo, setFil
           })
         )}
       </div>
+
+      {totalPaginas > 1 && (
+        <div className="mt-8 flex justify-center items-center gap-4">
+          <button
+            onClick={() => setPaginaAtual(p => Math.max(1, p - 1))}
+            disabled={paginaAtual === 1}
+            className="px-4 py-2 rounded-xl bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >← Anterior</button>
+          <span className="text-slate-600 font-medium">Página {paginaAtual} de {totalPaginas}</span>
+          <button
+            onClick={() => setPaginaAtual(p => Math.min(totalPaginas, p + 1))}
+            disabled={paginaAtual === totalPaginas}
+            className="px-4 py-2 rounded-xl bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >Próxima →</button>
+        </div>
+      )}
     </div>
   );
 }
