@@ -8,7 +8,7 @@ import { getScraperConfigsAction } from '@/app/admin/actions'
 export default async function ProfilePage({
   searchParams,
 }: {
-  searchParams: { error?: string; message?: string }
+  searchParams: Promise<{ error?: string; message?: string }>
 }) {
   const sessionUser = await getSessionUser()
 
