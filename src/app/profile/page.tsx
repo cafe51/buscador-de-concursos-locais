@@ -1,4 +1,6 @@
-import { createClient } from '@/utils/supabase/server'
+import { getSessionUser } from '@/lib/auth'
+import connectToDatabase from '@/lib/mongodb'
+import { UserModel } from '@/models/User'
 import { redirect } from 'next/navigation'
 import ProfileClient from './ProfileClient'
 import { getScraperConfigsAction } from '@/app/admin/actions'
@@ -8,14 +10,30 @@ export default async function ProfilePage({
 }: {
   searchParams: { error?: string; message?: string }
 }) {
-  const supabase = await createClient()
+  const sessionUser = await getSessionUser()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
+  if (!sessionUser) {
     return redirect('/login')
+  }
+
+  await connectToDatabase()
+  const dbUser = await UserModel.findById(sessionUser.id).lean()
+  if (!dbUser) {
+    return redirect('/login')
+  }
+
+  const user = {
+    id: dbUser._id.toString(),
+    email: dbUser.email,
+    user_metadata: {
+      username: dbUser.username,
+      role: dbUser.role,
+      notifications: dbUser.notifications ? {
+        enabled: dbUser.notifications.enabled,
+        organs: dbUser.notifications.organs,
+        cities: dbUser.notifications.cities,
+      } : undefined
+    }
   }
 
   // Await the searchParams to safely access them in Next.js 15+

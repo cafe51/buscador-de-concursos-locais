@@ -1,6 +1,8 @@
 // src/lib/notifications.ts
 import { SyncLogAddition } from './storage';
 import { enviarEmail } from './email';
+import connectToDatabase from './mongodb';
+import { UserModel } from '../models/User';
 
 // Lista de palavras ignoradas padrão (postagens burocráticas / intermediárias)
 const PALAVRAS_IGNORADAS_PADRAO = [
@@ -73,68 +75,18 @@ export async function processarNotificacoes(novasAdicoes: SyncLogAddition[], env
   }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://buscador-de-concursos-locais.vercel.app';
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    console.error("❌ [NOTIFICAÇÕES] [ERRO CRÍTICO] Variáveis do Supabase Admin não configuradas no servidor.");
-    console.error("  Verifique as chaves NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no ambiente.");
-    console.log("=====================================================================\n");
-    return;
-  }
 
   console.log(`🔔 [NOTIFICAÇÕES] Iniciando varredura para ${adicoesFiltradas.length} postagens sobreviventes...`);
 
   try {
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    });
+    await connectToDatabase();
 
-    console.log("\n👤 [NOTIFICAÇÕES] [PASSO 2/4] Buscando usuários ativos na base do Supabase...");
+    console.log("\n👤 [NOTIFICAÇÕES] [PASSO 2/4] Buscando usuários ativos na base do MongoDB...");
 
     // 2. Identifica quais usuários do banco de dados ativaram as notificações (Passo 2)
-    let page = 1;
-    const todosUsuarios: any[] = [];
+    const usuariosNotificaveis = await UserModel.find({ "notifications.enabled": true }).lean();
 
-    while (true) {
-      console.log(`  🔍 Consultando API do Supabase (Página ${page})...`);
-      const { data, error } = await supabaseAdmin.auth.admin.listUsers({
-        page,
-        perPage: 100
-      });
-
-      if (error) {
-        console.error(`  ❌ [NOTIFICAÇÕES] Erro na API do Supabase ao listar usuários na página ${page}:`, error.message);
-        break;
-      }
-
-      if (!data?.users || data.users.length === 0) {
-        break;
-      }
-
-      todosUsuarios.push(...data.users);
-
-      if (data.users.length < 100) {
-        break;
-      }
-      page++;
-    }
-
-    console.log(`  👥 Total de usuários carregados da base: ${todosUsuarios.length}`);
-
-    const usuariosNotificaveis = todosUsuarios.filter(user => {
-      const enabled = user.user_metadata?.notifications?.enabled === true;
-      if (enabled) {
-        console.log(`    ✉️ Canal ativo encontrado: ${user.email}`);
-      }
-      return enabled;
-    });
-
-    console.log(`  📊 [PASSO 2 CONCLUÍDO] Total de canais de notificação ativos: ${usuariosNotificaveis.length}`);
+    console.log(`  👥 Total de canais de notificação ativos: ${usuariosNotificaveis.length}`);
 
     if (usuariosNotificaveis.length === 0) {
       console.log("🔔 [NOTIFICAÇÕES] Nenhum usuário ativou o sistema de notificações por e-mail até o momento.");
@@ -146,9 +98,9 @@ export async function processarNotificacoes(novasAdicoes: SyncLogAddition[], env
 
     // Processar notificações para cada usuário
     for (const usuario of usuariosNotificaveis) {
-      const prefs = usuario.user_metadata.notifications;
-      const userCities = prefs.cities || ['todas'];
-      const userOrgans = prefs.organs || 'todos';
+      const prefs = usuario.notifications;
+      const userCities = prefs?.cities || ['todas'];
+      const userOrgans = prefs?.organs || 'todos';
       const userEmail = usuario.email;
 
       if (!userEmail) {
@@ -330,28 +282,12 @@ export async function enviarAlertaDisponibilidadeAdmin(cidadesDisponiveis: strin
   if (!cidadesDisponiveis || cidadesDisponiveis.length === 0) return;
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://buscador-de-concursos-locais.vercel.app';
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) return;
 
   try {
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    });
-
-    let page = 1;
-    const todosUsuarios: any[] = [];
-    while (true) {
-      const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 100 });
-      if (error || !data?.users || data.users.length === 0) break;
-      todosUsuarios.push(...data.users);
-      if (data.users.length < 100) break;
-      page++;
-    }
-
-    const admins = todosUsuarios.filter(u => u.user_metadata?.role === 'admin' && u.email);
+    await connectToDatabase();
+    
+    // Busca administradores
+    const admins = await UserModel.find({ role: 'admin' }).lean();
     if (admins.length === 0) return;
 
     const emailHtml = `

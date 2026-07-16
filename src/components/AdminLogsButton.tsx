@@ -1,27 +1,25 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
-import { User } from '@supabase/supabase-js'
+import { getSessionUser } from '@/app/auth/actions'
+
+interface LocalUser {
+  id: string;
+  email: string;
+  user_metadata?: {
+    username?: string;
+    role?: string;
+  };
+}
 
 export default function AdminLogsButton() {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<LocalUser | null>(null)
 
   useEffect(() => {
-    const supabase = createClient()
-    
-    // Get initial session
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user)
+    getSessionUser().then((sessionUser) => {
+      setUser(sessionUser)
     })
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null)
-    })
-
-    return () => subscription.unsubscribe()
   }, [])
 
   // Verifica se o usuário possui a role de admin no seu metadata

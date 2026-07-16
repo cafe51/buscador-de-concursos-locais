@@ -1,30 +1,27 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/utils/supabase/client'
 import Link from 'next/link'
-import { User } from '@supabase/supabase-js'
 import { UserCircle } from 'lucide-react'
+import { getSessionUser } from '@/app/auth/actions'
+
+interface LocalUser {
+  id: string;
+  email: string;
+  user_metadata?: {
+    username?: string;
+  };
+}
 
 export default function ProfileButton() {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<LocalUser | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const supabase = createClient()
-    
-    // Get initial session
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user)
+    getSessionUser().then((sessionUser) => {
+      setUser(sessionUser)
       setLoading(false)
     })
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null)
-    })
-
-    return () => subscription.unsubscribe()
   }, [])
 
   if (loading) return <div className="w-24 h-10 bg-slate-100 animate-pulse rounded-xl border border-slate-200"></div>

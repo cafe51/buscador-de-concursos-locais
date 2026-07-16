@@ -1,7 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import { User } from '@supabase/supabase-js'
+export interface User {
+  id: string;
+  email: string;
+  user_metadata?: {
+    username?: string;
+    role?: string;
+    notifications?: {
+      enabled: boolean;
+      organs: 'todos' | 'prefeitura' | 'camara';
+      cities: string[];
+    };
+  };
+}
 import { logout, updateEmail, deleteAccount } from '@/app/auth/actions'
 import { Mail, LogOut, ArrowRight, ShieldCheck, AlertTriangle, Bell, User as UserIcon, Lock, Server } from 'lucide-react'
 import Link from 'next/link'

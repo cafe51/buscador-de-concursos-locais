@@ -96,7 +96,7 @@ export async function obterBufferDoDocumento(url: string, depth = 0, tentativas 
 
       // Checa JS Redirect
       if (!novaUrl) {
-        const jsRedirect = htmlText.match(/window\.location(?:\.href)?\s*=\s*['"]([^'"]+)['"]/i);
+        const jsRedirect = htmlText.match(/(?:window\.)?location(?:\.href)?\s*=\s*['"]([^'"]+)['"]/i);
         if (jsRedirect && jsRedirect[1]) novaUrl = jsRedirect[1];
       }
 

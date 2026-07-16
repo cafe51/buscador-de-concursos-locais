@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/utils/supabase/server'
+import { getSessionUser } from '@/lib/auth'
 import connectToDatabase from '@/lib/mongodb'
 import { ScraperConfigModel } from '@/models/ScraperConfig'
 
@@ -13,8 +13,7 @@ export type ScraperConfigDTO = {
  * Helper to check if the user is an admin.
  */
 async function requireAdmin() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
 
   if (!user || user.user_metadata?.role !== 'admin') {
     throw new Error('Acesso negado: Requer privilégios de administrador.')

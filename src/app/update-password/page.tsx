@@ -40,6 +40,7 @@ function UpdatePasswordContent() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const searchParams = useSearchParams()
   const error = searchParams.get('error')
+  const token = searchParams.get('token')
 
   const {
     register,
@@ -76,6 +77,7 @@ function UpdatePasswordContent() {
         )}
 
         <form id="update-password-form" action={updatePassword} className="space-y-5">
+          {token && <input type="hidden" name="token" value={token} />}
           {/* Password Field */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Nova Senha</label>
