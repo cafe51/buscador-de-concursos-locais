@@ -331,7 +331,11 @@ GitHub Actions (cron 3x/dia)  ou  DevToolsPanel (UI local)
 #### Persistência
 
 - **`storage.ts`**: Comunicação com MongoDB via Mongoose:
-  - `carregarDoBanco()`: Carrega todos os editais ordenados por data (desc) + ordemOriginal (asc). Limpa campos internos do MongoDB antes de retornar.
+  - `carregarDoBanco()`: Carrega todos os editais ordenados por data (desc) + ordemOriginal (asc). Limpa campos internos do MongoDB antes de retornar (usado para Auditorias locais do DevTools).
+  - `carregarEditaisPaginados(filtros, pagina, itensPorPagina)`: Carrega os editais da página linear selecionada no feed, aplicando filtros do lado do servidor (MongoDB) e retornando opções dinâmicas para os selects.
+  - `carregarPastasPaginadas(filtros, pagina, pastasPorPagina, filtroTipoGrupo)`: Agrupa editais via aggregation pipeline do MongoDB, ordena os grupos em memória, divide-os em páginas (até 9) e busca de forma unificada os editais de cada grupo, garantindo coerência de dados antigos e novos em uma pasta.
+  - `carregarTodosEditaisFiltrados(filtros)`: Retorna a lista total de editais filtrados para exportação JSON sob demanda.
+  - `carregarGrupoPorChave(chaveUnica)`: Recupera os dados hidratados de uma pasta de concurso pelo link direto.
   - `identificarMudancas(novosEditais, substituirTudo)`: Compara novos editais com existentes por `link`. Identifica adições (link não existe) e atualizações (compara campo a campo, ignorando metadados). Retorna operations para bulkWrite.
   - `persistirSincronizacao(operations, substituirTudo, novosEditais, ...)`: Executa `bulkWrite` no MongoDB. Salva metadata de última atualização. Imprime relatórios detalhados de adições e alterações.
   - `sincronizarBanco()`: Wrapper que chama identificarMudancas + persistirSincronizacao.
@@ -339,7 +343,7 @@ GitHub Actions (cron 3x/dia)  ou  DevToolsPanel (UI local)
   - `reverterEnriquecimento(link)`: Remove `dadosEnriquecidos` de um edital.
   - `carregarScrapingLogs()`: Busca os 20 logs mais recentes. Se banco vazio, retorna mock logs.
   - `adicionarScrapingLog(novoLog)`: Insere novo log e remove excesso além de 20.
-  - Tipos exportados: `LogCidadeDetail`, `SyncLogAddition`, `SyncLogUpdate`, `DatabaseSyncLog`, `ScrapingLog`.
+  - Tipos exportados: `FiltrosEditais`, `LogCidadeDetail`, `SyncLogAddition`, `SyncLogUpdate`, `DatabaseSyncLog`, `ScrapingLog`.
 - **`mongodb.ts`**: Gerenciador de conexão com cache global (`global.mongooseConnection`) para evitar pool exhaustion em ambiente serverless. Requer `MONGODB_URI` no ambiente.
 
 #### Diagnóstico e Desenvolvimento
@@ -440,10 +444,10 @@ cron (07:00, 19:00 UTC)
 ### Interface Web (Usuário)
 ```
 Usuário acessa /
-  → page.tsx carrega editais do MongoDB (carregarDoBanco)
+  → page.tsx carrega editais ou pastas paginados e filtrados do MongoDB (carregarEditaisPaginados ou carregarPastasPaginadas)
   → Renderiza ListView ou FolderView
-  → FilterPanel filtra por cidade/termo
-  → ControlsBar: busca textual + export JSON
+  → FilterPanel envia filtros por cidade/termo ao servidor (MongoDB)
+  → ControlsBar: busca textual + export JSON (chama carregarTodosEditaisFiltrados sob demanda)
   → EditalCard: exibe dados (brutos + enriquecidos pela IA)
   → Usuário logado: pode acessar /profile (preferências de notificação)
   → Admin: pode acessar /developer/logs (métricas) e AdminScraperConfigs
