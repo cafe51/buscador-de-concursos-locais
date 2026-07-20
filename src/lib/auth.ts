@@ -46,21 +46,34 @@ export async function verifyToken(token: string): Promise<JWTPayload | null> {
   }
 }
 
+import connectToDatabase from './mongodb';
+import { UserModel } from '../models/User';
+
 export async function getSessionUser(): Promise<SessionUser | null> {
   try {
-    const cookieStore = await cookies();
+    let cookieStore;
+    try {
+      cookieStore = await cookies();
+    } catch {
+      return null;
+    }
+
     const token = cookieStore.get('session')?.value;
     if (!token) return null;
     
     const payload = await verifyToken(token);
-    if (!payload) return null;
+    if (!payload || !payload.id) return null;
     
+    await connectToDatabase();
+    const dbUser = await UserModel.findById(payload.id).lean();
+    if (!dbUser) return null;
+
     return {
-      id: payload.id,
-      email: payload.email,
+      id: dbUser._id.toString(),
+      email: dbUser.email,
       user_metadata: {
-        username: payload.username,
-        role: payload.role,
+        username: dbUser.username,
+        role: dbUser.role || 'user',
       }
     };
   } catch {
@@ -69,17 +82,25 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 }
 
 export async function setSessionCookie(token: string) {
-  const cookieStore = await cookies();
-  cookieStore.set('session', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 30, // 30 dias
-    path: '/',
-  });
+  try {
+    const cookieStore = await cookies();
+    cookieStore.set('session', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 30, // 30 dias
+      path: '/',
+    });
+  } catch {
+    // Prerender Context without cookies
+  }
 }
 
 export async function deleteSessionCookie() {
-  const cookieStore = await cookies();
-  cookieStore.delete('session');
+  try {
+    const cookieStore = await cookies();
+    cookieStore.delete('session');
+  } catch {
+    // Prerender Context without cookies
+  }
 }

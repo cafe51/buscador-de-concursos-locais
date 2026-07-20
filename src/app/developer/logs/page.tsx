@@ -4,6 +4,8 @@ import { carregarScrapingLogs, ScrapingLog } from '@/lib/storage';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
+import { getSessionUser } from '@/app/auth/actions';
+
 function formatDateTime(isoString: string) {
   try {
     const d = new Date(isoString);
@@ -25,12 +27,16 @@ export default function DeveloperLogs() {
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('dev_auth');
-      if (saved === 'true') {
+    getSessionUser().then((user) => {
+      if (user?.user_metadata?.role === 'admin') {
         setAuthorized(true);
+      } else if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('dev_auth');
+        if (saved === 'true') {
+          setAuthorized(true);
+        }
       }
-    }
+    });
   }, []);
 
   useEffect(() => {
