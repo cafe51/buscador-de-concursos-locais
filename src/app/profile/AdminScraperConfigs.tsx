@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Server, Settings, Search, RefreshCw } from 'lucide-react'
-import { toggleScraperConfigAction, type ScraperConfigDTO } from '@/app/admin/actions'
+import { Server, Settings, Search, RefreshCw, BookOpen } from 'lucide-react'
+import { toggleScraperConfigAction, toggleTipoFonteConfigAction, type ScraperConfigDTO } from '@/app/admin/actions'
 
 export default function AdminScraperConfigs({ initialConfigs }: { initialConfigs: ScraperConfigDTO[] }) {
   const [configs, setConfigs] = useState<ScraperConfigDTO[]>(initialConfigs)
@@ -35,6 +35,26 @@ export default function AdminScraperConfigs({ initialConfigs }: { initialConfigs
     setLoadingCidade(null)
   }
 
+  const handleToggleFonte = async (nome: string, currentTipo?: string) => {
+    setLoadingCidade(nome)
+    setMessage('')
+    setError('')
+    
+    const newTipo = currentTipo === 'diario' ? 'portal' : 'diario'
+    const res = await toggleTipoFonteConfigAction(nome, newTipo)
+    
+    if (res.success) {
+      setConfigs(configs.map(c => c.nome === nome ? { ...c, tipoFonte: newTipo } : c))
+      setMessage(`Fonte de ${nome} alterada para ${newTipo === 'diario' ? 'Diário Oficial' : 'Portal'}!`)
+      setTimeout(() => setMessage(''), 3000)
+    } else {
+      setError(res.error || 'Falha ao atualizar a fonte do scraper.')
+      setTimeout(() => setError(''), 4000)
+    }
+    
+    setLoadingCidade(null)
+  }
+
   return (
     <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl shadow-lg mt-12 relative overflow-hidden">
       {/* Background decoration for admin section */}
@@ -47,7 +67,7 @@ export default function AdminScraperConfigs({ initialConfigs }: { initialConfigs
               <Server size={20} className="text-emerald-400" /> Administração de Scrapers
             </h3>
             <p className="text-sm text-slate-400">
-              Controle o Modo de Disponibilidade para ignorar scrapers instáveis.
+              Controle a fonte de dados (Portal vs Diário Oficial) e o Modo de Disponibilidade.
             </p>
           </div>
           
@@ -81,14 +101,15 @@ export default function AdminScraperConfigs({ initialConfigs }: { initialConfigs
               <thead className="bg-slate-800 sticky top-0 z-20 shadow-sm">
                 <tr>
                   <th className="px-6 py-4 font-semibold text-slate-200">Cidade / Órgão</th>
-                  <th className="px-6 py-4 font-semibold text-slate-200 text-center">Modo Disponibilidade</th>
+                  <th className="px-6 py-4 font-semibold text-slate-200 text-center">Fonte Ativa</th>
+                  <th className="px-6 py-4 font-semibold text-slate-200 text-center">Modo Ping</th>
                   <th className="px-6 py-4 font-semibold text-slate-200 text-right">Ação</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700/50">
                 {filteredConfigs.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="px-6 py-8 text-center text-slate-500">
+                    <td colSpan={4} className="px-6 py-8 text-center text-slate-500">
                       Nenhum scraper encontrado com este nome.
                     </td>
                   </tr>
@@ -97,6 +118,20 @@ export default function AdminScraperConfigs({ initialConfigs }: { initialConfigs
                     <tr key={config.nome} className="hover:bg-slate-700/30 transition-colors">
                       <td className="px-6 py-4 font-medium text-white flex items-center gap-2">
                         {config.nome}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <button
+                          onClick={() => handleToggleFonte(config.nome, config.tipoFonte)}
+                          disabled={loadingCidade === config.nome}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                            config.tipoFonte === 'diario'
+                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
+                              : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30 hover:bg-indigo-500/20'
+                          }`}
+                        >
+                          <BookOpen size={13} />
+                          {config.tipoFonte === 'diario' ? 'Diário Oficial' : 'Portal Certames'}
+                        </button>
                       </td>
                       <td className="px-6 py-4 text-center">
                         {config.verificarDisponibilidade ? (
@@ -130,7 +165,7 @@ export default function AdminScraperConfigs({ initialConfigs }: { initialConfigs
         </div>
         
         <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-          <Settings size={14} /> Ativar o "Modo Disponibilidade" fará com que o robô apenas verifique se a URL principal responde, sem fazer download de nenhum arquivo.
+          <Settings size={14} /> Alterne entre "Portal Certames" e "Diário Oficial" para escolher de onde o robô irá extrair os editais.
         </div>
       </div>
     </div>

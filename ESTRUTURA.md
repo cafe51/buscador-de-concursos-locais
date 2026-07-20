@@ -15,16 +15,17 @@ achadordeeditais/
 │       ├── scraper.yml              # Workflow GitHub Actions: raspagem 3x/dia (self-hosted)
 │       └── sync-ibge.yml            # Workflow GitHub Actions: sincronização IBGE 2x/dia
 ├── .env / .env.local                # Variáveis de ambiente (chaves de API, MongoDB URI)
-├── .gitignore
+├── .gitignore                        # Ignora node_modules, .next e backups/
 ├── AGENTS.md                        # Regras para agentes de IA (Next.js 16 tem breaking changes)
 ├── CLAUDE.md                        # Referência a AGENTS.md
 ├── ESTRUTURA.md                     # Este documento
 ├── INFRAESTRUTURA.md                # Documentação do self-hosted runner (Oracle Cloud)
 ├── README.md                        # Manual introdutório e guia de início rápido
+├── backups/                         # Diretório local de backups do MongoDB (ignorado no git)
 ├── eslint.config.mjs               # Configuração ESLint
 ├── next-env.d.ts                   # Tipos globais automáticos do Next.js
 ├── next.config.ts                  # Config: reactCompiler, devOrigins, bodySizeLimit 5MB
-├── package.json                    # Dependências e scripts
+├── package.json                    # Dependências e scripts (inclui npm run db:backup)
 ├── package-lock.json
 ├── postcss.config.mjs             # PostCSS para Tailwind CSS v4
 ├── tsconfig.json                   # Config TypeScript (alias @/*)
@@ -33,6 +34,7 @@ achadordeeditais/
 ├── test.doc / test.pdf            # Arquivos de teste para docParser/wordToPdf
 ├── test-drive.ts / test-parser.ts / test-parser-real.ts / test-word.ts  # Scripts de teste manuais
 ├── scripts/
+│   ├── backup-db.ts               # Exporta backup EJSON de todas as coleções em backups/
 │   ├── run-scraper.ts             # Entry point do GitHub Actions: pipeline completo de raspagem
 │   ├── sync-ibge.ts               # Sincronização de servidores IBGE via Portal da Transparência
 │   ├── initScraperConfigs.ts      # Inicializa ScraperConfig no MongoDB para todas as cidades
@@ -103,11 +105,12 @@ achadordeeditais/
     │   ├── mongodb.ts              # Gerenciador de conexão MongoDB com cache (evita pool exhaustion em serverless)
     │   ├── notifications.ts        # Pipeline de notificações: filtro burocrático → preferências → e-mail
     │   ├── orchestrator.ts         # Orquestrador central: pipeline completo de raspagem → IA → notificações
+    │   ├── pdfParserModern.ts      # Extração de texto de PDFs via pdfjs-dist (layout espacial para Diários Oficiais)
     │   ├── runner.ts               # Executor resiliente: timeout 290s/cidade, dados parciais, logs formatados
     │   ├── storage.ts              # Persistência MongoDB: CRUD de editais, logs, metadata, enriquecimento
     │   ├── wordToPdf.ts            # Conversão .doc/.docx → PDF via LibreOffice headless (soffice)
     │   └── scrapers/
-    │       ├── registry.ts          # MAPA_SCRAPERS (cidade→função) e CIDADES_ATIVAS (ordem de execução)
+    │       ├── registry.ts          # MAPA_SCRAPERS (cidade→função), MAPA_SCRAPERS_DIARIO e CIDADES_ATIVAS
     │       ├── utils.ts             # fetchHtml (retries, headers navegador), extrairData, limparTituloDoc
     │       ├── instar.ts             # Motor genérico para portais Instar (paginação, pastas, download links)
     │       ├── webline.ts            # Motor para portais Webline
@@ -226,6 +229,7 @@ GitHub Actions (cron 3x/dia)  ou  DevToolsPanel (UI local)
 
 ### ⚙️ 2. Diretório `scripts/` (Rotinas e Entry Points)
 
+- **`backup-db.ts`**: Realiza o backup completo do banco de dados MongoDB em formato EJSON (Extended JSON), preservando tipos nativos (ObjectId, Date, etc.). Salva cada uma das 11 coleções em arquivos `.json` com timestamp dentro do diretório `backups/backup-YYYY-MM-DDTHH-mm-ss` e gera um arquivo de resumo `backup-info.json`. Pode ser executado com `npm run db:backup`.
 - **`run-scraper.ts`**: Ponto de entrada do GitHub Actions. Carrega variáveis de ambiente (`@next/env`), chama `runFullScraperWorkflow({ isLocalUI: false })` e força `process.exit(0)` ao final para evitar que a Action fique pendurada em conexões abertas.
 - **`sync-ibge.ts`**: Sincroniza servidores do IBGE via API do Portal da Transparência. Pagina todos os servidores do órgão SIAPE 45205, faz upsert no MongoDB, e envia e-mail de notificação para `cafecafe51@hotmail.com` quando detecta alterações em servidores de Fernandópolis (novos servidores, mudança de cargo, situação, regime, jornada, etc.).
 - **`initScraperConfigs.ts`**: Cria registros de `ScraperConfig` no MongoDB para todas as cidades em `CIDADES_ATIVAS` (com `verificarDisponibilidade: false`). Rodar uma vez ao configurar o banco pela primeira vez.

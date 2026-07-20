@@ -17,8 +17,14 @@ export default function EditalCard({ edital }: { edital: Edital }) {
           </span>
 
           <span className="bg-purple-50 text-purple-700 border border-purple-100 text-xs font-bold px-2 py-1 rounded-lg">
-            🏛️ {edital.orgao}
+            🏛️ {edital.dadosEnriquecidos?.orgao ? '✨ ' : ''}{edital.dadosEnriquecidos?.orgao || edital.orgao}
           </span>
+
+          {edital.fonte === 'diario' && (
+            <span className="bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold px-2 py-1 rounded-lg">
+              📰 Diário Oficial
+            </span>
+          )}
 
           {edital.statusGeral && (
             <span className={`text-xs font-bold px-2 py-1 rounded-lg border ${edital.statusGeral === 'Aberto' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
@@ -38,16 +44,22 @@ export default function EditalCard({ edital }: { edital: Edital }) {
             ))
           )}
 
-          {edital.dadosEnriquecidos?.concurso || edital.concurso ? (
-            <span className="bg-violet-50 text-violet-700 border border-violet-200 text-xs font-bold px-2 py-1 rounded-lg">
-              🗂️ {edital.dadosEnriquecidos?.concurso ? '✨ ' : ''}{edital.dadosEnriquecidos?.concurso || edital.concurso}
-            </span>
-          ) : null}
+          {(() => {
+            const concEnriquecido = edital.dadosEnriquecidos?.concurso?.trim();
+            const temEnriquecido = Boolean(concEnriquecido && concEnriquecido !== '');
+            const concursoFinal = temEnriquecido ? concEnriquecido : edital.concurso;
+
+            return concursoFinal ? (
+              <span className="bg-violet-50 text-violet-700 border border-violet-200 text-xs font-bold px-2 py-1 rounded-lg">
+                🗂️ {temEnriquecido ? '✨ ' : ''}{concursoFinal}
+              </span>
+            ) : null;
+          })()}
         </div>
 
-        {edital.dadosEnriquecidos?.dataPublicacao || edital.dataPublicacao ? (
+        {(edital.dataPublicacao || edital.dadosEnriquecidos?.dataPublicacao) ? (
           <span className="text-xs font-medium text-slate-500 bg-slate-50 px-2 py-1 rounded-lg shrink-0 w-fit border border-slate-200">
-            📅 {edital.dadosEnriquecidos?.dataPublicacao ? '✨ ' : ''}{edital.dadosEnriquecidos?.dataPublicacao || edital.dataPublicacao}
+            📅 {(edital.fonte !== 'diario' && edital.dadosEnriquecidos?.dataPublicacao) ? '✨ ' : ''}{edital.fonte === 'diario' ? edital.dataPublicacao : (edital.dadosEnriquecidos?.dataPublicacao || edital.dataPublicacao)}
           </span>
         ) : null}
       </div>

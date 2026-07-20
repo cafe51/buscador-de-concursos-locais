@@ -2,7 +2,8 @@ import mongoose from 'mongoose';
 
 const scraperConfigSchema = new mongoose.Schema({
   nome: { type: String, required: true, unique: true },
-  verificarDisponibilidade: { type: Boolean, required: true, default: false }
+  verificarDisponibilidade: { type: Boolean, required: true, default: false },
+  tipoFonte: { type: String, enum: ['portal', 'diario'], default: 'portal' }
 }, {
   timestamps: true
 });

@@ -15,11 +15,13 @@ export type Edital = {
   ordemOriginal?: number;
 
   linkOrigem?: string; // 🚀 NOVA CHAVE: Guarda a URL da página interna!
+  fonte?: 'diario' | 'portal' | string;
   dadosEnriquecidos?: {
     titulo?: string;
     descricao?: string;
     concurso?: string;
     dataPublicacao?: string;
+    orgao?: string;
   };
 };
 

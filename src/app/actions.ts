@@ -1,7 +1,7 @@
 'use server'
 
 import { Edital } from '../types';
-import { MAPA_SCRAPERS, CIDADES_ATIVAS } from '../lib/scrapers/registry';
+import { MAPA_SCRAPERS, CIDADES_ATIVAS, obterScraperParaCidade } from '../lib/scrapers/registry';
 import { rodarComProtecao } from '../lib/runner';
 import { urlsParaBlacklist } from '../lib/docParser';
 
@@ -18,27 +18,30 @@ export type ResultadoBusca = {
 // ==============================================================
 export async function buscarEditaisPorCidade(nomeCidade: string): Promise<ResultadoBusca> {
   urlsParaBlacklist.clear();
-  const funcaoScraper = MAPA_SCRAPERS[nomeCidade];
-
-  if (!funcaoScraper) {
-    throw new Error(`Scraper não encontrado para a cidade: ${nomeCidade}`);
-  }
 
   console.log(`\n===================================================`);
   console.log(`⏳ INICIANDO RASPAGEM INDIVIDUAL: ${nomeCidade}...`);
   console.log(`===================================================`);
 
   let verificarDisponibilidade = false;
+  let tipoFonte: string | undefined = undefined;
   try {
     const connectToDatabase = (await import('../lib/mongodb')).default;
     await connectToDatabase();
     const { ScraperConfigModel } = await import('../models/ScraperConfig');
     const config = await ScraperConfigModel.findOne({ nome: nomeCidade });
-    if (config && config.verificarDisponibilidade) {
-      verificarDisponibilidade = true;
+    if (config) {
+      if (config.verificarDisponibilidade) verificarDisponibilidade = true;
+      if (config.tipoFonte) tipoFonte = config.tipoFonte;
     }
   } catch (e) {
     console.error("Falha ao buscar config em buscarEditaisPorCidade:", e);
+  }
+
+  const funcaoScraper = obterScraperParaCidade(nomeCidade, tipoFonte);
+
+  if (!funcaoScraper) {
+    throw new Error(`Scraper não encontrado para a cidade: ${nomeCidade}`);
   }
 
   const resultado = await rodarComProtecao(nomeCidade, funcaoScraper, { verificarDisponibilidade });
@@ -74,17 +77,18 @@ export async function buscarTodosEditais(cidadesAlvo?: string[]): Promise<Result
 
   urlsParaBlacklist.clear();
 
-  // Busca configurações de disponibilidade no banco
-  let configMap = new Map<string, boolean>();
+  // Busca configurações de disponibilidade e tipo de fonte no banco
+  let configMap = new Map<string, { verificarDisponibilidade: boolean; tipoFonte?: string }>();
   try {
     const connectToDatabase = (await import('../lib/mongodb')).default;
     await connectToDatabase();
     const { ScraperConfigModel } = await import('../models/ScraperConfig');
     const configs = await ScraperConfigModel.find();
     configs.forEach((c: any) => {
-      if (c.verificarDisponibilidade) {
-        configMap.set(c.nome, true);
-      }
+      configMap.set(c.nome, {
+        verificarDisponibilidade: !!c.verificarDisponibilidade,
+        tipoFonte: c.tipoFonte
+      });
     });
   } catch (e) {
     console.error("Falha ao buscar ScraperConfigModel, usando padrão (falso).", e);
@@ -100,8 +104,9 @@ export async function buscarTodosEditais(cidadesAlvo?: string[]): Promise<Result
     const cidadesParaRaspar = cidadesAlvo && cidadesAlvo.length > 0 ? cidadesAlvo : CIDADES_ATIVAS;
 
     const tarefas = cidadesParaRaspar.map(cidade => {
-      const scraper = MAPA_SCRAPERS[cidade];
-      const verificarDisponibilidade = configMap.get(cidade) === true;
+      const cfg = configMap.get(cidade);
+      const scraper = obterScraperParaCidade(cidade, cfg?.tipoFonte);
+      const verificarDisponibilidade = cfg?.verificarDisponibilidade === true;
       return () => rodarComProtecao(cidade, scraper, { verificarDisponibilidade });
     });
 

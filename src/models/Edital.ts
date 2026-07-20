@@ -15,17 +15,16 @@ const editalSchema = new mongoose.Schema({
   dataPublicacao: { type: String },
   ordemOriginal: { type: Number },
   linkOrigem: { type: String },
+  fonte: { type: String },
   dadosEnriquecidos: {
     titulo: { type: String },
     descricao: { type: String },
     concurso: { type: String },
-    dataPublicacao: { type: String }
+    dataPublicacao: { type: String },
+    orgao: { type: String }
   }
 }, {
   timestamps: true
 });
 
-// Índice composto para ordenação rápida
-editalSchema.index({ dataTimestamp: -1, ordemOriginal: 1 });
-
-export const EditalModel = mongoose.models.Edital || mongoose.model('Edital', editalSchema);
+export const EditalModel = mongoose.models.Edital || mongoose.model('Edital', editalSchema, 'editals');

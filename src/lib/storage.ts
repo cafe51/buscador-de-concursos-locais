@@ -10,15 +10,11 @@ import { MetadataModel } from '../models/Metadata';
 export async function carregarDoBanco(): Promise<Edital[]> {
   try {
     await connectToDatabase();
-    // `.lean()` retorna objetos JS puros ao invés de Documentos Mongoose
     const dados = await EditalModel.find()
       .sort({ dataTimestamp: -1, ordemOriginal: 1 })
       .lean();
-    
-    // O Next.js não permite passar ObjectId ou Objetos complexos para Client Components.
-    // Limpamos os campos internos do MongoDB (_id, __v, createdAt, updatedAt)
-    const dadosLimpos = dados.map(({ _id, __v, createdAt, updatedAt, ...resto }) => resto);
 
+    const dadosLimpos = dados.map(({ _id, __v, createdAt, updatedAt, ...resto }) => resto);
     return dadosLimpos as unknown as Edital[];
   } catch (e) {
     console.error("Erro ao ler do MongoDB:", e);
@@ -38,7 +34,7 @@ export async function identificarMudancas(novosEditais: Edital[], substituirTudo
   const novasAdicoesReferencias: Edital[] = [];
   let qtdeAdicionados = 0;
 
-  const operations: any[] = [];
+  const opsEditais: any[] = [];
 
   novosEditais.forEach(novo => {
     const antigo = mapaAntigos.get(novo.link);
@@ -79,7 +75,7 @@ export async function identificarMudancas(novosEditais: Edital[], substituirTudo
           mudancas: alteracoes
         });
         
-        operations.push({
+        opsEditais.push({
           updateOne: {
             filter: { link: novo.link },
             update: { $set: novo }
@@ -99,7 +95,7 @@ export async function identificarMudancas(novosEditais: Edital[], substituirTudo
       });
       novasAdicoesReferencias.push(novo);
       
-      operations.push({
+      opsEditais.push({
         insertOne: {
           document: novo
         }
@@ -112,12 +108,12 @@ export async function identificarMudancas(novosEditais: Edital[], substituirTudo
     atualizados: relatorioAtualizacoes,
     relatorioAdicoes,
     novasAdicoesReferencias,
-    operations
+    operations: opsEditais
   };
 }
 
 export async function persistirSincronizacao(
-  operations: any[], 
+  operationsObj: any, 
   substituirTudo: boolean = false, 
   novosEditais: Edital[] = [],
   relatorioAdicoes: SyncLogAddition[] = [],
@@ -129,11 +125,13 @@ export async function persistirSincronizacao(
     if (substituirTudo) {
       await EditalModel.deleteMany({});
       if (novosEditais.length > 0) {
-        // Insere em lotes se substituir tudo
         await EditalModel.insertMany(novosEditais);
       }
-    } else if (operations.length > 0) {
-      await EditalModel.bulkWrite(operations);
+    } else {
+      const ops = Array.isArray(operationsObj) ? operationsObj : (operationsObj?.opsEditais || []);
+      if (ops.length > 0) {
+        await EditalModel.bulkWrite(ops);
+      }
     }
 
     console.log(`✅ Sincronização MongoDB concluída!`);
@@ -142,51 +140,63 @@ export async function persistirSincronizacao(
 
     if (relatorioAdicoes.length > 0 && !substituirTudo) {
       console.log("\n🆕 Relatório de Adições:");
-      relatorioAdicoes.forEach(log => {
-        const tituloParaLog = log.dadosEnriquecidos?.titulo || log.titulo;
-        console.log(`\n   ✨ [${log.cidade}] 📄 "${tituloParaLog}"\n   🔗 Link: ${log.link}`);
+      relatorioAdicoes.forEach(item => {
+        console.log(` ➕ [${item.cidade}] ${item.titulo}`);
+        console.log(`    Link: ${item.link}`);
+        if (item.concurso) console.log(`    Concurso: ${item.concurso}`);
+        console.log("    ----------------------------------------");
       });
     }
 
-    if (relatorioAtualizacoes.length > 0) {
-      console.log("\n📝 Relatório de Alterações:");
-      relatorioAtualizacoes.forEach(log => {
-        console.log(`\n   🏢 [${log.cidade}] 📄 "${log.titulo}"\n   🔗 Link: ${log.link}\n   🔄 Mudanças: ${log.mudancas.join(' | ')}`);
+    if (relatorioAtualizacoes.length > 0 && !substituirTudo) {
+      console.log("\n🔄 Relatório de Alterações em Editais Existentes:");
+      relatorioAtualizacoes.forEach(item => {
+        console.log(` ✏️ [${item.cidade}] ${item.titulo}`);
+        console.log(`    Link: ${item.link}`);
+        console.log(`    Modificações:`);
+        item.mudancas.forEach(m => console.log(`       - ${m}`));
+        console.log("    ----------------------------------------");
       });
     }
-    console.log("===================================================\n");
 
-    // Salva a data do momento como a última atualização do banco
-    await salvarMetadata(new Date().toISOString());
+    // Salva a data da última atualização no MetadataModel
+    const dataIso = new Date().toISOString();
+    await MetadataModel.findOneAndUpdate(
+      { key: 'global' },
+      { $set: { ultimaAtualizacao: dataIso } },
+      { upsert: true, returnDocument: 'after' }
+    );
 
     return { sucesso: true };
   } catch (e) {
-    console.error("Erro na persistência com MongoDB:", e);
+    console.error("Erro ao persistir sincronização no MongoDB:", e);
     return { sucesso: false };
   }
 }
 
-export async function sincronizarBanco(novosEditais: Edital[], substituirTudo: boolean = false): Promise<{ sucesso: boolean, adicionados: number, atualizados: SyncLogUpdate[], relatorioAdicoes: SyncLogAddition[] }> {
+export async function sincronizarBanco(novosEditais: Edital[], substituirTudo: boolean = false) {
   try {
-    console.log("\n===================================================");
-    if (substituirTudo) {
-      console.log("🍃 CRIANDO NOVO BANCO NO MONGODB (SUBSTITUIÇÃO TOTAL)...");
+    const analysis = await identificarMudancas(novosEditais, substituirTudo);
+    const syncRes = await persistirSincronizacao(
+      analysis.operations, 
+      substituirTudo, 
+      novosEditais, 
+      analysis.relatorioAdicoes, 
+      analysis.atualizados
+    );
+
+    if (syncRes.sucesso) {
+      return {
+        sucesso: true,
+        adicionados: analysis.adicionados,
+        atualizados: analysis.atualizados,
+        relatorioAdicoes: analysis.relatorioAdicoes
+      };
     } else {
-      console.log("🍃 SINCRONIZANDO COM O MONGODB...");
+      return { sucesso: false, adicionados: 0, atualizados: [], relatorioAdicoes: [] };
     }
-    console.log("===================================================");
-
-    const resultado = await identificarMudancas(novosEditais, substituirTudo);
-    
-    // Para manter compatibilidade com quem chamava sincronizarBanco e esperava persistência
-    if (resultado.adicionados > 0 || resultado.atualizados.length > 0 || substituirTudo) {
-      const persist = await persistirSincronizacao(resultado.operations, substituirTudo, novosEditais, resultado.relatorioAdicoes, resultado.atualizados);
-      if (!persist.sucesso) throw new Error("Falha na persistência");
-    }
-
-    return { sucesso: true, adicionados: resultado.adicionados, atualizados: resultado.atualizados, relatorioAdicoes: resultado.relatorioAdicoes };
   } catch (e) {
-    console.error("Erro na sincronização com MongoDB:", e);
+    console.error("Erro ao sincronizar banco MongoDB:", e);
     return { sucesso: false, adicionados: 0, atualizados: [], relatorioAdicoes: [] };
   }
 }
@@ -194,47 +204,41 @@ export async function sincronizarBanco(novosEditais: Edital[], substituirTudo: b
 export async function carregarMetadata(): Promise<{ ultimaAtualizacao?: string } | null> {
   try {
     await connectToDatabase();
-    const doc = await MetadataModel.findOne({ key: 'global' }).lean();
-    if (!doc) return null;
-    return { ultimaAtualizacao: doc.ultimaAtualizacao };
+    const meta = await MetadataModel.findOne({ key: 'global' }).lean();
+    if (!meta) return null;
+    return { ultimaAtualizacao: meta.ultimaAtualizacao };
   } catch (e) {
-    console.error("Erro ao carregar metadata do MongoDB:", e);
+    console.error("Erro ao ler metadata do MongoDB:", e);
     return null;
   }
 }
 
-export async function salvarMetadata(ultimaAtualizacao: string): Promise<boolean> {
+export async function salvarEnriquecimentoEmLote(editais: Edital[]): Promise<{ sucesso: boolean; count: number }> {
   try {
     await connectToDatabase();
-    await MetadataModel.updateOne(
-      { key: 'global' },
-      { $set: { ultimaAtualizacao } },
-      { upsert: true }
-    );
-    return true;
-  } catch (e) {
-    console.error("Erro ao salvar metadata no MongoDB:", e);
-    return false;
-  }
-}
-export async function salvarEnriquecimentoEmLote(editais: Edital[]): Promise<{ sucesso: boolean, count: number }> {
-  try {
-    await connectToDatabase();
-    
-    const operations = editais
-      .filter(e => e.dadosEnriquecidos)
-      .map(e => ({
-        updateOne: {
-          filter: { link: e.link },
-          update: { $set: { dadosEnriquecidos: e.dadosEnriquecidos } }
-        }
-      }));
+    const opsEditais: any[] = [];
 
-    if (operations.length > 0) {
-      await EditalModel.bulkWrite(operations);
+    editais
+      .filter(e => e.dadosEnriquecidos)
+      .forEach(e => {
+        const updateObj: any = { dadosEnriquecidos: e.dadosEnriquecidos };
+        if (e.fonte === 'diario' && e.orgao) {
+          updateObj.orgao = e.orgao;
+        }
+
+        opsEditais.push({
+          updateOne: {
+            filter: { link: e.link },
+            update: { $set: updateObj }
+          }
+        });
+      });
+
+    if (opsEditais.length > 0) {
+      await EditalModel.bulkWrite(opsEditais);
     }
     
-    return { sucesso: true, count: operations.length };
+    return { sucesso: true, count: opsEditais.length };
   } catch (e) {
     console.error("Erro ao salvar enriquecimento em lote no MongoDB:", e);
     return { sucesso: false, count: 0 };
@@ -244,20 +248,19 @@ export async function salvarEnriquecimentoEmLote(editais: Edital[]): Promise<{ s
 export async function reverterEnriquecimento(link: string): Promise<{ sucesso: boolean }> {
   try {
     await connectToDatabase();
-    const resultado = await EditalModel.updateOne(
+    const res = await EditalModel.updateOne(
       { link },
       { $unset: { dadosEnriquecidos: "" } }
     );
-    return { sucesso: resultado.modifiedCount > 0 };
+    return { sucesso: res.modifiedCount > 0 };
   } catch (e) {
     console.error("Erro ao reverter enriquecimento no MongoDB:", e);
     return { sucesso: false };
   }
 }
 
-
 // ==============================================================
-// 📋 SCRAPING LOGS (ÚLTIMOS 20 BLOCOS)
+// 📋 SCRAPING LOGS
 // ==============================================================
 
 export type LogCidadeDetail = {
@@ -314,19 +317,16 @@ export type ScrapingLog = {
 export async function carregarScrapingLogs(): Promise<ScrapingLog[]> {
   try {
     await connectToDatabase();
-    // Busca os 20 mais recentes
     const logs = await ScrapingLogModel.find()
       .sort({ inicio: -1 })
       .limit(20)
       .lean();
 
     if (!logs || logs.length === 0) {
-      console.log("Banco de logs vazio no MongoDB. Retornando logs falsos para teste se houver necessidade...");
       return obterMockLogs();
     }
 
     const logsLimpos = logs.map(({ _id, __v, createdAt, updatedAt, ...resto }) => resto);
-
     return logsLimpos as unknown as ScrapingLog[];
   } catch (e) {
     console.error("Erro ao carregar scraping logs do MongoDB:", e);
@@ -334,12 +334,9 @@ export async function carregarScrapingLogs(): Promise<ScrapingLog[]> {
   }
 }
 
-// Em um BD de verdade não precisamos re-salvar a array inteira toda vez,
-// mas para manter a compatibilidade caso alguém use essa função:
 export async function salvarScrapingLogs(logs: ScrapingLog[]): Promise<boolean> {
   try {
     await connectToDatabase();
-    // Deleta os antigos e insere os novos
     await ScrapingLogModel.deleteMany({});
     if (logs.length > 0) {
       await ScrapingLogModel.insertMany(logs);
@@ -354,14 +351,11 @@ export async function salvarScrapingLogs(logs: ScrapingLog[]): Promise<boolean> 
 export async function adicionarScrapingLog(novoLog: ScrapingLog): Promise<boolean> {
   try {
     await connectToDatabase();
-    // Apenas insere o novo documento no Mongo (muito mais eficiente do que no Blob)
     await ScrapingLogModel.create(novoLog);
     
-    // Opcionalmente, apaga logs antigos para manter o limite de 20
     const count = await ScrapingLogModel.countDocuments();
     if (count > 20) {
       const excess = count - 20;
-      // Pega os mais antigos e apaga
       const oldestLogs = await ScrapingLogModel.find().sort({ inicio: 1 }).limit(excess);
       const idsToDelete = oldestLogs.map(l => l._id);
       await ScrapingLogModel.deleteMany({ _id: { $in: idsToDelete } });
@@ -375,7 +369,7 @@ export async function adicionarScrapingLog(novoLog: ScrapingLog): Promise<boolea
 }
 
 // ==============================================================
-// 📋 PAGINAÇÃO E FILTROS SERVER-SIDE
+// 📋 PAGINAÇÃO E FILTROS SERVER-SIDE (SINGLE COLLECTION)
 // ==============================================================
 
 export type FiltrosEditais = {
@@ -476,8 +470,8 @@ export async function carregarEditaisPaginados(
     const query = construirQueryFiltros(filtros);
 
     const totalFiltrados = await EditalModel.countDocuments(query);
-    
     const skip = (pagina - 1) * itensPorPagina;
+
     const dados = await EditalModel.find(query)
       .sort({ dataTimestamp: -1, ordemOriginal: 1 })
       .skip(skip)
@@ -492,8 +486,8 @@ export async function carregarEditaisPaginados(
     return {
       editais: dadosLimpos,
       totalFiltrados,
-      cidadesDisponiveis: cidadesDisponiveis.sort((a, b) => a.localeCompare(b, 'pt-BR')),
-      orgaosDisponiveis: orgaosDisponiveis.sort((a, b) => a.localeCompare(b, 'pt-BR'))
+      cidadesDisponiveis: (cidadesDisponiveis as string[]).sort((a, b) => a.localeCompare(b, 'pt-BR')),
+      orgaosDisponiveis: (orgaosDisponiveis as string[]).sort((a, b) => a.localeCompare(b, 'pt-BR'))
     };
   } catch (e) {
     console.error("Erro ao carregar editais paginados do MongoDB:", e);
@@ -518,7 +512,13 @@ export async function carregarPastasPaginadas(
           concursoFinal: {
             $trim: {
               input: {
-                $ifNull: ["$dadosEnriquecidos.concurso", "$concurso"]
+                $cond: {
+                  if: {
+                    $gt: [{ $strLenCP: { $ifNull: ["$dadosEnriquecidos.concurso", ""] } }, 0]
+                  },
+                  then: "$dadosEnriquecidos.concurso",
+                  else: "$concurso"
+                }
               }
             }
           }
@@ -559,15 +559,18 @@ export async function carregarPastasPaginadas(
 
     const rawGroups = await EditalModel.aggregate(pipeline);
 
-    let grupos = rawGroups.map(g => ({
-      chaveUnica: `${g._id.cidade}_${g._id.orgao}_${g._id.concurso}`,
-      nome: g._id.concurso,
-      cidade: g._id.cidade,
-      orgao: g._id.orgao,
-      totalItens: g.totalItens,
-      maxTimestamp: g.maxTimestamp,
-      todosEnriquecidos: g.hasUnenriched === 0
-    }));
+    let grupos = rawGroups.map(g => {
+      const chave = `${g._id.cidade}_${g._id.orgao}_${g._id.concurso}`;
+      return {
+        chaveUnica: chave,
+        nome: g._id.concurso,
+        cidade: g._id.cidade,
+        orgao: g._id.orgao,
+        totalItens: g.totalItens,
+        maxTimestamp: g.maxTimestamp,
+        todosEnriquecidos: g.hasUnenriched === 0
+      };
+    });
 
     if (filtroTipoGrupo === 'concurso') {
       grupos = grupos.filter(g => g.nome && g.nome.toUpperCase().includes('CONCURSO'));
@@ -614,7 +617,8 @@ export async function carregarPastasPaginadas(
 
       const mapaEditais = new Map<string, Edital[]>();
       editais.forEach(e => {
-        const concursoFinal = e.dadosEnriquecidos?.concurso || e.concurso;
+        const concEnriquecido = e.dadosEnriquecidos?.concurso?.trim();
+        const concursoFinal = (concEnriquecido && concEnriquecido !== '') ? concEnriquecido : e.concurso;
         const chave = `${e.cidade}_${e.orgao}_${concursoFinal}`;
         if (!mapaEditais.has(chave)) {
           mapaEditais.set(chave, []);
@@ -635,8 +639,8 @@ export async function carregarPastasPaginadas(
           cidade: g.cidade,
           orgao: g.orgao,
           ultimaAtualizacao,
-          totalItens: g.totalItens,
-          todosEnriquecidos: g.todosEnriquecidos,
+          totalItens: itensGrupo.length,
+          todosEnriquecidos: !itensGrupo.some(e => !e.dadosEnriquecidos || !e.dadosEnriquecidos.titulo),
           itens: itensGrupo,
           linksOrigem: Array.from(new Set(itensGrupo.map(e => e.linkOrigem).filter(Boolean))) as string[]
         };
@@ -649,8 +653,8 @@ export async function carregarPastasPaginadas(
     return {
       pastas: pastasHidratadas,
       totalPastas,
-      cidadesDisponiveis: cidadesDisponiveis.sort((a, b) => a.localeCompare(b, 'pt-BR')),
-      orgaosDisponiveis: orgaosDisponiveis.sort((a, b) => a.localeCompare(b, 'pt-BR'))
+      cidadesDisponiveis: (cidadesDisponiveis as string[]).sort((a, b) => a.localeCompare(b, 'pt-BR')),
+      orgaosDisponiveis: (orgaosDisponiveis as string[]).sort((a, b) => a.localeCompare(b, 'pt-BR'))
     };
   } catch (e) {
     console.error("Erro ao carregar pastas paginadas do MongoDB:", e);
@@ -665,6 +669,7 @@ export async function carregarTodosEditaisFiltrados(filtros: FiltrosEditais): Pr
     const dados = await EditalModel.find(query)
       .sort({ dataTimestamp: -1, ordemOriginal: 1 })
       .lean();
+
     return dados.map(({ _id, __v, createdAt, updatedAt, ...resto }) => resto) as unknown as Edital[];
   } catch (e) {
     console.error("Erro ao carregar todos os editais filtrados:", e);
@@ -681,14 +686,16 @@ export async function carregarGrupoPorChave(chaveUnica: string): Promise<any | n
     const orgao = parts[1];
     const nome = parts.slice(2).join('_');
 
-    const editaisRaw = await EditalModel.find({
+    const matchQuery = {
       cidade,
       orgao,
       $or: [
         { "dadosEnriquecidos.concurso": nome },
         { concurso: nome }
       ]
-    })
+    };
+
+    const editaisRaw = await EditalModel.find(matchQuery)
       .sort({ dataTimestamp: -1, ordemOriginal: 1 })
       .lean();
 

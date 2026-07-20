@@ -114,14 +114,16 @@ async function baixarDocumentoBruto(url: string): Promise<{ bytes: string; mimeT
   }
 }
 
-async function analisarEditalComIA(edital: Edital, modelOverride?: string): Promise<{ titulo: string; descricao: string; concurso?: string; dataPublicacao?: string; custoReq?: number } | null> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return null;
+export function extrairPaginaDoLink(link: string): number | null {
+  const match = link.match(/#page=(\d+)/i);
+  if (match) {
+    const pag = parseInt(match[1], 10);
+    return isNaN(pag) || pag < 1 ? null : pag;
+  }
+  return null;
+}
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const fileManager = new GoogleAIFileManager(apiKey);
-
-  const systemInstruction = `Você é um especialista em concursos públicos e processos seletivos no Brasil.
+const SYSTEM_INSTRUCTION_PORTAL = `Você é um especialista em concursos públicos e processos seletivos no Brasil.
 INSTRUÇÕES RÍGIDAS DE FORMATAÇÃO:
 1. TÍTULO: Gere um título conciso (máximo 10 palavras) focado APENAS na ação principal e referência do documento. 
    REGRA CRÍTICA: NUNCA repita o nome da cidade ou o órgão.
@@ -133,17 +135,20 @@ INSTRUÇÕES RÍGIDAS DE FORMATAÇÃO:
    - Datas principais (se aplicável)
    
 3. CONCURSO (Chave de Agrupamento): Extraia a referência do concurso e PADRONIZE RIGOROSAMENTE para o formato:
-   - PARTE 1: EXATAMENTE "Processo Seletivo" ou EXATAMENTE  "Concurso Público".
+   - PARTE 1: EXATAMENTE "Processo Seletivo" ou EXATAMENTE "Concurso Público".
    - PARTE 2: Número no formato nn/aaaa. CONVERTA QUALQUER NÚMERO PARA EXATAMENTE 2 DÍGITOS ANTES DA BARRA (Ex: 001/2020 deve virar 01/2020. 1/2020 deve virar 01/2020). O ano deve ter 4 dígitos.
    - PARTE 3 (Opcional): Se for para estagiários, adicione "(Estagiários)" no final.
    Exemplo Perfeito: "Processo Seletivo 01/2026" ou "Processo Seletivo 01/2026 (Estagiários)".
-   Se conseguir identificar o certame a que o edital pertence, gere a chave "concurso" usando obrigatoria mente as duas partes (PARTE 1 + PARTE 2) e opcionalmente a parte 3 (PARTE 1 + PARTE 2 + PARTE 3)
+   Se conseguir identificar o certame a que o edital pertence, gere a chave "concurso" usando obrigatoriamente as duas partes (PARTE 1 + PARTE 2) e opcionalmente a parte 3.
    Se não conseguir identificar a que concurso o edital pertence, gere a chave "concurso" como string vazia "".
-   Exemplos ruins de casos proibidos: "Concurso Público", "Concurso", "Processo", "Processo Seletivo", "Processo Seletivo Simplificado", "Concurso (estágio)", etc. 
-   A parte 1 sempre deve vir acompanhada da parte 2.
+   
+   REGRA CRÍTICA PARA MÚLTIPLOS CERTAMES NO MESMO DOCUMENTO:
+   Se o documento abordar convocações/atos de MAIS DE UM certame (ex: Concurso Público 01/2020 e Processo Seletivo 02/2022 no mesmo PDF):
+   - Na chave "concurso": Escolha EXCLUSIVAMENTE o PRIMEIRO certame mencionado na ação principal do documento.
+   - Na chave "descricao": Obrigatoriamente inclua a citação ao(s) outro(s) certame(s) abrangidos pelo documento.
 
 4. DATA: Extraia a data exata de publicação oficial ou assinatura do edital (se houver) no formato DD/MM/AAAA.
-   ATENÇÃO: Em caso de conflito entre múltiplas datas encontradas, analise com cuidado para descobrir qual data se refere à publicação do documento, dê preferência para datas associadas à assinatura que costuma vir em uma sequencia que segue o formato [nome da cidade] ao lado de [data de publicação do documento] e embaixo [nome da pessoa e/ou instituição/cargo].
+   ATENÇÃO: Em caso de conflito entre múltiplas datas encontradas, analise com cuidado para descobrir qual data se refere à publicação do documento.
 
 Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
 {
@@ -152,6 +157,54 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
   "concurso": "...",
   "dataPublicacao": "..."
 }`;
+
+const SYSTEM_INSTRUCTION_DIARIO = `Você é um especialista em concursos públicos e processos seletivos no Brasil analisando um ato do Diário Oficial.
+INSTRUÇÕES RÍGIDAS DE FORMATAÇÃO:
+1. TÍTULO: Gere um título conciso (máximo 10 palavras) focado APENAS na ação principal e referência do documento. 
+   REGRA CRÍTICA: NUNCA repita o nome da cidade ou o órgão.
+   Exemplos bons: "Abertura de Processo Seletivo 01/2026", "Convocação para Provas Práticas".
+   
+2. DESCRIÇÃO: 2 a 3 frases curtas informativas para o candidato:
+   - Motivo central (ex: vagas temporárias, homologação, convocações)
+   - Escolaridade e cargos principais (se aplicável)
+   - Datas principais (se aplicável)
+   
+3. CONCURSO (Chave de Agrupamento): Extraia a referência do concurso e PADRONIZE RIGOROSAMENTE para o formato:
+   - PARTE 1: EXATAMENTE "Processo Seletivo" ou EXATAMENTE "Concurso Público".
+   - PARTE 2: Número no formato nn/aaaa. CONVERTA QUALQUER NÚMERO PARA EXATAMENTE 2 DÍGITOS ANTES DA BARRA (Ex: 001/2020 deve virar 01/2020. 1/2020 deve virar 01/2020). O ano deve ter 4 dígitos.
+   - PARTE 3 (Opcional): Se for para estagiários, adicione "(Estagiários)" no final.
+   Exemplo Perfeito: "Processo Seletivo 01/2026" ou "Processo Seletivo 01/2026 (Estagiários)".
+   Se conseguir identificar o certame a que o edital pertence, gere a chave "concurso" usando obrigatoriamente as duas partes (PARTE 1 + PARTE 2) e opcionalmente a parte 3.
+   Se não conseguir identificar a que concurso o edital pertence, gere a chave "concurso" como string vazia "".
+   
+   REGRA CRÍTICA PARA MÚLTIPLOS CERTAMES NO MESMO DOCUMENTO:
+   Se o documento abordar convocações/atos de MAIS DE UM certame (ex: Concurso Público 01/2020 e Processo Seletivo 02/2022 no mesmo PDF):
+   - Na chave "concurso": Escolha EXCLUSIVAMENTE o PRIMEIRO certame mencionado na ação principal do documento.
+   - Na chave "descricao": Obrigatoriamente inclua a citação ao(s) outro(s) certame(s) abrangidos pelo documento.
+
+4. ÓRGÃO (DETERMINÍSTICO E EXCLUSIVO):
+   REGRA ABSOLUTA: O valor da chave "orgao" DEVE SER EXATAMENTE "Prefeitura" OU EXATAMENTE "Câmara Municipal".
+   É PROIBIDO RETORNAR QUALQUER OUTRO VALOR (NÃO use "Instituto", "Autarquia", "Secretaria", "Conselho", etc.).
+   - Se o ato for emitido pelo Poder Legislativo / Câmara de Vereadores / Mesa Diretora da Câmara, retorne "Câmara Municipal".
+   - Para todos os demais atos do município, retorne "Prefeitura".
+
+Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
+{
+  "titulo": "...",
+  "descricao": "...",
+  "concurso": "...",
+  "orgao": "..."
+}`;
+
+async function analisarEditalComIA(edital: Edital, modelOverride?: string): Promise<{ titulo: string; descricao: string; concurso?: string; dataPublicacao?: string; orgao?: string; custoReq?: number } | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const fileManager = new GoogleAIFileManager(apiKey);
+
+  const ehDiario = edital.fonte === 'diario';
+  const systemInstruction = ehDiario ? SYSTEM_INSTRUCTION_DIARIO : SYSTEM_INSTRUCTION_PORTAL;
 
   const model = genAI.getGenerativeModel({
     model: modelOverride || MODEL_NAME,
@@ -174,7 +227,16 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
       const pageCount = pdfDoc.getPageCount();
       let bufferParaUpload: Uint8Array = docRaw.buffer;
 
-      if (pageCount > 10) {
+      const ehDiario = edital.fonte === 'diario';
+      const paginaAlvo = ehDiario ? extrairPaginaDoLink(edital.link) : null;
+
+      if (ehDiario && paginaAlvo && paginaAlvo <= pageCount) {
+        console.log(`[IA] [Diário Oficial] Extraindo exclusivamente a página ${paginaAlvo} do PDF (total: ${pageCount} págs)...`);
+        const novoPdf = await PDFDocument.create();
+        const paginasExtraidas = await novoPdf.copyPages(pdfDoc, [paginaAlvo - 1]);
+        novoPdf.addPage(paginasExtraidas[0]);
+        bufferParaUpload = await novoPdf.save();
+      } else if (pageCount > 10) {
         const novoPdf = await PDFDocument.create();
         const indicesToCopy = [0, 1, 2, 3, 4, pageCount - 5, pageCount - 4, pageCount - 3, pageCount - 2, pageCount - 1];
         const paginasExtraidas = await novoPdf.copyPages(pdfDoc, indicesToCopy);
@@ -230,11 +292,11 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
     const contentsPayload = [
       {
         role: "user",
-        parts: [{ text: "Extraia os dados deste documento seguindo rigorosamente as instruções do sistema.\n\n[O documento de exemplo foi omitido aqui para focar no formato de saída]" }]
+        parts: [{ text: "Extraia os dados deste documento seguindo rigorosamente as instruções do sistema." }]
       },
       {
         role: "model",
-        parts: [{ text: `{\n  "titulo": "Abertura de Concurso Público 01/2024",\n  "descricao": "Abertura de concurso para contratação de Professores na rede municipal.",\n  "concurso": "Concurso Público 01/2024",\n  "dataPublicacao": ""\n}` }]
+        parts: [{ text: `{\n  "titulo": "Abertura de Concurso Público 01/2024",\n  "descricao": "Abertura de concurso para contratação de Professores na rede municipal.",\n  "concurso": "Concurso Público 01/2024",\n  "orgao": "Prefeitura",\n  "dataPublicacao": ""\n}` }]
       },
       {
         role: "user",
@@ -260,6 +322,7 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
         descricao: dados.descricao,
         concurso: dados.concurso,
         dataPublicacao: dados.dataPublicacao,
+        orgao: dados.orgao,
         custoReq
       };
     }
@@ -314,14 +377,27 @@ export async function processarComIA(editaisNovos: Edital[], modelOverride?: str
         const resultado = await analisarEditalComIA(edital, modelOverride);
         if (resultado) {
           if (resultado.custoReq) custoGeralUSD += resultado.custoReq;
+
+          const ehDiario = edital.fonte === 'diario';
+          const orgaoLimpo = (resultado.orgao || '').toLowerCase().includes('câmara') ? 'Câmara Municipal' : 'Prefeitura';
+
           edital.dadosEnriquecidos = {
             titulo: resultado.titulo,
             descricao: resultado.descricao,
             concurso: resultado.concurso,
-            dataPublicacao: resultado.dataPublicacao
+            // 1. Data de Publicação: EXCLUSIVAMENTE para Diário Oficial, a dataPublicacao do scraper é tomada como VERDADE ABSOLUTA
+            dataPublicacao: ehDiario ? edital.dataPublicacao : (resultado.dataPublicacao || edital.dataPublicacao),
+            // 2. Órgão: EXCLUSIVAMENTE para Diário Oficial, a IA revisa o órgão. Para portais, preserva o órgão original do scraper.
+            orgao: ehDiario ? orgaoLimpo : edital.orgao
           };
+
+          // Para Diário Oficial, a IA atualiza edital.orgao estritamente para Prefeitura ou Câmara Municipal
+          if (ehDiario) {
+            edital.orgao = orgaoLimpo;
+          }
+
           const custoBRL = (resultado.custoReq || 0) * cotacaoDolar;
-          console.log(`🧠 [IA] [${i + 1}/${editaisNovos.length}] ✅ [💰 R$ ${custoBRL.toFixed(4)}] Título: "${resultado.titulo}"\n   ↳ Descrição: "${resultado.descricao}"`);
+          console.log(`🧠 [IA] [${i + 1}/${editaisNovos.length}] ✅ [💰 R$ ${custoBRL.toFixed(4)}] Título: "${resultado.titulo}"\n   ↳ Órgão: "${edital.orgao}" | Descrição: "${resultado.descricao}"`);
           sucessos++;
         } else {
           console.log(`🧠 [IA] [${i + 1}/${editaisNovos.length}] ❌ Falha ao extrair dados. O resultado estava vazio.`);
@@ -336,14 +412,23 @@ export async function processarComIA(editaisNovos: Edital[], modelOverride?: str
             const resultado = await analisarEditalComIA(edital);
             if (resultado) {
               if (resultado.custoReq) custoGeralUSD += resultado.custoReq;
+              const ehDiario = edital.fonte === 'diario';
+              const orgaoLimpo = (resultado.orgao || '').toLowerCase().includes('câmara') ? 'Câmara Municipal' : 'Prefeitura';
+
               edital.dadosEnriquecidos = {
                 titulo: resultado.titulo,
                 descricao: resultado.descricao,
                 concurso: resultado.concurso,
-                dataPublicacao: resultado.dataPublicacao
+                dataPublicacao: ehDiario ? edital.dataPublicacao : (resultado.dataPublicacao || edital.dataPublicacao),
+                orgao: ehDiario ? orgaoLimpo : edital.orgao
               };
+
+              if (ehDiario) {
+                edital.orgao = orgaoLimpo;
+              }
+
               const custoBRL = (resultado.custoReq || 0) * cotacaoDolar;
-              console.log(`🧠 [IA] [${i + 1}/${editaisNovos.length}] ✅ [💰 R$ ${custoBRL.toFixed(4)}] Título: "${resultado.titulo}" (Após retry)\n   ↳ Descrição: "${resultado.descricao}"`);
+              console.log(`🧠 [IA] [${i + 1}/${editaisNovos.length}] ✅ [💰 R$ ${custoBRL.toFixed(4)}] Título: "${resultado.titulo}" (Após retry)\n   ↳ Órgão: "${edital.orgao}" | Descrição: "${resultado.descricao}"`);
               sucessos++;
             }
           } catch (e) {

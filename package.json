@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "link-ssd": "rm -rf node_modules .next && ln -sf /home/japhe/projects_node_modules/achadordeeditais/node_modules node_modules && ln -sf /home/japhe/projects_node_modules/achadordeeditais/.next .next",
-    "install-ssd": "npm install --prefix /home/japhe/projects_node_modules/achadordeeditais"
+    "install-ssd": "npm install --prefix /home/japhe/projects_node_modules/achadordeeditais",
+    "db:backup": "npx tsx scripts/backup-db.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -24,6 +25,7 @@
     "next": "16.2.6",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
+    "pdfjs-dist": "^6.1.200",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.76.1",

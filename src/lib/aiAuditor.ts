@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import { obterBufferDoDocumento } from './docParser';
 import { PDFDocument } from 'pdf-lib';
 import * as crypto from 'crypto';
-import { delay, calcularCusto, extrairJSONSeguro, obterCotacaoDolar } from './aiAnalysis';
+import { delay, calcularCusto, extrairJSONSeguro, obterCotacaoDolar, extrairPaginaDoLink } from './aiAnalysis';
 import { converterWordParaPdf } from './wordToPdf';
 
 export const AUDITOR_MODEL_NAME = 'gemini-3.5-flash';
@@ -52,9 +52,11 @@ Lembrete de padronização da IA júnior para gerar a chave "concurso":
    Exemplo Perfeito: "Processo Seletivo 01/2026" ou "Processo Seletivo 01/2026 (Estagiários)".
    Se conseguir identificar o certame a que o edital pertence, gere a chave "concurso" usando obrigatoria mente as duas partes (PARTE 1 + PARTE 2) e opcionalmente a parte 3 (PARTE 1 + PARTE 2 + PARTE 3)
    Se não conseguir identificar a que concurso o edital pertence, gere a chave "concurso" como string vazia "".
-   Exemplos ruins de casos proibidos: "Concurso Público", "Concurso", "Processo", "Processo Seletivo", "Processo Seletivo Simplificado", "Concurso (estágio)", etc. 
-   A parte 1 sempre deve vir acompanhada da parte 2.
-
+   
+   REGRA PARA MÚLTIPLOS CERTAMES NO MESMO DOCUMENTO:
+   Se o documento contiver convocações/atos de MAIS DE UM certame no mesmo arquivo:
+   - Considera-se CORRETA a escolha do PRIMEIRO certame como chave "concurso", desde que o(s) outro(s) certame(s) tenham sido explicitados no texto da "descricao".
+ 
 Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
 {
   "veredicto": "CORRETO" ou "INCORRETO",
@@ -87,8 +89,16 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
       const pageCount = pdfDoc.getPageCount();
       let bufferParaUpload: Uint8Array = docRaw.buffer;
 
-      // Simplificação do PDF para poupar tokens do auditor também
-      if (pageCount > 10) {
+      const ehDiario = item.edital.fonte === 'diario';
+      const paginaAlvo = ehDiario ? extrairPaginaDoLink(item.edital.link) : null;
+
+      if (ehDiario && paginaAlvo && paginaAlvo <= pageCount) {
+        console.log(`[Auditor IA] [Diário Oficial] Extraindo exclusivamente a página ${paginaAlvo} do PDF para auditoria (total: ${pageCount} págs)...`);
+        const novoPdf = await PDFDocument.create();
+        const paginasExtraidas = await novoPdf.copyPages(pdfDoc, [paginaAlvo - 1]);
+        novoPdf.addPage(paginasExtraidas[0]);
+        bufferParaUpload = await novoPdf.save();
+      } else if (pageCount > 10) {
         const novoPdf = await PDFDocument.create();
         const indicesToCopy = [0, 1, 2, 3, 4, pageCount - 5, pageCount - 4, pageCount - 3, pageCount - 2, pageCount - 1];
         const paginasExtraidas = await novoPdf.copyPages(pdfDoc, indicesToCopy);
@@ -235,7 +245,7 @@ export async function processarAuditoria(itensParaAuditar: EditalAuditavel[]): P
             if (resultado.dadosCorrigidos.concurso !== undefined) {
               edital.dadosEnriquecidos.concurso = resultado.dadosCorrigidos.concurso;
             }
-            if (resultado.dadosCorrigidos.dataPublicacao !== undefined) {
+            if (resultado.dadosCorrigidos.dataPublicacao !== undefined && edital.fonte !== 'diario') {
               edital.dadosEnriquecidos.dataPublicacao = resultado.dadosCorrigidos.dataPublicacao;
             }
           }

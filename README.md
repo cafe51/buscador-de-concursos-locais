@@ -67,6 +67,7 @@ Abra [http://localhost:3000](http://localhost:3000).
 | `npm run build` | Build de produção |
 | `npm run start` | Servidor de produção |
 | `npm run lint` | Lint via ESLint |
+| `npm run db:backup` | Gera backup completo do MongoDB em formato EJSON (salvo na pasta `backups/`) |
 | `npm run install-ssd` | Instala node_modules em outro diretório (para economizar SSD) |
 | `npm run link-ssd` | Symlinka node_modules/.next de outro diretório |
 
@@ -76,6 +77,7 @@ Abra [http://localhost:3000](http://localhost:3000).
 |---|---|
 | `scripts/run-scraper.ts` | Pipeline completo de raspagem (usado pelo GitHub Actions) |
 | `scripts/sync-ibge.ts` | Sincronização de servidores IBGE via Portal da Transparência |
+| `scripts/backup-db.ts` | Exporta todas as 11 coleções do MongoDB em EJSON preservando tipos nativos |
 | `scripts/initScraperConfigs.ts` | Inicializa configurações de scrapers no MongoDB |
 | `scripts/testScraper.ts` | Testa raspagem de uma cidade isolada |
 | `scripts/testConfig.ts` | Testa/força configuração de disponibilidade de um scraper |

@@ -41,3 +41,8 @@ yarn-error.log*
 next-env.d.ts
 
 ssh-key-2026-05-27.key
+
+# backups
+backups/
+backups/*
+

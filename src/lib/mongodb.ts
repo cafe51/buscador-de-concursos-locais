@@ -1,13 +1,5 @@
 import mongoose from 'mongoose';
 
-const MONGODB_URI = process.env.MONGODB_URI;
-
-if (!MONGODB_URI) {
-  throw new Error(
-    'Por favor, defina a variável de ambiente MONGODB_URI no seu .env ou .env.local'
-  );
-}
-
 // O TypeScript precisa dessa declaração global para manter o cache entre
 // recarregamentos rápidos (Hot Reload) no modo de desenvolvimento.
 declare global {
@@ -21,6 +13,13 @@ if (!cached) {
 }
 
 async function connectToDatabase() {
+  const MONGODB_URI = process.env.MONGODB_URI;
+
+  if (!MONGODB_URI) {
+    throw new Error(
+      'Por favor, defina a variável de ambiente MONGODB_URI no seu .env ou .env.local'
+    );
+  }
   if (cached.conn) {
     return cached.conn;
   }

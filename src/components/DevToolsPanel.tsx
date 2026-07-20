@@ -13,7 +13,6 @@ const CIDADES_ATIVAS = [
   'Indiaporã',
   'Indiaporã (Câmara)',
   'Jales',
-  'Jales (Câmara)',
   'Macedônia',
   'Meridiano',
   'Meridiano (Câmara)',
@@ -122,7 +121,8 @@ export default function DevToolsPanel() {
       
       const mapa = new Map<string, Edital[]>();
       editais.forEach((edital: Edital) => {
-        const concursoFinal = edital.dadosEnriquecidos?.concurso || edital.concurso;
+        const concEnriquecido = edital.dadosEnriquecidos?.concurso?.trim();
+        const concursoFinal = (concEnriquecido && concEnriquecido !== '') ? concEnriquecido : edital.concurso;
         if (concursoFinal) {
           const chaveUnica = `${edital.cidade}_${edital.orgao}_${concursoFinal}`;
           if (!mapa.has(chaveUnica)) mapa.set(chaveUnica, []);
@@ -132,7 +132,8 @@ export default function DevToolsPanel() {
 
       const concursosAgrupados = Array.from(mapa.entries()).map(([chaveUnica, listaEditais]) => {
         const primeiroItem = listaEditais[0];
-        const concursoFinal = primeiroItem.dadosEnriquecidos?.concurso || primeiroItem.concurso;
+        const concEnriquecido = primeiroItem.dadosEnriquecidos?.concurso?.trim();
+        const concursoFinal = (concEnriquecido && concEnriquecido !== '') ? concEnriquecido : primeiroItem.concurso;
         return {
           nome: concursoFinal as string,
           cidade: primeiroItem.cidade,

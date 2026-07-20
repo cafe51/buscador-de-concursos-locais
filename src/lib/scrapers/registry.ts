@@ -16,6 +16,7 @@ import { buscarCamaraMeridiano } from './camaras/meridiano';
 import { buscarSaoJoao } from './saojoao';
 
 import { buscarJales } from './jales';
+import { buscarJalesDiario } from './diario/jales';
 import { buscarCamaraJales } from './camaras/jales';
 
 import { buscarUrania } from './urania';
@@ -50,7 +51,6 @@ export const MAPA_SCRAPERS: Record<string, (opcoes?: import('../../types').Scrap
   'Votuporanga (Câmara)': buscarCamaraVotuporanga,
   'Ouroeste': buscarOuroeste,
   'Jales': buscarJales,
-  'Jales (Câmara)': buscarCamaraJales,
   'Macedônia': buscarMacedonia,
   "Estrela d'Oeste": buscarEstrela,
   'Meridiano': buscarMeridiano,
@@ -73,6 +73,17 @@ export const MAPA_SCRAPERS: Record<string, (opcoes?: import('../../types').Scrap
   'Santa Salete': buscarSantaSalete,
 };
 
+export const MAPA_SCRAPERS_DIARIO: Record<string, (opcoes?: import('../../types').ScraperOptions) => Promise<Edital[]>> = {
+  'Jales': buscarJalesDiario,
+};
+
+export function obterScraperParaCidade(nomeCidade: string, tipoFonte?: string) {
+  if (tipoFonte === 'diario' && MAPA_SCRAPERS_DIARIO[nomeCidade]) {
+    return MAPA_SCRAPERS_DIARIO[nomeCidade];
+  }
+  return MAPA_SCRAPERS[nomeCidade];
+}
+
 // ==============================================================
 // 🚀 TAREFAS ORDENADAS PARA BUSCA TOTAL
 // ==============================================================
@@ -80,7 +91,6 @@ export const CIDADES_ATIVAS: string[] = [
   'Fernandópolis',
   'Fernandópolis (Câmara)',
   'Jales',
-  'Jales (Câmara)',
   'Macedônia',
   "Estrela d'Oeste",
   "Guarani d'Oeste",

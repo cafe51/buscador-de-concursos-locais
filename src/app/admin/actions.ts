@@ -7,6 +7,7 @@ import { ScraperConfigModel } from '@/models/ScraperConfig'
 export type ScraperConfigDTO = {
   nome: string;
   verificarDisponibilidade: boolean;
+  tipoFonte?: 'portal' | 'diario';
 }
 
 /**
@@ -34,7 +35,8 @@ export async function getScraperConfigsAction(): Promise<{ configs: ScraperConfi
     // Convert to simple objects since they will cross the Server/Client boundary
     const serializedConfigs: ScraperConfigDTO[] = configs.map((c: any) => ({
       nome: c.nome,
-      verificarDisponibilidade: c.verificarDisponibilidade
+      verificarDisponibilidade: c.verificarDisponibilidade,
+      tipoFonte: c.tipoFonte || 'portal'
     }))
 
     return { configs: serializedConfigs }
@@ -64,6 +66,27 @@ export async function toggleScraperConfigAction(nome: string, newValue: boolean)
     return { success: true }
   } catch (err: any) {
     console.error(`Erro ao atualizar scraper ${nome}:`, err)
+    return { success: false, error: err.message || 'Erro interno' }
+  }
+}
+
+/**
+ * Update the tipoFonte flag ('portal' vs 'diario') for a specific scraper.
+ */
+export async function toggleTipoFonteConfigAction(nome: string, newTipo: 'portal' | 'diario'): Promise<{ success: boolean, error?: string }> {
+  try {
+    await requireAdmin()
+    await connectToDatabase()
+
+    const result = await ScraperConfigModel.updateOne(
+      { nome },
+      { $set: { tipoFonte: newTipo } },
+      { upsert: true }
+    )
+
+    return { success: true }
+  } catch (err: any) {
+    console.error(`Erro ao atualizar tipoFonte para ${nome}:`, err)
     return { success: false, error: err.message || 'Erro interno' }
   }
 }
