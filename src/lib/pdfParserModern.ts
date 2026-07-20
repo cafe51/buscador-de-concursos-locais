@@ -1,6 +1,36 @@
 import { execFileSync } from 'child_process';
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
-import 'pdfjs-dist/legacy/build/pdf.worker.mjs';
+
+// 🛡️ Polyfills globais para pdfjs-dist em ambientes Serverless Node.js (Vercel)
+if (typeof globalThis !== 'undefined') {
+  if (typeof (globalThis as any).DOMMatrix === 'undefined') {
+    (globalThis as any).DOMMatrix = class DOMMatrix {
+      a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
+      constructor(init?: any) {
+        if (Array.isArray(init) && init.length >= 6) {
+          this.a = init[0]; this.b = init[1]; this.c = init[2];
+          this.d = init[3]; this.e = init[4]; this.f = init[5];
+        }
+      }
+      multiply() { return this; }
+      translate() { return this; }
+      scale() { return this; }
+      rotate() { return this; }
+      inverse() { return this; }
+      transformPoint(p: any) { return p; }
+    };
+  }
+
+  if (typeof (globalThis as any).Path2D === 'undefined') {
+    (globalThis as any).Path2D = class Path2D {
+      addPath() {}
+      closePath() {}
+      moveTo() {}
+      lineTo() {}
+      arc() {}
+      rect() {}
+    };
+  }
+}
 
 export interface PdfExtractOptions {
   fPagina?: number; // Primeira página (1-indexed)
@@ -15,6 +45,17 @@ interface TextItemWithPos {
   height: number;
   width: number;
   hasEOL?: boolean;
+}
+
+let pdfjsLibModule: any = null;
+
+async function obterPdfJsLib() {
+  if (!pdfjsLibModule) {
+    pdfjsLibModule = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    // @ts-ignore
+    await import('pdfjs-dist/legacy/build/pdf.worker.mjs');
+  }
+  return pdfjsLibModule;
 }
 
 /**
@@ -58,6 +99,7 @@ export async function extrairTextoDePdf(
     return textoPdftotext;
   }
 
+  const pdfjsLib = await obterPdfJsLib();
   const data = new Uint8Array(buffer);
   const loadingTask = pdfjsLib.getDocument({
     data,
