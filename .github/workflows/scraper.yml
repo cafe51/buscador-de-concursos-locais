@@ -22,6 +22,11 @@ jobs:
           node-version: '24'
           cache: 'npm' # Usa o cache do npm para deixar a pipeline mais rápida
 
+      - name: Instalar dependências do sistema (Poppler pdftotext)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+
       - name: Instalar dependências
         run: npm ci
 
