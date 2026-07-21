@@ -93,7 +93,7 @@ achadordeeditais/
     │   └── TerminalPanel.tsx      # Terminal flutuante: logs do backend em tempo real via SSE (dev only)
     ├── lib/
     │   ├── aiAnalysis.ts           # IA Júnior (Gemini 3.1 Flash Lite): extrai dados de editais via few-shot
-    │   ├── aiAuditor.ts            # IA Auditora (Gemini 3.5 Flash): audita e corrige extração da IA Júnior
+    │   ├── aiAuditor.ts            # IA Auditora (Gemini 3.6 Flash): audita e corrige extração da IA Júnior
     │   ├── auth.ts                 # Utilitários JWT (jose) + bcrypt: sign, verify, hash, cookies
     │   ├── blacklist.ts            # Lista de URLs de PDFs inválidos/vazios a ignorar
     │   ├── devLogger.ts            # Intercepta console.log/warn/error e emite via EventEmitter (SSE para dev)
@@ -200,7 +200,7 @@ GitHub Actions (cron 3x/dia)  ou  DevToolsPanel (UI local)
             │          └─ Calcula custo em USD→BRL (cotação do dólar em tempo real)
             │
             ├─ 6. AUDITORIA IA (aiAuditor.ts) — apenas enriquecimento manual com mudanças
-            │     └─ Gemini 3.5 Flash (modelo superior) audita a IA Júnior
+            │     └─ Gemini 3.6 Flash (modelo superior) audita a IA Júnior
             │          ├─ Veredicto: CORRETO ou INCORRETO
             │          └─ Se INCORRETO: corrige dados automaticamente em memória
             │
@@ -310,7 +310,7 @@ GitHub Actions (cron 3x/dia)  ou  DevToolsPanel (UI local)
 #### IA — Dois Níveis
 
 - **`aiAnalysis.ts`** (IA Júnior): Usa `gemini-3.1-flash-lite` (modelo barato). `analisarEditalComIA(edital)` baixa o documento via `docParser`, trunca PDFs >10 páginas para primeiras 5 + últimas 5, converte .doc/.docx via LibreOffice, faz upload para Gemini File Manager, e usa few-shot prompting (um turno de exemplo mockado) para forçar saída em JSON: `{ titulo, descricao, concurso, dataPublicacao }`. `processarComIA(editais)` itera sobre novos editais com rate limit de 4s, retry em 429 (60s), e calcula custo em USD→BRL com cotação do dólar em tempo real (AwesomeAPI). Inclui tabela de preços por modelo.
-- **`aiAuditor.ts`** (IA Auditora): Usa `gemini-3.5-flash` (modelo superior). `auditarEditalComIA(item)` recebe o documento original + log de mudanças feitas pela IA Júnior, e emite veredicto: CORRETO (aprova) ou INCORRETO (corrige `concurso` e/ou `dataPublicacao` diretamente no objeto em memória). `processarAuditoria(itens)` itera com rate limit de 4s. Só é acionada no enriquecimento manual via UI quando há mudanças relevantes (concurso diferente ou data com >3 dias de diferença).
+- **`aiAuditor.ts`** (IA Auditora): Usa `gemini-3.6-flash` (modelo superior). `auditarEditalComIA(item)` recebe o documento original + log de mudanças feitas pela IA Júnior, e emite veredicto: CORRETO (aprova) ou INCORRETO (corrige `concurso` e/ou `dataPublicacao` diretamente no objeto em memória). `processarAuditoria(itens)` itera com rate limit de 4s. Só é acionada no enriquecimento manual via UI quando há mudanças relevantes (concurso diferente ou data com >3 dias de diferença).
 
 #### Parser de Documentos
 

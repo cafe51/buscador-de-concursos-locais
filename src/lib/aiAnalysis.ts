@@ -22,7 +22,7 @@ export function calcularCusto(modelo: string, promptTokens: number, outputTokens
   const outM = outputTokens / 1_000_000;
 
   switch (modelo) {
-    case 'gemini-3.5-flash':
+    case 'gemini-3.6-flash':
       custoInput = inM * 1.50;
       custoOutput = outM * 9.00;
       break;

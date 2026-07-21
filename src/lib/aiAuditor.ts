@@ -207,7 +207,7 @@ export async function processarAuditoria(itensParaAuditar: EditalAuditavel[]): P
   }
 
   console.log("\n🕵️ ══════════════════════════════════════════════════════");
-  console.log("🕵️  PASSO 0.5: AUDITORIA COM IA SUPERIOR (GEMINI 3.5 FLASH)");
+  console.log("🕵️  PASSO 0.5: AUDITORIA COM IA SUPERIOR (GEMINI 3.6 FLASH)");
   console.log("🕵️ ══════════════════════════════════════════════════════");
   console.log(`🕵️ [AUDITOR] Iniciando auditoria de ${itensParaAuditar.length} editais com alterações relevantes.`);
 
