@@ -9,6 +9,7 @@ import { buscarOuroeste } from './ouroeste';
 import { buscarMacedonia } from './macedonia';
 import { buscarPedranopolis } from './pedranopolis';
 import { buscarEstrela } from './estrela';
+import { buscarEstrelaDOesteDiario } from './diario/estreladoeste';
 
 import { buscarMeridiano } from './meridiano';
 import { buscarCamaraMeridiano } from './camaras/meridiano';
@@ -76,6 +77,7 @@ export const MAPA_SCRAPERS_DIARIO: Record<string, (opcoes?: import('../../types'
   'Jales': buscarJalesDiario,
   'Votuporanga': buscarVotuporangaDiario,
   'Dolcinópolis': buscarDolcinopolisDiario,
+  "Estrela d'Oeste": buscarEstrelaDOesteDiario,
 };
 
 export function obterScraperParaCidade(nomeCidade: string, tipoFonte?: string) {
