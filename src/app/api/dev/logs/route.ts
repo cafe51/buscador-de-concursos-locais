@@ -33,7 +33,6 @@ export async function GET(req: NextRequest) {
 
       req.signal.addEventListener('abort', () => {
         emitter.off('log', handleLog);
-        try { controller.close(); } catch {}
       });
     }
   });

@@ -153,14 +153,30 @@ export async function buscarJalesDiario(opcoes?: ScraperOptions): Promise<Edital
 
         const buffer = Buffer.from(await response.arrayBuffer());
 
-        // 1. Lê a página 1 (Sumário) sem preservação rígida de layout para análise linear
-        const textoPag1 = await extrairTextoDePdf(buffer, { fPagina: 1, lPagina: 1, layout: false });
-        
-        // Remove linhas de rodapé/cabeçalho de página como "Página 1 de 20" para não poluir o sumário
-        const rawLinhas = textoPag1
+        // 1. Identifica dinamicamente qual página contém o Sumário buscando pela palavra "SUMÁRIO" (Página 1 ou 2)
+        let paginaSumario = 1;
+        let textoPaginaSumario = await extrairTextoDePdf(buffer, { fPagina: 1, lPagina: 1, layout: false });
+
+        if (!/sumário|sumario/i.test(textoPaginaSumario) && totalPaginas > 1) {
+          const textoPag2 = await extrairTextoDePdf(buffer, { fPagina: 2, lPagina: 2, layout: false });
+          if (/sumário|sumario/i.test(textoPag2)) {
+            paginaSumario = 2;
+            textoPaginaSumario = textoPag2;
+          }
+        }
+
+        // Remove linhas de rodapé/cabeçalho de página, linhas de pontos e cabeçalhos de edições
+        const rawLinhas = textoPaginaSumario
           .split('\n')
           .map(l => l.trim())
-          .filter(l => l && !/^Página\s+\d+(\s+de\s+\d+)?$/i.test(l));
+          .filter(l => 
+            l && 
+            !/^Página\s+\d+(\s+de\s+\d+)?$/i.test(l) &&
+            !/^[\.\…\_\-\s]+$/.test(l) &&
+            !/(segunda|terça|quarta|quinta|sexta)-feira/i.test(l) &&
+            !/^Ano\s+[IXVMLCD]+/i.test(l) &&
+            !/^Edição\s+nº/i.test(l)
+          );
 
         // Isola as linhas do bloco SUMÁRIO
         const sumarioLines: string[] = [];
