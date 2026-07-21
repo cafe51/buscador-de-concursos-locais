@@ -20,6 +20,7 @@ import { buscarJalesDiario } from './diario/jales';
 
 import { buscarUrania } from './urania';
 import { buscarDolcinopolis } from './dolcinopolis';
+import { buscarDolcinopolisDiario } from './diario/dolcinopolis';
 
 import { buscarMiraEstrela } from './miraestrela';
 import { buscarCamaraMiraEstrela } from './camaras/miraestrela';
@@ -74,6 +75,7 @@ export const MAPA_SCRAPERS: Record<string, (opcoes?: import('../../types').Scrap
 export const MAPA_SCRAPERS_DIARIO: Record<string, (opcoes?: import('../../types').ScraperOptions) => Promise<Edital[]>> = {
   'Jales': buscarJalesDiario,
   'Votuporanga': buscarVotuporangaDiario,
+  'Dolcinópolis': buscarDolcinopolisDiario,
 };
 
 export function obterScraperParaCidade(nomeCidade: string, tipoFonte?: string) {
