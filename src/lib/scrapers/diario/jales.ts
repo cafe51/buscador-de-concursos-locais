@@ -115,8 +115,10 @@ export async function buscarJalesDiario(opcoes?: ScraperOptions): Promise<Edital
   const jsonData = JSON.parse(jsonStr);
   const edicoes = (jsonData.data || []) as EdicaoDosp[];
 
-  // Filtra apenas edições dos últimos 3 meses (90 dias)
-  const limiteDataMs = Date.now() - (90 * 24 * 60 * 60 * 1000);
+  // Define janela de tempo: 5 anos (1825 dias) em desenvolvimento vs 3 meses (90 dias) em produção
+  const ehDev = process.env.NODE_ENV !== 'production';
+  const diasLimite = ehDev ? (5 * 365) : 90;
+  const limiteDataMs = Date.now() - (diasLimite * 24 * 60 * 60 * 1000);
 
   const edicoesFiltradas = edicoes
     .filter(edicao => {
@@ -126,7 +128,7 @@ export async function buscarJalesDiario(opcoes?: ScraperOptions): Promise<Edital
     })
     .sort((a, b) => b.data.localeCompare(a.data));
 
-  console.log(`[Jales Diário] Edições dos últimos 3 meses para raspagem: ${edicoesFiltradas.length} de ${edicoes.length}`);
+  console.log(`[Jales Diário] [${ehDev ? 'MODO DEV (5 anos)' : 'PRODUÇÃO (3 meses)'}] Edições para raspagem: ${edicoesFiltradas.length} de ${edicoes.length}`);
 
   const resultados: Edital[] = [];
   const errosEdicoes: string[] = [];
