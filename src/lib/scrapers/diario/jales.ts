@@ -320,7 +320,7 @@ export async function buscarJalesDiario(opcoes?: ScraperOptions): Promise<Edital
               tituloFinal = 'Edital';
             }
 
-            const ehLegislativo = ato.toLowerCase().includes('câmara') || ato.toLowerCase().includes('legislativo');
+            const ehLegislativo = /c[aâ]mara|legislativo/i.test(ato);
             const orgao = ehLegislativo ? 'Câmara Municipal' : 'Prefeitura';
 
             const partesData = edicao.data.split('-');

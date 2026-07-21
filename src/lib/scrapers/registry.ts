@@ -17,7 +17,6 @@ import { buscarSaoJoao } from './saojoao';
 
 import { buscarJales } from './jales';
 import { buscarJalesDiario } from './diario/jales';
-import { buscarCamaraJales } from './camaras/jales';
 
 import { buscarUrania } from './urania';
 import { buscarDolcinopolis } from './dolcinopolis';
