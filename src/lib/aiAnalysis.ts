@@ -267,7 +267,7 @@ async function analisarEditalComIA(edital: Edital, modelOverride?: string): Prom
     } else if ((docRaw.isDOCX || docRaw.isDOC) && docRaw.buffer) {
       console.log(`[IA] Convertendo Word para PDF usando LibreOffice...`);
       const pdfBufferConvertido = await converterWordParaPdf(docRaw.buffer, !!docRaw.isDOCX);
-      
+
       const tempFilename = crypto.randomUUID() + '-convertido.pdf';
       arquivoTemporarioPath = path.join(os.tmpdir(), tempFilename);
       fs.writeFileSync(arquivoTemporarioPath, pdfBufferConvertido);

@@ -3,7 +3,7 @@ import { Edital } from '../../types';
 import { buscarFernandopolis } from './fernandopolis';
 import { buscarCamaraFernandopolis } from './camaras/fernandopolis';
 import { buscarVotuporanga } from './votuporanga';
-import { buscarCamaraVotuporanga } from './camaras/votuporanga';
+import { buscarVotuporangaDiario } from './diario/votuporanga';
 
 import { buscarOuroeste } from './ouroeste';
 import { buscarMacedonia } from './macedonia';
@@ -47,7 +47,6 @@ export const MAPA_SCRAPERS: Record<string, (opcoes?: import('../../types').Scrap
   'Fernandópolis': buscarFernandopolis,
   'Fernandópolis (Câmara)': buscarCamaraFernandopolis,
   'Votuporanga': buscarVotuporanga,
-  'Votuporanga (Câmara)': buscarCamaraVotuporanga,
   'Ouroeste': buscarOuroeste,
   'Jales': buscarJales,
   'Macedônia': buscarMacedonia,
@@ -74,6 +73,7 @@ export const MAPA_SCRAPERS: Record<string, (opcoes?: import('../../types').Scrap
 
 export const MAPA_SCRAPERS_DIARIO: Record<string, (opcoes?: import('../../types').ScraperOptions) => Promise<Edital[]>> = {
   'Jales': buscarJalesDiario,
+  'Votuporanga': buscarVotuporangaDiario,
 };
 
 export function obterScraperParaCidade(nomeCidade: string, tipoFonte?: string) {
@@ -98,8 +98,6 @@ export const CIDADES_ATIVAS: string[] = [
   'São João das Duas Pontes',
   'Pedranópolis',
   'Votuporanga',
-
-  'Votuporanga (Câmara)',
   'Ouroeste',
 
   'Mira Estrela',

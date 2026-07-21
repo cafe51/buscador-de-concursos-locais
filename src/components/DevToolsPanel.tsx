@@ -28,8 +28,7 @@ const CIDADES_ATIVAS = [
   'Urânia',
   'Valentim Gentil',
   'Vitória Brasil',
-  'Votuporanga',
-  'Votuporanga (Câmara)'
+  'Votuporanga'
 ].sort();
 
 export default function DevToolsPanel() {

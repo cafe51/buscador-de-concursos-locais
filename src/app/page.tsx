@@ -55,7 +55,7 @@ const TODAS_CIDADES = [
   'Mira Estrela', 'Indiaporã', 'Álvares Florence', 'Parisi', 'Valentim Gentil',
   'Vitória Brasil', "Guarani d'Oeste", 'Urânia', 'Dolcinópolis', 'Pontalinda', 'Santa Salete',
   'Meridiano (Câmara)', 'Parisi (Câmara)', 'Mira Estrela (Câmara)', 'Indiaporã (Câmara)',
-  'Votuporanga (Câmara)', 'Fernandópolis (Câmara)'
+  'Fernandópolis (Câmara)'
 ].sort();
 
 export default function Home() {

@@ -10,7 +10,7 @@ import * as crypto from 'crypto';
 import { delay, calcularCusto, extrairJSONSeguro, obterCotacaoDolar, extrairPaginaDoLink } from './aiAnalysis';
 import { converterWordParaPdf } from './wordToPdf';
 
-export const AUDITOR_MODEL_NAME = 'gemini-3.5-flash';
+export const AUDITOR_MODEL_NAME = 'gemini-3.6-flash';
 
 type AuditoriaResultado = {
   veredicto: "CORRETO" | "INCORRETO";
@@ -129,7 +129,7 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
     } else if ((docRaw.isDOCX || docRaw.isDOC) && docRaw.buffer) {
       console.log(`[Auditor IA] Convertendo Word para PDF usando LibreOffice...`);
       const pdfBufferConvertido = await converterWordParaPdf(docRaw.buffer, !!docRaw.isDOCX);
-      
+
       const tempFilename = crypto.randomUUID() + '-auditoria-convertida.pdf';
       arquivoTemporarioPath = path.join(os.tmpdir(), tempFilename);
       fs.writeFileSync(arquivoTemporarioPath, pdfBufferConvertido);

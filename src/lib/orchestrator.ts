@@ -14,7 +14,7 @@ async function wait(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export async function runFullScraperWorkflow(options: { 
+export async function runFullScraperWorkflow(options: {
   isLocalUI: boolean;
   enableAI?: boolean;
   enableEmails?: boolean;
@@ -32,8 +32,8 @@ export async function runFullScraperWorkflow(options: {
 
   // Inicializando mapa de logs para todas as cidades
   const logsCidades: Record<string, LogCidadeDetail> = {};
-  const cidadesParaRaspar = options.cidadesSelecionadas && options.cidadesSelecionadas.length > 0 
-    ? options.cidadesSelecionadas 
+  const cidadesParaRaspar = options.cidadesSelecionadas && options.cidadesSelecionadas.length > 0
+    ? options.cidadesSelecionadas
     : CIDADES_ATIVAS;
 
   cidadesParaRaspar.forEach(c => {
@@ -149,15 +149,15 @@ export async function runFullScraperWorkflow(options: {
       const resultadoSync = await identificarMudancas(todosEditais, false);
 
       if (resultadoSync.adicionados > 0 || resultadoSync.atualizados.length > 0) {
-        
+
         if (resultadoSync.adicionados > 0) {
           if (options.enableAI !== false) {
-             console.log("\n🧠 Ativando enriquecimento de dados via Inteligência Artificial...");
-             await processarComIA(resultadoSync.novasAdicoesReferencias, 'gemini-3.5-flash');
+            console.log("\n🧠 Ativando enriquecimento de dados via Inteligência Artificial...");
+            await processarComIA(resultadoSync.novasAdicoesReferencias, 'gemini-3.5-flash');
           } else {
-             console.log("\n⚠️ Inteligência Artificial desativada nas configurações.");
+            console.log("\n⚠️ Inteligência Artificial desativada nas configurações.");
           }
-          
+
           resultadoSync.relatorioAdicoes = resultadoSync.novasAdicoesReferencias.map(ed => ({
             cidade: ed.cidade,
             titulo: ed.titulo,
@@ -246,9 +246,9 @@ export async function runFullScraperWorkflow(options: {
       }
     }
 
-    return { 
-      sucesso: syncSuccess || todosEditais.length === 0, 
-      syncInfo 
+    return {
+      sucesso: syncSuccess || todosEditais.length === 0,
+      syncInfo
     };
 
   } catch (error) {
