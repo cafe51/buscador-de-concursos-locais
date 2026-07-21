@@ -24,6 +24,10 @@ export function calcularCusto(modelo: string, promptTokens: number, outputTokens
   switch (modelo) {
     case 'gemini-3.6-flash':
       custoInput = inM * 1.50;
+      custoOutput = outM * 7.50;
+      break;
+    case 'gemini-3.5-flash':
+      custoInput = inM * 1.50;
       custoOutput = outM * 9.00;
       break;
     case 'gemini-3.1-pro-preview':
@@ -35,8 +39,12 @@ export function calcularCusto(modelo: string, promptTokens: number, outputTokens
         custoOutput = outM * 18.00;
       }
       break;
+    case 'gemini-3.5-flash-lite':
+      custoInput = inM * 0.30;
+      custoOutput = outM * 2.50;
+      break;
     case 'gemini-3.1-flash-lite':
-      custoInput = inM * 0.25;
+      custoInput = inM * 0.50;
       custoOutput = outM * 1.50;
       break;
     case 'gemini-2.5-pro':
