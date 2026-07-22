@@ -16,7 +16,8 @@ export async function buscarSantaSaleteDiario(opcoes?: ScraperOptions): Promise<
         'imprensaoficialmunicipal.com.br/santasalete',
         'município de santa salete'
       ],
-      anosDev: 5
+      anosDev: 5,
+      anosProd: 2
     },
     opcoes
   );

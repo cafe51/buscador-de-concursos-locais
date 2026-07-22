@@ -7,7 +7,8 @@ export interface DospConfig {
   codigoDosp: number; // Ex: 4932 (Jales), 5292 (Votuporanga)
   urlDisponibilidade: string;
   dominiosOuTermos?: string[];
-  anosDev?: number; // Anos limite em ambiente de desenvolvimento (padrão: 5 anos). Em produção o limite permanece 90 dias (3 meses).
+  anosDev?: number; // Anos limite em ambiente de desenvolvimento (padrão: 5 anos).
+  anosProd?: number; // Anos limite em ambiente de produção (padrão: 90 dias / ~0.25 anos).
 }
 
 interface EdicaoDosp {
@@ -183,10 +184,11 @@ export async function buscarDospBase(config: DospConfig, opcoes?: ScraperOptions
   const jsonData = JSON.parse(jsonStr);
   const edicoes = (jsonData.data || []) as EdicaoDosp[];
 
-  // Define janela de tempo: anosDev (padrão 5 anos em dev, ou o valor configurado) vs 90 dias em produção
+  // Define janela de tempo: anosDev vs 90 dias (ou anosProd configurado) em produção
   const ehDev = process.env.NODE_ENV !== 'production';
   const anosDev = config.anosDev ?? 5;
-  const diasLimite = ehDev ? (anosDev * 365) : 90;
+  const anosProd = config.anosProd;
+  const diasLimite = ehDev ? (anosDev * 365) : (anosProd ? Math.round(anosProd * 365) : 90);
   const limiteDataMs = Date.now() - (diasLimite * 24 * 60 * 60 * 1000);
 
   const edicoesFiltradas = edicoes
@@ -197,7 +199,11 @@ export async function buscarDospBase(config: DospConfig, opcoes?: ScraperOptions
     })
     .sort((a, b) => b.data.localeCompare(a.data));
 
-  console.log(`[${config.cidade} Diário] [${ehDev ? `MODO DEV (${anosDev} ano${anosDev > 1 ? 's' : ''})` : 'PRODUÇÃO (3 meses)'}] Edições para raspagem: ${edicoesFiltradas.length} de ${edicoes.length}`);
+  const labelModo = ehDev
+    ? `MODO DEV (${anosDev} ano${anosDev > 1 ? 's' : ''})`
+    : (anosProd ? `PRODUÇÃO (${anosProd} ano${anosProd > 1 ? 's' : ''})` : 'PRODUÇÃO (90 dias)');
+
+  console.log(`[${config.cidade} Diário] [${labelModo}] Edições para raspagem: ${edicoesFiltradas.length} de ${edicoes.length}`);
 
   const resultados: Edital[] = [];
   const errosEdicoes: string[] = [];
