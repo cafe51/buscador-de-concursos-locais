@@ -77,19 +77,24 @@ export function ehRelevante(texto: string, palavrasChave: string[]): boolean {
 export function extrairIdConcurso(titulo: string, descricao: string, aceitarBuscaInvertida: boolean = false, strict: boolean = false): string | undefined {
   let texto = `${titulo} ${descricao}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 
-  const regexSujeiraNumerica = /(CONVOCACAO|RETIFICACAO|HOMOLOGACAO|ATRIBUI[CQ]AO|CLASSIFICACAO|RESULTADO|PORTARIA|DECRETO|ERRATA|GABARITO|CHAMADA|RECOMENDACAO ADMINISTRATIVA)(?:(?!CONCUR|SELETIV|\bPS\b)[^\d]){0,25}?\d{1,3}[\s\/\-_\.]+\d{2,4}/g;
+  // Descarta falsos positivos de concursos culturais/literários que não são certames de contratação pública
+  if (/\bCONCURSO\s+LITERARIO\b/i.test(texto) && !/\b(CONCURSO\s+PUBLICO|PROCESSO\s+SELETIVO)\b/i.test(texto)) {
+    return undefined;
+  }
+
+  const regexSujeiraNumerica = /(CONVOCACAO|RETIFICACAO|HOMOLOGACAO|ATRIBUI[CQ]AO|CLASSIFICACAO|RESULTADO|PORTARIA|DECRETO|ERRATA|GABARITO|CHAMADA|RECOMENDACAO ADMINISTRATIVA)(?:(?!CONCUR|SELETIV|\bPS\b)[^\d]){0,25}?(?<!\d)\d{1,3}[\s\/\-_\.]+\d{2,4}/g;
   texto = texto.replace(regexSujeiraNumerica, '');
 
   let match = null;
 
   if (strict) {
-    const regexEstrita = /\b(CONCUR[A-Z]*|SELETIVO|SELECAO|\bPS\b)\s*(?:P[UÚ]L?[B]?[IÍ]?[C]?O?S?\s*)?(?:SIMPLIFICADO\s*)?(?:DE\s*)?(?:N[Oº°.]*\s*)?(\d{1,3})[\s\/\-_\.]+(\d{2}|\d{4})\b(?!\s*[\/\-_\.]\s*\d{2,4})/i;
+    const regexEstrita = /(?<!\d)\b(CONCUR[A-Z]*|SELETIVO|SELECAO|\bPS\b)\s*(?:P[UÚ]L?[B]?[IÍ]?[C]?O?S?\s*)?(?:SIMPLIFICADO\s*)?(?:DE\s*)?(?:N[Oº°.]*\s*)?(?<!\d)(\d{1,3})[^\S\r\n]*[\/\-_\.][^\S\r\n]*(\d{2}|\d{4})\b(?!\s*[\/\-_\.]\s*\d{2,4})/i;
     match = texto.match(regexEstrita);
   } else {
-    const regexConcurso = /\b(CONCUR[A-Z]*|SELETIVO|SELECAO|\bPS\b)[^\d]{0,40}?(\d{1,3})[\s\/\-_\.]+(\d{2}|\d{4})\b(?!\s*[\/\-_\.]\s*\d{2,4})/;
+    const regexConcurso = /(?<!\d)\b(CONCUR[A-Z]*|SELETIVO|SELECAO|\bPS\b)(?:(?!\bLITERARIO\b)[^\d]){0,40}?(?<!\d)(\d{1,3})[^\S\r\n]*[\/\-_\.][^\S\r\n]*(\d{2}|\d{4})\b(?!\s*[\/\-_\.]\s*\d{2,4})/;
     match = texto.match(regexConcurso);
     if (!match && aceitarBuscaInvertida) {
-      const regexConcursoInvertido = /(\d{1,3})[\s\/\-_\.]+(\d{2}|\d{4})\b(?!\s*[\/\-_\.]\s*\d{2,4})(?:(?!CONCUR|SELETIV|\bPS\b).){0,40}?\b(CONCUR[A-Z]*|SELETIVO|SELECAO|\bPS\b)\b/;
+      const regexConcursoInvertido = /(?<!\d)(\d{1,3})[^\S\r\n]*[\/\-_\.][^\S\r\n]*(\d{2}|\d{4})\b(?!\s*[\/\-_\.]\s*\d{2,4})(?:(?!CONCUR|SELETIV|\bPS\b)[^\r\n]){0,40}?\b(CONCUR[A-Z]*|SELETIVO|SELECAO|\bPS\b)\b/;
       const matchInvertido = texto.match(regexConcursoInvertido);
       if (matchInvertido) match = [matchInvertido[0], matchInvertido[3], matchInvertido[1], matchInvertido[2]];
     }

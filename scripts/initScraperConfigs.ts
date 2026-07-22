@@ -6,6 +6,12 @@ async function run() {
   await connectToDatabase();
   console.log('Conectado. Inicializando configurações...');
 
+  // Remove registros obsoletos de Câmaras/Cidades inativas do banco
+  const deleteRes = await ScraperConfigModel.deleteMany({ nome: { $nin: CIDADES_ATIVAS } });
+  if (deleteRes.deletedCount > 0) {
+    console.log(`- Limpos: ${deleteRes.deletedCount} registros obsoletos desativados.`);
+  }
+
   let count = 0;
   for (const cidade of CIDADES_ATIVAS) {
     const existe = await ScraperConfigModel.findOne({ nome: cidade });

@@ -3,6 +3,7 @@
 import { getSessionUser } from '@/lib/auth'
 import connectToDatabase from '@/lib/mongodb'
 import { ScraperConfigModel } from '@/models/ScraperConfig'
+import { CIDADES_ATIVAS } from '@/lib/scrapers/registry'
 
 export type ScraperConfigDTO = {
   nome: string;
@@ -30,7 +31,7 @@ export async function getScraperConfigsAction(): Promise<{ configs: ScraperConfi
     await requireAdmin()
     await connectToDatabase()
 
-    const configs = await ScraperConfigModel.find().sort({ nome: 1 }).lean()
+    const configs = await ScraperConfigModel.find({ nome: { $in: CIDADES_ATIVAS } }).sort({ nome: 1 }).lean()
     
     // Convert to simple objects since they will cross the Server/Client boundary
     const serializedConfigs: ScraperConfigDTO[] = configs.map((c: any) => ({

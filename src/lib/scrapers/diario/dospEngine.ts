@@ -38,6 +38,23 @@ function formatarResumoDescricao(texto: string, maxLen: number = 150): string {
 }
 
 /**
+ * Remove o rodapé/lateral de "ENTIDADES", "EXPEDIENTE" e "ACERVO" para evitar falsos positivos
+ * de órgãos ao ler nomes de outras entidades listadas no expediente do Diário Oficial.
+ */
+function limparRodapeEntidadesDoTexto(texto: string): string {
+  const linhas = texto.split('\n');
+  const linhasLimpas: string[] = [];
+  for (const l of linhas) {
+    const lNorm = normalizarTexto(l).replace(/\s+/g, ' ').toUpperCase().trim();
+    if (/^(E\s*N\s*T\s*I\s*D\s*A\s*D\s*E\s*S|E\s*X\s*P\s*E\s*D\s*I\s*E\s*N\s*T\s*E|A\s*C\s*E\s*R\s*V\s*O)\b/.test(lNorm)) {
+      break;
+    }
+    linhasLimpas.push(l);
+  }
+  return linhasLimpas.join('\n');
+}
+
+/**
  * Verifica se um título do sumário representa um Cabeçalho de Entidade/Órgão ou outra Seção Administrativa Principal
  */
 function ehOutraEntidadeOuSecao(titulo: string): boolean {
@@ -51,7 +68,7 @@ function ehOutraEntidadeOuSecao(titulo: string): boolean {
   if (regexEntidades.test(tNorm)) return true;
 
   // 2. Seções Administrativas Principais Gerais do Diário Oficial (Level 1)
-  const regexSecoesPrincipais = /^(licita[cç]|contrato|compra|terceiro\s+setor|acervo|entidade|expediente|p[aá]gina\s+\d+|contas\s+p[uú]blicas|atos?\s+oficia|atos?\s+administra|atos?\s+legis)/i;
+  const regexSecoesPrincipais = /^(licita[cç]|contrato|compra|terceiro\s+setor|acervo|entidade|expediente|p[aá]gina\s+\d+|contas\s+p[uú]blicas|atos?\s+oficia|atos?\s+administra|atos?\s+legis|advert[eê]nci|notiﬁca[cç]|notifica[cç]|veto)/i;
   if (regexSecoesPrincipais.test(tNorm)) return true;
 
   return false;
@@ -220,8 +237,8 @@ export async function buscarDospBase(config: DospConfig, opcoes?: ScraperOptions
         const rawLinhas = textoPaginaSumario
           .split('\n')
           .map(l => l.trim())
-          .filter(l => 
-            l && 
+          .filter(l =>
+            l &&
             !/^Página\s+\d+(\s+de\s+\d+)?$/i.test(l) &&
             !/^[\.\…\_\-\s]+$/.test(l) &&
             !/(segunda|terça|quarta|quinta|sexta)-feira/i.test(l) &&
@@ -293,13 +310,21 @@ export async function buscarDospBase(config: DospConfig, opcoes?: ScraperOptions
         }
 
         // Localiza e extrai TODAS as subseções de Concursos no sumário
-        const subsecoesAto: { titulo: string; pagInicio: number; pagFim: number }[] = [];
+        const subsecoesAto: { titulo: string; pagInicio: number; pagFim: number; orgaoSumario: string }[] = [];
+        let entidadeAtual = 'Prefeitura';
 
         for (let i = 0; i < itensSumario.length; i++) {
           const item = itensSumario[i];
           const tNorm = normalizarTexto(item.titulo).toLowerCase().trim();
 
+          if (/poder\s+legislativo|c[aâ]mara/i.test(tNorm)) {
+            entidadeAtual = 'Câmara Municipal';
+          } else if (/poder\s+executivo|prefeitura|secretaria|funda[cç]|superintend|instituto|gabinete/i.test(tNorm)) {
+            entidadeAtual = 'Prefeitura';
+          }
+
           if (/concurso|seletivo/i.test(tNorm)) {
+            const orgaoDestaSecao = entidadeAtual;
             let j = i + 1;
             let encontrouSubItem = false;
 
@@ -317,7 +342,8 @@ export async function buscarDospBase(config: DospConfig, opcoes?: ScraperOptions
               subsecoesAto.push({
                 titulo: proximoItem.titulo,
                 pagInicio: proximoItem.pagina,
-                pagFim
+                pagFim,
+                orgaoSumario: orgaoDestaSecao
               });
               encontrouSubItem = true;
               j++;
@@ -331,7 +357,8 @@ export async function buscarDospBase(config: DospConfig, opcoes?: ScraperOptions
               subsecoesAto.push({
                 titulo: item.titulo,
                 pagInicio: item.pagina,
-                pagFim
+                pagFim,
+                orgaoSumario: orgaoDestaSecao
               });
             }
 
@@ -343,7 +370,8 @@ export async function buscarDospBase(config: DospConfig, opcoes?: ScraperOptions
           subsecoesAto.push({
             titulo: 'Concursos Públicos/Processos Seletivos',
             pagInicio: 1,
-            pagFim: totalPaginas
+            pagFim: totalPaginas,
+            orgaoSumario: 'Prefeitura'
           });
         }
 
@@ -372,8 +400,12 @@ export async function buscarDospBase(config: DospConfig, opcoes?: ScraperOptions
               tituloFinal = 'Edital';
             }
 
-            const ehLegislativo = /c[aâ]mara|legislativo/i.test(ato);
-            const orgao = ehLegislativo ? 'Câmara Municipal' : 'Prefeitura';
+            const textoCorpoLimpo = limparRodapeEntidadesDoTexto(ato);
+            // Verifica apenas o cabeçalho do documento (primeiras 10 linhas) para não capturar citações ao TCESP nos anexos
+            const primeirasLinhasCorpo = textoCorpoLimpo.split('\n').slice(0, 10).join('\n');
+            const ehLegislativoNoCabecalho = /c[aâ]mara\s+municipal|poder\s+legislativo/i.test(primeirasLinhasCorpo);
+            const ehLegislativoNoSumario = atoSub.orgaoSumario === 'Câmara Municipal';
+            const orgao = (ehLegislativoNoSumario || ehLegislativoNoCabecalho) ? 'Câmara Municipal' : 'Prefeitura';
 
             const partesData = edicao.data.split('-');
             const anoPublicacao = partesData[0];

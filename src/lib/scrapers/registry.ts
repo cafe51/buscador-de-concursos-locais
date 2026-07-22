@@ -6,13 +6,14 @@ import { buscarVotuporanga } from './votuporanga';
 import { buscarVotuporangaDiario } from './diario/votuporanga';
 
 import { buscarOuroeste } from './ouroeste';
+import { buscarOuroesteDiario } from './diario/ouroeste';
 import { buscarMacedonia } from './macedonia';
 import { buscarPedranopolis } from './pedranopolis';
 import { buscarEstrela } from './estrela';
 import { buscarEstrelaDOesteDiario } from './diario/estreladoeste';
 
 import { buscarMeridiano } from './meridiano';
-import { buscarCamaraMeridiano } from './camaras/meridiano';
+import { buscarMeridianoDiario } from './diario/meridiano';
 
 import { buscarSaoJoao } from './saojoao';
 
@@ -54,7 +55,6 @@ export const MAPA_SCRAPERS: Record<string, (opcoes?: import('../../types').Scrap
   'Macedônia': buscarMacedonia,
   "Estrela d'Oeste": buscarEstrela,
   'Meridiano': buscarMeridiano,
-  'Meridiano (Câmara)': buscarCamaraMeridiano,
   'São João das Duas Pontes': buscarSaoJoao,
   'Pedranópolis': buscarPedranopolis,
   'Mira Estrela': buscarMiraEstrela,
@@ -78,6 +78,8 @@ export const MAPA_SCRAPERS_DIARIO: Record<string, (opcoes?: import('../../types'
   'Votuporanga': buscarVotuporangaDiario,
   'Dolcinópolis': buscarDolcinopolisDiario,
   "Estrela d'Oeste": buscarEstrelaDOesteDiario,
+  'Meridiano': buscarMeridianoDiario,
+  'Ouroeste': buscarOuroesteDiario,
 };
 
 export function obterScraperParaCidade(nomeCidade: string, tipoFonte?: string) {
@@ -98,7 +100,6 @@ export const CIDADES_ATIVAS: string[] = [
   "Estrela d'Oeste",
   "Guarani d'Oeste",
   'Meridiano',
-  'Meridiano (Câmara)',
   'São João das Duas Pontes',
   'Pedranópolis',
   'Votuporanga',
@@ -108,6 +109,7 @@ export const CIDADES_ATIVAS: string[] = [
   'Mira Estrela (Câmara)',
   'Indiaporã',
   'Indiaporã (Câmara)',
+
   'Álvares Florence',
   'Parisi',
   'Parisi (Câmara)',

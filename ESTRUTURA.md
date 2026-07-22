@@ -138,7 +138,6 @@ achadordeeditais/
     │           ├── fernandopolis.ts
     │           ├── indiapora.ts
     │           ├── jales.ts
-    │           ├── meridiano.ts
     │           ├── miraestrela.ts
     │           ├── parisi.ts
     │           └── votuporanga.ts

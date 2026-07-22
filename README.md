@@ -107,7 +107,7 @@ Abra [http://localhost:3000](http://localhost:3000).
 
 **Prefeituras (20):** Fernandópolis, Votuporanga, Jales, Ouroeste, Macedônia, Estrela d'Oeste, Guarani d'Oeste, Meridiano, São João das Duas Pontes, Pedranópolis, Mira Estrela, Indiaporã, Álvares Florence, Parisi, Valentim Gentil, Vitória Brasil, Urânia, Dolcinópolis, Pontalinda, Santa Salete.
 
-**Câmaras Municipais (7):** Fernandópolis, Votuporanga, Jales, Meridiano, Mira Estrela, Indiaporã, Parisi.
+**Câmaras Municipais (4):** Fernandópolis, Mira Estrela, Indiaporã, Parisi. (As demais Câmaras como Jales, Votuporanga e Meridiano são rastreadas via Diário Oficial DOSP).
 
 ---
 

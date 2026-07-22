@@ -15,7 +15,6 @@ const CIDADES_ATIVAS = [
   'Jales',
   'Macedônia',
   'Meridiano',
-  'Meridiano (Câmara)',
   'Mira Estrela',
   'Mira Estrela (Câmara)',
   'Ouroeste',
