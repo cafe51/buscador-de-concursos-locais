@@ -42,6 +42,7 @@ import { buscarGuaraniDOeste } from './guaranidoeste';
 import { buscarPontalinda } from './pontalinda';
 
 import { buscarSantaSalete } from './santasalete';
+import { buscarSantaSaleteDiario } from './diario/santasalete';
 
 // ==============================================================
 // 🗺️ MAPEAMENTO GLOBAL DE SCRAPERS
@@ -80,6 +81,7 @@ export const MAPA_SCRAPERS_DIARIO: Record<string, (opcoes?: import('../../types'
   "Estrela d'Oeste": buscarEstrelaDOesteDiario,
   'Meridiano': buscarMeridianoDiario,
   'Ouroeste': buscarOuroesteDiario,
+  'Santa Salete': buscarSantaSaleteDiario,
 };
 
 export function obterScraperParaCidade(nomeCidade: string, tipoFonte?: string) {

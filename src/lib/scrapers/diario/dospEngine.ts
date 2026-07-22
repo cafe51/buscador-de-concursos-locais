@@ -68,7 +68,7 @@ function ehOutraEntidadeOuSecao(titulo: string): boolean {
   if (regexEntidades.test(tNorm)) return true;
 
   // 2. Seções Administrativas Principais Gerais do Diário Oficial (Level 1)
-  const regexSecoesPrincipais = /^(licita[cç]|contrato|compra|terceiro\s+setor|acervo|entidade|expediente|p[aá]gina\s+\d+|contas\s+p[uú]blicas|atos?\s+oficia|atos?\s+administra|atos?\s+legis|advert[eê]nci|notiﬁca[cç]|notifica[cç]|veto)/i;
+  const regexSecoesPrincipais = /^(licita[cç]|contrato|compra|terceiro\s+setor|acervo|entidade|expediente|p[aá]gina\s+\d+|contas\s+p[uú]blicas|atos?\s+oficia|atos?\s+administra|atos?\s+legis|atos?\s+de\s+pessoal|atos?\s+pessoal|advert[eê]nci|notiﬁca[cç]|notifica[cç]|veto)/i;
   if (regexSecoesPrincipais.test(tNorm)) return true;
 
   return false;
