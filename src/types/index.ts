@@ -27,4 +27,6 @@ export type Edital = {
 
 export interface ScraperOptions {
   verificarDisponibilidade?: boolean;
+  anosDev?: number;
+  anosProd?: number;
 }
