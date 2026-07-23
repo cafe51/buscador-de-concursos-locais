@@ -27,7 +27,6 @@ export function obterMockLogs(): ScrapingLog[] {
         { cidade: "Mira Estrela", sucesso: true, itens: 1, tentativaSucesso: 1, tempoGastoSegundos: 5.75 },
         { cidade: "Ouroeste", sucesso: true, itens: 93, tentativaSucesso: 1, tempoGastoSegundos: 7.80 },
         { cidade: "Mira Estrela (Câmara)", sucesso: true, itens: 16, tentativaSucesso: 1, tempoGastoSegundos: 8.88 },
-        { cidade: "Indiaporã (Câmara)", sucesso: true, itens: 9, tentativaSucesso: 1, tempoGastoSegundos: 3.12 },
         { cidade: "Indiaporã", sucesso: true, itens: 21, tentativaSucesso: 1, tempoGastoSegundos: 6.48 },
         { cidade: "Álvares Florence", sucesso: true, itens: 158, tentativaSucesso: 1, tempoGastoSegundos: 10.21 },
         { cidade: "Parisi", sucesso: true, itens: 57, tentativaSucesso: 1, tempoGastoSegundos: 10.51 },

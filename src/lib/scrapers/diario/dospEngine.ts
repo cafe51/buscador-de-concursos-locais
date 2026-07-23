@@ -65,11 +65,11 @@ function ehOutraEntidadeOuSecao(titulo: string): boolean {
   if (/concurso|seletivo/i.test(tNorm)) return false;
 
   // 1. Entidades / Órgãos / Secretarias / Autarquias (Level 0)
-  const regexEntidades = /^(poder\s+executivo|poder\s+legislativo|secretaria|funda[cç][aã]o|superintend[eê]ncia|c[aâ]mara|instituto|fundo|departamento|servi[cç]o|conselho|comiss[aã]o|empresa|autarquia|prefeitura|gabinete)/i;
+  const regexEntidades = /^(poder\s+executivo|poder\s+legislativo|secretaria|funda[cç][aã]o|superintend[eê]ncia|c[aâ]mara|instituto|fundo|departamento|servi[cç]o|conselho|comiss[aã]o|empresa|autarquia|prefeitura|gabinete|iprem|outras?\s+entidades?|ineditoriai|sindicato|associa[cç][aã]o|cons[oó]rcio|a\.?c\.?s\.?b\.?i|s\.?s\.?p\.?m\.?i)/i;
   if (regexEntidades.test(tNorm)) return true;
 
   // 2. Seções Administrativas Principais Gerais do Diário Oficial (Level 1)
-  const regexSecoesPrincipais = /^(licita[cç]|contrato|compra|terceiro\s+setor|acervo|entidade|expediente|p[aá]gina\s+\d+|contas\s+p[uú]blicas|atos?\s+oficia|atos?\s+administra|atos?\s+legis|atos?\s+de\s+pessoal|atos?\s+pessoal|advert[eê]nci|notiﬁca[cç]|notifica[cç]|veto)/i;
+  const regexSecoesPrincipais = /^(licita[cç]|contrato|compra|terceiro\s+setor|acervo|entidade|expediente|p[aá]gina\s+\d+|contas\s+p[uú]blicas|relat[oó]rio|demonstrativo|balan[cç]|instrumentos?\s+de\s+gest[aã]o|atos?\s+oficia|atos?\s+administra|atos?\s+legis|atos?\s+de\s+pessoal|atos?\s+pessoal|advert[eê]nci|notiﬁca[cç]|notifica[cç]|veto|ineditoriai)/i;
   if (regexSecoesPrincipais.test(tNorm)) return true;
 
   return false;
@@ -258,13 +258,53 @@ export async function buscarDospBase(config: DospConfig, opcoes?: ScraperOptions
 
         for (const l of rawLinhas) {
           const lNorm = normalizarTexto(l);
-          if (lNorm === 'SUMARIO' || lNorm.startsWith('SUMARIO')) {
+          const lClean = lNorm.replace(/\s+/g, '');
+
+          if (lNorm === 'SUMARIO' || lNorm.startsWith('SUMARIO') || lClean.startsWith('SUMARIO')) {
             inSumario = true;
             continue;
           }
 
-          if (inSumario && (lNorm.includes('ACERVO') || lNorm.includes('ENTIDADES') || lNorm.includes('EXPEDIENTE') || lNorm.startsWith('O DIARIO OFICIAL'))) {
-            break;
+          // Se encontrar o início de blocos institucionais (com ou sem espaçamento entre letras ex: "E X P E D I E N T E")
+          if (inSumario && (
+            lClean.includes('EXPEDIENTE') ||
+            lClean.includes('ACERVO') ||
+            lClean.includes('ENTIDADES')
+          )) {
+            continue;
+          }
+
+          // Descarta frases completas de rodapé/expediente que apareçam intercaladas no layout da página
+          if (inSumario && (
+            lNorm.includes('exclusivamente') ||
+            lNorm.includes('publicacao das entidades') ||
+            lNorm.includes('administracao direta') ||
+            lNorm.includes('referidas entidades') ||
+            lNorm.includes('responsaveis') ||
+            lNorm.includes('conteudo aqui') ||
+            lNorm.includes('acesso gratuito') ||
+            lNorm.includes('independente de qualquer cadastro') ||
+            lNorm.includes('garante a autenticidade') ||
+            lNorm.includes('certificado padrao') ||
+            lNorm.includes('poderaserconsultadas') ||
+            lNorm.includes('poderão ser consultadas') ||
+            lNorm.includes('endereco eletronio') ||
+            lNorm.includes('endereço eletrônico') ||
+            /^o\s+di[aá]rio\s+oficial/i.test(l) ||
+            /^di[aá]rio\s+oficial\s+do\s+munic[ií]pio/i.test(l) ||
+            /^o\s+munic[ií]pio/i.test(l) ||
+            /^as\s+edi[cç][oõ]es/i.test(l) ||
+            /^para\s+pesquisa/i.test(l) ||
+            /^as\s+consultas/i.test(l) ||
+            /^CNPJ\b/i.test(l) ||
+            /^telefone/i.test(l) ||
+            /^site:/i.test(l) ||
+            /^di[aá]rio:/i.test(l) ||
+            /^rua\s+/i.test(l) ||
+            /^avenida\s+/i.test(l) ||
+            /^pra[cç]a\s+/i.test(l)
+          )) {
+            continue;
           }
 
           if (inSumario) {
@@ -281,10 +321,24 @@ export async function buscarDospBase(config: DospConfig, opcoes?: ScraperOptions
           const linha = sumarioLines[idxL];
 
           const match = linha.match(/^(.*?)\s*[\.\…\_\-]{2,}\s*(\d+)$/) || linha.match(/^(.+?)\s+(\d+)$/);
-          if (match && !/^\d+$/.test(match[1].trim())) {
-            const tit = match[1].replace(/[\.\…\_\-]+$/, '').trim();
+          if (match) {
+            let parteTexto = match[1].replace(/[\.\…\_\-]+$/, '').trim();
             const pag = parseInt(match[2], 10);
-            if (tit && !isNaN(pag) && pag <= totalPaginas + 10) {
+
+            let tit = '';
+            const ehLevel0Direct = /^(poder\s+executivo|poder\s+legislativo|c[aâ]mara\s+municipal|gabinete|secretaria|funda[cç][aã]o|autarquia|iprem)/i.test(parteTexto);
+
+            if (ehLevel0Direct) {
+              tit = parteTexto;
+              titulosBuffer.length = 0;
+            } else if (titulosBuffer.length > 0) {
+              tit = parteTexto ? `${titulosBuffer.join(' ')} ${parteTexto}` : titulosBuffer.join(' ');
+              titulosBuffer.length = 0;
+            } else {
+              tit = parteTexto;
+            }
+
+            if (tit && !isNaN(pag) && pag <= totalPaginas + 10 && tit !== '.') {
               itensSumario.push({ titulo: tit, pagina: pag });
               continue;
             }

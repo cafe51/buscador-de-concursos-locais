@@ -54,7 +54,7 @@ const TODAS_CIDADES = [
   "Estrela d'Oeste", 'Meridiano', 'São João das Duas Pontes', 'Pedranópolis',
   'Mira Estrela', 'Indiaporã', 'Álvares Florence', 'Parisi', 'Valentim Gentil',
   'Vitória Brasil', "Guarani d'Oeste", 'Urânia', 'Dolcinópolis', 'Pontalinda', 'Santa Salete',
-  'Parisi (Câmara)', 'Mira Estrela (Câmara)', 'Indiaporã (Câmara)',
+  'Parisi (Câmara)', 'Mira Estrela (Câmara)',
   'Fernandópolis (Câmara)'
 ].sort();
 

@@ -11,7 +11,6 @@ const CIDADES_ATIVAS = [
   'Fernandópolis (Câmara)',
   "Guarani d'Oeste",
   'Indiaporã',
-  'Indiaporã (Câmara)',
   'Jales',
   'Macedônia',
   'Meridiano',

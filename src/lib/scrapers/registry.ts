@@ -16,11 +16,13 @@ import { buscarMeridiano } from './meridiano';
 import { buscarMeridianoDiario } from './diario/meridiano';
 
 import { buscarSaoJoao } from './saojoao';
+import { buscarSaoJoaoDiario } from './diario/saojoao';
 
 import { buscarJales } from './jales';
 import { buscarJalesDiario } from './diario/jales';
 
 import { buscarUrania } from './urania';
+import { buscarUraniaDiario } from './diario/urania';
 import { buscarDolcinopolis } from './dolcinopolis';
 import { buscarDolcinopolisDiario } from './diario/dolcinopolis';
 
@@ -28,7 +30,7 @@ import { buscarMiraEstrela } from './miraestrela';
 import { buscarCamaraMiraEstrela } from './camaras/miraestrela';
 
 import { buscarIndiapora } from './indiapora';
-import { buscarCamaraIndiapora } from './camaras/indiapora';
+import { buscarIndiaporaDiario } from './diario/indiapora';
 
 import { buscarAlvaresFlorence } from './alvaresflorence';
 
@@ -37,6 +39,7 @@ import { buscarCamaraParisi } from './camaras/parisi';
 
 import { buscarValentimGentil } from './valentimgentil';
 import { buscarVitoriaBrasil } from './vitoriabrasil';
+import { buscarVitoriaBrasilDiario } from './diario/vitoriabrasil';
 
 import { buscarGuaraniDOeste } from './guaranidoeste';
 import { buscarPontalinda } from './pontalinda';
@@ -61,7 +64,6 @@ export const MAPA_SCRAPERS: Record<string, (opcoes?: import('../../types').Scrap
   'Mira Estrela': buscarMiraEstrela,
   'Mira Estrela (Câmara)': buscarCamaraMiraEstrela,
   'Indiaporã': buscarIndiapora,
-  'Indiaporã (Câmara)': buscarCamaraIndiapora,
   'Álvares Florence': buscarAlvaresFlorence,
   'Parisi': buscarParisi,
   'Parisi (Câmara)': buscarCamaraParisi,
@@ -82,6 +84,10 @@ export const MAPA_SCRAPERS_DIARIO: Record<string, (opcoes?: import('../../types'
   'Meridiano': buscarMeridianoDiario,
   'Ouroeste': buscarOuroesteDiario,
   'Santa Salete': buscarSantaSaleteDiario,
+  'São João das Duas Pontes': buscarSaoJoaoDiario,
+  'Vitória Brasil': buscarVitoriaBrasilDiario,
+  'Indiaporã': buscarIndiaporaDiario,
+  'Urânia': buscarUraniaDiario,
 };
 
 export function obterScraperParaCidade(nomeCidade: string, tipoFonte?: string) {
@@ -110,7 +116,6 @@ export const CIDADES_ATIVAS: string[] = [
   'Mira Estrela',
   'Mira Estrela (Câmara)',
   'Indiaporã',
-  'Indiaporã (Câmara)',
 
   'Álvares Florence',
   'Parisi',

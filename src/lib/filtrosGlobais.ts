@@ -8,7 +8,7 @@ export const PALAVRAS_IGNORADAS_GLOBAIS = [
   // --- Conselhos Municipais e Eleições Civis (Eleições, não concursos) ---
   'conselho tutelar', 'cmj', 'cmdr', 'eleicao de representacao', 'sociedade civil',
   'membros do conselho', 'processo de escolha', 'conselho municipal', 'direitos da crianca',
-  'conselheiro',
+  'conselheiro', 'sindicato', 'registro de chapa', 'chapas registradas',
 
   // --- Reuniões, Audiências e Finanças (Lixo institucional) ---
   'copa do mundo', 'conferencia municipal', 'ponto facultativo', 'reuniao ordinaria',

@@ -36,7 +36,16 @@ export async function identificarMudancas(novosEditais: Edital[], substituirTudo
 
   const opsEditais: any[] = [];
 
-  novosEditais.forEach(novo => {
+  // Deduplica novosEditais mantendo a versão mais recente/enriquecida por link
+  const mapaUnicos = new Map<string, Edital>();
+  novosEditais.forEach(e => {
+    if (e.link) {
+      mapaUnicos.set(e.link, e);
+    }
+  });
+  const editaisDeduplicados = Array.from(mapaUnicos.values());
+
+  editaisDeduplicados.forEach(novo => {
     const antigo = mapaAntigos.get(novo.link);
 
     if (antigo) {
@@ -61,7 +70,7 @@ export async function identificarMudancas(novosEditais: Edital[], substituirTudo
               if (Array.isArray(val)) return `[${val.join(', ')}]`;
               return String(val);
             };
-            
+
             alteracoes.push(`${key}: '${formatarParaLog(antigo[key])}' ➔ '${formatarParaLog(novo[key])}'`);
           }
         }
@@ -74,11 +83,12 @@ export async function identificarMudancas(novosEditais: Edital[], substituirTudo
           link: novo.link,
           mudancas: alteracoes
         });
-        
+
         opsEditais.push({
           updateOne: {
             filter: { link: novo.link },
-            update: { $set: novo }
+            update: { $set: novo },
+            upsert: true
           }
         });
       }
@@ -94,10 +104,13 @@ export async function identificarMudancas(novosEditais: Edital[], substituirTudo
         dadosEnriquecidos: novo.dadosEnriquecidos
       });
       novasAdicoesReferencias.push(novo);
-      
+
+      mapaAntigos.set(novo.link, novo);
       opsEditais.push({
-        insertOne: {
-          document: novo
+        updateOne: {
+          filter: { link: novo.link },
+          update: { $set: novo },
+          upsert: true
         }
       });
     }
@@ -125,12 +138,23 @@ export async function persistirSincronizacao(
     if (substituirTudo) {
       await EditalModel.deleteMany({});
       if (novosEditais.length > 0) {
-        await EditalModel.insertMany(novosEditais);
+        // Deduplica novosEditais por link antes do insertMany
+        const mapaInsert = new Map<string, Edital>();
+        novosEditais.forEach(e => mapaInsert.set(e.link, e));
+        await EditalModel.insertMany(Array.from(mapaInsert.values()), { ordered: false });
       }
     } else {
       const ops = Array.isArray(operationsObj) ? operationsObj : (operationsObj?.opsEditais || []);
       if (ops.length > 0) {
-        await EditalModel.bulkWrite(ops);
+        try {
+          await EditalModel.bulkWrite(ops, { ordered: false });
+        } catch (bulkErr: any) {
+          if (bulkErr.name === 'MongoBulkWriteError' || bulkErr.code === 11000) {
+            console.warn(`⚠️ Aviso: Alguns registros duplicados foram ignorados durante o bulkWrite (${bulkErr.message || bulkErr}). A sincronização prosseguiu com sucesso.`);
+          } else {
+            throw bulkErr;
+          }
+        }
       }
     }
 
