@@ -77,8 +77,11 @@ export const MAPA_SCRAPERS: Record<string, (opcoes?: import('../../types').Scrap
   'Santa Salete': buscarSantaSalete,
 };
 
+import { buscarPedranopolisDiario } from './diario/pedranopolis';
+
 export const MAPA_SCRAPERS_DIARIO: Record<string, (opcoes?: import('../../types').ScraperOptions) => Promise<Edital[]>> = {
   'Fernandópolis': buscarFernandopolisDiario,
+  'Pedranópolis': buscarPedranopolisDiario,
   'Jales': buscarJalesDiario,
   'Votuporanga': buscarVotuporangaDiario,
   'Dolcinópolis': buscarDolcinopolisDiario,
