@@ -167,12 +167,13 @@ async function syncIBGE() {
         <p><a href="https://achadordeeditais.vercel.app/servidoresIBGE?uf=SP&cidade=AGENCIA+DO+IBGE+EM+FERNANDOPOLIS%2FSP">Acessar o Painel</a></p>
       `;
       
-      const resEmail = await enviarEmail('cafecafe51@hotmail.com', '🚨 Atualização de Servidor - IBGE Fernandópolis', htmlContent);
+      const destinatario = process.env.ADMIN_NOTIFICATION_EMAIL || 'admin@example.com';
+      const resEmail = await enviarEmail(destinatario, '🚨 Atualização de Servidor - IBGE Fernandópolis', htmlContent);
       
       if (resEmail.error) {
         console.error('❌ Falha ao enviar e-mail de notificação:', resEmail.error);
       } else {
-        console.log('✅ E-mail de notificação enviado com sucesso para cafecafe51@hotmail.com!');
+        console.log(`✅ E-mail de notificação enviado com sucesso para ${destinatario}!`);
       }
     } else {
       console.log('Nenhuma alteração nos servidores de Fernandópolis hoje.');
