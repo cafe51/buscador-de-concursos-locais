@@ -1,5 +1,4 @@
-import { GoogleGenerativeAI, Part } from '@google/generative-ai';
-import { GoogleAIFileManager } from '@google/generative-ai/server';
+import { GoogleGenAI } from '@google/genai';
 import { Edital } from '../types';
 import * as os from 'os';
 import * as path from 'path';
@@ -9,7 +8,7 @@ import { converterWordParaPdf } from './wordToPdf';
 import { PDFDocument } from 'pdf-lib';
 import * as crypto from 'crypto';
 
-export const MODEL_NAME = 'gemini-3.1-flash-lite';
+export const MODEL_NAME = 'gemini-flash-lite-latest';
 export const TAXA_IMPOSTO = 0.14; // 14% de imposto (pode ser modificado)
 
 export const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
@@ -22,6 +21,16 @@ export function calcularCusto(modelo: string, promptTokens: number, outputTokens
   const outM = outputTokens / 1_000_000;
 
   switch (modelo) {
+    case 'gemini-flash-latest':
+    case 'gemini-3.8-flash':
+      custoInput = inM * 0.75;
+      custoOutput = outM * 3.75;
+      break;
+    case 'gemini-flash-lite-latest':
+    case 'gemini-3.5-flash-lite':
+      custoInput = inM * 0.30;
+      custoOutput = outM * 2.50;
+      break;
     case 'gemini-3.6-flash':
       custoInput = inM * 1.50;
       custoOutput = outM * 7.50;
@@ -38,10 +47,6 @@ export function calcularCusto(modelo: string, promptTokens: number, outputTokens
         custoInput = inM * 4.00;
         custoOutput = outM * 18.00;
       }
-      break;
-    case 'gemini-3.5-flash-lite':
-      custoInput = inM * 0.30;
-      custoOutput = outM * 2.50;
       break;
     case 'gemini-3.1-flash-lite':
       custoInput = inM * 0.50;
@@ -65,9 +70,9 @@ export function calcularCusto(modelo: string, promptTokens: number, outputTokens
       custoOutput = outM * 0.40;
       break;
     default:
-      // Fallback
-      custoInput = inM * 0.00;
-      custoOutput = outM * 0.00;
+      // Fallback para gemini-flash-latest
+      custoInput = inM * 0.75;
+      custoOutput = outM * 3.75;
       break;
   }
   const custoBase = custoInput + custoOutput;
@@ -208,18 +213,13 @@ async function analisarEditalComIA(edital: Edital, modelOverride?: string): Prom
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const fileManager = new GoogleAIFileManager(apiKey);
+  const client = new GoogleGenAI({ apiKey });
 
   const ehDiario = edital.fonte === 'diario';
   const systemInstruction = ehDiario ? SYSTEM_INSTRUCTION_DIARIO : SYSTEM_INSTRUCTION_PORTAL;
+  const modeloUsado = modelOverride || MODEL_NAME;
 
-  const model = genAI.getGenerativeModel({
-    model: modelOverride || MODEL_NAME,
-    systemInstruction
-  });
-
-  let partesReq: any[] = [{ text: "Extraia os dados deste documento seguindo rigorosamente as instruções do sistema." }];
+  const inputItems: any[] = [];
   let arquivoTemporarioPath: string | null = null;
   let geminiFileName: string | null = null;
 
@@ -256,22 +256,27 @@ async function analisarEditalComIA(edital: Edital, modelOverride?: string): Prom
       arquivoTemporarioPath = path.join(os.tmpdir(), tempFilename);
       fs.writeFileSync(arquivoTemporarioPath, bufferParaUpload);
 
-      const uploadResult = await fileManager.uploadFile(arquivoTemporarioPath, {
-        mimeType: "application/pdf",
-        displayName: `Edital-${edital.cidade}`
-      });
-
-      geminiFileName = uploadResult.file.name;
-
-      partesReq.push({
-        fileData: {
+      const uploadResult = await client.files.upload({
+        file: arquivoTemporarioPath,
+        config: {
           mimeType: "application/pdf",
-          fileUri: uploadResult.file.uri
+          displayName: `Edital-${edital.cidade}`
         }
       });
 
+      geminiFileName = uploadResult.name || null;
+
+      inputItems.push({
+        type: "document",
+        uri: uploadResult.uri,
+        mime_type: "application/pdf"
+      });
+
     } else if (docRaw.textoLimpo) {
-      partesReq.push({ text: `\nTEXTO DO HTML:\n${docRaw.textoLimpo.substring(0, 200000)}` });
+      inputItems.push({
+        type: "text",
+        text: `\nTEXTO DO HTML:\n${docRaw.textoLimpo.substring(0, 200000)}`
+      });
     } else if ((docRaw.isDOCX || docRaw.isDOC) && docRaw.buffer) {
       console.log(`[IA] Convertendo Word para PDF usando LibreOffice...`);
       const pdfBufferConvertido = await converterWordParaPdf(docRaw.buffer, !!docRaw.isDOCX);
@@ -280,48 +285,44 @@ async function analisarEditalComIA(edital: Edital, modelOverride?: string): Prom
       arquivoTemporarioPath = path.join(os.tmpdir(), tempFilename);
       fs.writeFileSync(arquivoTemporarioPath, pdfBufferConvertido);
 
-      const uploadResult = await fileManager.uploadFile(arquivoTemporarioPath, {
-        mimeType: "application/pdf",
-        displayName: `Edital-${edital.cidade}`
+      const uploadResult = await client.files.upload({
+        file: arquivoTemporarioPath,
+        config: {
+          mimeType: "application/pdf",
+          displayName: `Edital-${edital.cidade}`
+        }
       });
 
-      geminiFileName = uploadResult.file.name;
+      geminiFileName = uploadResult.name || null;
 
-      partesReq.push({
-        fileData: {
-          mimeType: "application/pdf",
-          fileUri: uploadResult.file.uri
-        }
+      inputItems.push({
+        type: "document",
+        uri: uploadResult.uri,
+        mime_type: "application/pdf"
       });
     } else {
       throw new Error("Formato não suportado ou documento vazio.");
     }
 
-    const contentsPayload = [
-      {
-        role: "user",
-        parts: [{ text: "Extraia os dados deste documento seguindo rigorosamente as instruções do sistema." }]
-      },
-      {
-        role: "model",
-        parts: [{ text: `{\n  "titulo": "Abertura de Concurso Público 01/2024",\n  "descricao": "Abertura de concurso para contratação de Professores na rede municipal.",\n  "concurso": "Concurso Público 01/2024",\n  "orgao": "Prefeitura",\n  "dataPublicacao": ""\n}` }]
-      },
-      {
-        role: "user",
-        parts: partesReq
-      }
-    ];
+    inputItems.push({
+      type: "text",
+      text: "Extraia os dados deste documento seguindo rigorosamente as instruções do sistema."
+    });
 
-    const result = await model.generateContent({ contents: contentsPayload });
+    const interaction = await client.interactions.create({
+      model: modeloUsado,
+      system_instruction: systemInstruction,
+      input: inputItems
+    });
 
     let custoReq = 0;
-    if (result.response.usageMetadata) {
-      const promptTokens = result.response.usageMetadata.promptTokenCount || 0;
-      const outputTokens = result.response.usageMetadata.candidatesTokenCount || 0;
-      custoReq = calcularCusto(MODEL_NAME, promptTokens, outputTokens);
+    if (interaction.usage) {
+      const promptTokens = interaction.usage.total_input_tokens || 0;
+      const outputTokens = (interaction.usage.total_output_tokens || 0) + (interaction.usage.total_thought_tokens || 0);
+      custoReq = calcularCusto(modeloUsado, promptTokens, outputTokens);
     }
 
-    const responseText = result.response.text();
+    const responseText = interaction.output_text || "";
     const dados = extrairJSONSeguro(responseText);
 
     if (dados.titulo && dados.descricao) {
@@ -347,7 +348,7 @@ async function analisarEditalComIA(edital: Edital, modelOverride?: string): Prom
     }
     if (geminiFileName) {
       try {
-        await fileManager.deleteFile(geminiFileName);
+        await client.files.delete({ name: geminiFileName });
       } catch (e) {
         console.error("Falha ao deletar arquivo do Gemini API", e);
       }

@@ -35,12 +35,12 @@ Muitos portais governamentais brasileiros bloqueiam conexões originadas fora do
 
 ### 2. 🤖 Pipeline Dual-Agent com IA Generativa (Google Gemini)
 Em vez de depender apenas de expressões regulares frágeis para documentos não estruturados, o sistema utiliza uma abordagem com dois agentes de IA:
-* **Agente de Extração (Gemini 3.1 Flash Lite)**: Executa poucas rodadas (*Few-Shot Prompting*) para ler o documento oficial e extrair um JSON estruturado contendo: título normalizado, resumo do edital, identificador do concurso e data de publicação.
-* **Agente Auditor (Gemini 3.6 Flash)**: Quando ocorrem alterações significativas entre o edital raspado e os dados gerados, um modelo superior atua como juiz, emitindo veredicto (`CORRETO` ou `INCORRETO`) e aplicando correções automáticas em memória antes da persistência no banco.
+* **Agente de Extração (Gemini Flash-Lite - `gemini-flash-lite-latest`)**: Lê o documento oficial via Google GenAI Interactions API e extrai um JSON estruturado contendo: título normalizado, resumo do edital, identificador do concurso e data de publicação.
+* **Agente Auditor (Gemini Flash - `gemini-flash-latest`)**: Quando ocorrem alterações significativas entre o edital raspado e os dados gerados, atua como juiz, emitindo veredicto (`CORRETO` ou `INCORRETO`) e aplicando correções automáticas em memória antes da persistência no banco.
 
 ### 3. ⚡ Otimização Cirúrgica de Tokens & Custos
 * **Corte Inteligente de Páginas**: Editais governamentais frequentemente têm dezenas ou centenas de páginas. O sistema implementa uma heurística que extrai apenas as **5 primeiras páginas** (regras, abertura, cargos) e as **5 últimas páginas** (cronograma, assinaturas e datas), reduzindo o consumo de tokens e o tempo de resposta em mais de 75%.
-* **Conversão DOC/DOCX $\to$ PDF On-The-Fly**: Arquivos em formato Word são convertidos em tempo real para PDF utilizando LibreOffice headless (`soffice`), permitindo upload direto para a API multimodal do Gemini File Manager.
+* **Conversão DOC/DOCX $\to$ PDF On-The-Fly**: Arquivos em formato Word são convertidos em tempo real para PDF utilizando LibreOffice headless (`soffice`), permitindo upload direto para a API multimodal do Gemini Files API.
 * **Telemetria e Custos**: Monitoramento em tempo real do custo estimado de processamento (USD $\to$ BRL com conversão cambial dinâmica).
 
 ### 4. 🔄 Motor de Scraping Resiliente & Modular
@@ -84,8 +84,8 @@ flowchart TD
     subgraph AI ["Pipeline Dual-Agent (Google Gemini)"]
         libreoffice["Conversão DOC/DOCX → PDF (LibreOffice)"]
         tokenOptimizer["Corte Cirúrgico (5p + 5p)"]
-        geminiExtractor["Gemini 3.1 Flash Lite\n(Extração Estruturada JSON)"]
-        geminiAuditor["Gemini 3.6 Flash\n(Auditor & Juiz de Autocorreção)"]
+        geminiExtractor["Gemini Flash-Lite\n(Extração Estruturada JSON)"]
+        geminiAuditor["Gemini Flash\n(Auditor & Juiz de Autocorreção)"]
     end
 
     subgraph Notification ["Notificações & Frontend"]
@@ -173,7 +173,7 @@ flowchart TD
 * **Frontend**: Next.js 16 (App Router, Server Actions, React 19), Tailwind CSS v4, Lucide React, React Hook Form, Zod.
 * **Backend & API**: Next.js Server Actions, Route Handlers, Server-Sent Events (SSE).
 * **Banco de Dados**: MongoDB (Mongoose) com cache de conexões para ambientes serverless.
-* **Inteligência Artificial**: Google Gemini API (`@google/generative-ai`) — modelos `gemini-3.1-flash-lite` (extração) e `gemini-3.6-flash` (auditoria).
+* **Inteligência Artificial**: Google Gemini API (`@google/genai` - Interactions API) — modelos `gemini-flash-lite-latest` (extração) e `gemini-flash-latest` (auditoria).
 * **Processamento de Documentos**: `pdf-lib`, `pdfjs-dist`, `mammoth`, `word-extractor`, `cheerio`, LibreOffice headless (`soffice`).
 * **Segurança & Auth**: JWT assinado (`jose`), hashing com `bcryptjs`, cookies HttpOnly / Secure.
 * **Comunicação**: Resend (API de e-mails transacionais).
@@ -247,8 +247,8 @@ flowchart TD
 │   │   └── servidoresIBGE/  # Painel de busca e remuneração de servidores federais
 │   ├── components/          # Componentes React (ListView, FolderView, DevTools, etc.)
 │   ├── lib/
-│   │   ├── aiAnalysis.ts    # Agente 1: Extração estruturada via Gemini 3.1 Flash Lite
-│   │   ├── aiAuditor.ts     # Agente 2: Auditoria e autocorreção via Gemini 3.6 Flash
+│   │   ├── aiAnalysis.ts    # Agente 1: Extração estruturada via Gemini Flash-Lite (gemini-flash-lite-latest)
+│   │   ├── aiAuditor.ts     # Agente 2: Auditoria e autocorreção via Gemini Flash (gemini-flash-latest)
 │   │   ├── auth.ts          # Utilitários JWT (jose) e bcrypt
 │   │   ├── docParser.ts     # Download e extração de texto/metadados em documentos
 │   │   ├── email.ts         # Wrapper de envio de e-mails via Resend

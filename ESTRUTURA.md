@@ -92,8 +92,8 @@ achadordeeditais/
     │   ├── ProfileButton.tsx      # Botão de conta no header (Entrar / Meu Perfil / Logout)
     │   └── TerminalPanel.tsx      # Terminal flutuante: logs do backend em tempo real via SSE (dev only)
     ├── lib/
-    │   ├── aiAnalysis.ts           # IA Júnior (Gemini 3.1 Flash Lite): extrai dados de editais via few-shot
-    │   ├── aiAuditor.ts            # IA Auditora (Gemini 3.6 Flash): audita e corrige extração da IA Júnior
+    │   ├── aiAnalysis.ts           # IA de Extração (Gemini Flash-Lite - gemini-flash-lite-latest): extrai dados estruturados de editais via Interactions API
+    │   ├── aiAuditor.ts            # IA Auditora (Gemini Flash - gemini-flash-latest): audita e corrige extração via Interactions API
     │   ├── auth.ts                 # Utilitários JWT (jose) + bcrypt: sign, verify, hash, cookies
     │   ├── blacklist.ts            # Lista de URLs de PDFs inválidos/vazios a ignorar
     │   ├── devLogger.ts            # Intercepta console.log/warn/error e emite via EventEmitter (SSE para dev)
@@ -189,17 +189,17 @@ GitHub Actions (cron 3x/dia)  ou  DevToolsPanel (UI local)
             │     └─ persistirSincronizacao() — bulkWrite (insertOne/updateOne)
             │
             ├─ 5. ENRIQUECIMENTO IA (aiAnalysis.ts) — apenas para novos editais
-            │     └─ processarComIA() — Gemini 3.1 Flash Lite
+            │     └─ processarComIA() — gemini-flash-latest
             │          ├─ docParser.ts baixa o PDF/DOCX/HTML do edital
             │          ├─ PDFs >10 páginas → extrai primeiras 5 + últimas 5
             │          ├─ .doc/.docx → converte via LibreOffice (wordToPdf.ts)
-            │          ├─ Upload para Gemini API (File Manager)
-            │          ├─ Few-Shot Prompting → JSON { titulo, descricao, concurso, dataPublicacao }
+            │          ├─ Upload para Gemini Files API
+            │          ├─ Interactions API → JSON { titulo, descricao, concurso, dataPublicacao }
             │          ├─ Rate limit: 4s entre requisições, retry em 429 (60s espera)
             │          └─ Calcula custo em USD→BRL (cotação do dólar em tempo real)
             │
             ├─ 6. AUDITORIA IA (aiAuditor.ts) — apenas enriquecimento manual com mudanças
-            │     └─ Gemini 3.6 Flash (modelo superior) audita a IA Júnior
+            │     └─ gemini-flash-latest audita a extração
             │          ├─ Veredicto: CORRETO ou INCORRETO
             │          └─ Se INCORRETO: corrige dados automaticamente em memória
             │
@@ -308,8 +308,8 @@ GitHub Actions (cron 3x/dia)  ou  DevToolsPanel (UI local)
 
 #### IA — Dois Níveis
 
-- **`aiAnalysis.ts`** (IA Júnior): Usa `gemini-3.1-flash-lite` (modelo barato). `analisarEditalComIA(edital)` baixa o documento via `docParser`, trunca PDFs >10 páginas para primeiras 5 + últimas 5, converte .doc/.docx via LibreOffice, faz upload para Gemini File Manager, e usa few-shot prompting (um turno de exemplo mockado) para forçar saída em JSON: `{ titulo, descricao, concurso, dataPublicacao }`. `processarComIA(editais)` itera sobre novos editais com rate limit de 4s, retry em 429 (60s), e calcula custo em USD→BRL com cotação do dólar em tempo real (AwesomeAPI). Inclui tabela de preços por modelo.
-- **`aiAuditor.ts`** (IA Auditora): Usa `gemini-3.6-flash` (modelo superior). `auditarEditalComIA(item)` recebe o documento original + log de mudanças feitas pela IA Júnior, e emite veredicto: CORRETO (aprova) ou INCORRETO (corrige `concurso` e/ou `dataPublicacao` diretamente no objeto em memória). `processarAuditoria(itens)` itera com rate limit de 4s. Só é acionada no enriquecimento manual via UI quando há mudanças relevantes (concurso diferente ou data com >3 dias de diferença).
+- **`aiAnalysis.ts`** (IA de Extração): Usa `gemini-flash-lite-latest` via `@google/genai` (Interactions API). `analisarEditalComIA(edital)` baixa o documento via `docParser`, trunca PDFs >10 páginas para primeiras 5 + últimas 5, converte .doc/.docx via LibreOffice, faz upload para Gemini Files API, e usa instruções estruturadas para forçar saída em JSON: `{ titulo, descricao, concurso, dataPublicacao }`. `processarComIA(editais)` itera sobre novos editais com rate limit de 4s, retry em 429 (60s), e calcula custo em USD→BRL com cotação do dólar em tempo real (AwesomeAPI). Inclui tabela de preços por modelo.
+- **`aiAuditor.ts`** (IA Auditora): Usa `gemini-flash-latest` via `@google/genai` (Interactions API). `auditarEditalComIA(item)` recebe o documento original + log de mudanças feitas pela IA de extração, e emite veredicto: CORRETO (aprova) ou INCORRETO (corrige `concurso` e/ou `dataPublicacao` diretamente no objeto em memória). `processarAuditoria(itens)` itera com rate limit de 4s. Só é acionada no enriquecimento manual via UI quando há mudanças relevantes (concurso diferente ou data com >3 dias de diferença).
 
 #### Parser de Documentos
 
@@ -422,7 +422,7 @@ cron (08:00, 16:00, 23:00 UTC)
         → buscarTodosEditais() → 27 cidades em lotes de 4
         → retentativas (até 3, 10min entre elas)
         → identificarMudancas() + persistirSincronizacao() no MongoDB
-        → processarComIA() nos novos editais (Gemini 3.1 Flash Lite)
+        → processarComIA() nos novos editais (gemini-flash-latest)
         → processarNotificacoes() (filtro burocrático → e-mails via Resend)
         → adicionarScrapingLog() no MongoDB
 ```

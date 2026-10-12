@@ -1,5 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { GoogleAIFileManager } from '@google/generative-ai/server';
+import { GoogleGenAI } from '@google/genai';
 import { Edital } from '../types';
 import * as os from 'os';
 import * as path from 'path';
@@ -10,7 +9,7 @@ import * as crypto from 'crypto';
 import { delay, calcularCusto, extrairJSONSeguro, obterCotacaoDolar, extrairPaginaDoLink } from './aiAnalysis';
 import { converterWordParaPdf } from './wordToPdf';
 
-export const AUDITOR_MODEL_NAME = 'gemini-3.6-flash';
+export const AUDITOR_MODEL_NAME = 'gemini-flash-latest';
 
 type AuditoriaResultado = {
   veredicto: "CORRETO" | "INCORRETO";
@@ -29,8 +28,7 @@ async function auditarEditalComIA(item: EditalAuditavel): Promise<AuditoriaResul
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const fileManager = new GoogleAIFileManager(apiKey);
+  const client = new GoogleGenAI({ apiKey });
 
   const systemInstruction = `Você é um Auditor IA Especialista.
 Seu papel é verificar o trabalho de uma IA júnior que extraiu dados de um documento de concurso público.
@@ -68,12 +66,7 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
   } // Preencher apenas se INCORRETO. Se correto, pode omitir ou enviar null.
 }`;
 
-  const model = genAI.getGenerativeModel({
-    model: AUDITOR_MODEL_NAME,
-    systemInstruction
-  });
-
-  let partesReq: any[] = [{ text: `A IA júnior fez as seguintes alterações no documento:\n${item.mudancasTexto}\n\nAvalie se ela acertou ou errou, e corrija se necessário.` }];
+  const inputItems: any[] = [];
   let arquivoTemporarioPath: string | null = null;
   let geminiFileName: string | null = null;
 
@@ -110,22 +103,27 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
       arquivoTemporarioPath = path.join(os.tmpdir(), tempFilename);
       fs.writeFileSync(arquivoTemporarioPath, bufferParaUpload);
 
-      const uploadResult = await fileManager.uploadFile(arquivoTemporarioPath, {
-        mimeType: "application/pdf",
-        displayName: `Auditoria-${item.edital.cidade}`
-      });
-
-      geminiFileName = uploadResult.file.name;
-
-      partesReq.push({
-        fileData: {
+      const uploadResult = await client.files.upload({
+        file: arquivoTemporarioPath,
+        config: {
           mimeType: "application/pdf",
-          fileUri: uploadResult.file.uri
+          displayName: `Auditoria-${item.edital.cidade}`
         }
       });
 
+      geminiFileName = uploadResult.name || null;
+
+      inputItems.push({
+        type: "document",
+        uri: uploadResult.uri,
+        mime_type: "application/pdf"
+      });
+
     } else if (docRaw.textoLimpo) {
-      partesReq.push({ text: `\nTEXTO DO HTML:\n${docRaw.textoLimpo.substring(0, 200000)}` });
+      inputItems.push({
+        type: "text",
+        text: `\nTEXTO DO HTML:\n${docRaw.textoLimpo.substring(0, 200000)}`
+      });
     } else if ((docRaw.isDOCX || docRaw.isDOC) && docRaw.buffer) {
       console.log(`[Auditor IA] Convertendo Word para PDF usando LibreOffice...`);
       const pdfBufferConvertido = await converterWordParaPdf(docRaw.buffer, !!docRaw.isDOCX);
@@ -134,40 +132,44 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
       arquivoTemporarioPath = path.join(os.tmpdir(), tempFilename);
       fs.writeFileSync(arquivoTemporarioPath, pdfBufferConvertido);
 
-      const uploadResult = await fileManager.uploadFile(arquivoTemporarioPath, {
-        mimeType: "application/pdf",
-        displayName: `Auditoria-Convertida`
+      const uploadResult = await client.files.upload({
+        file: arquivoTemporarioPath,
+        config: {
+          mimeType: "application/pdf",
+          displayName: `Auditoria-Convertida`
+        }
       });
 
-      geminiFileName = uploadResult.file.name;
+      geminiFileName = uploadResult.name || null;
 
-      partesReq.push({
-        fileData: {
-          mimeType: "application/pdf",
-          fileUri: uploadResult.file.uri
-        }
+      inputItems.push({
+        type: "document",
+        uri: uploadResult.uri,
+        mime_type: "application/pdf"
       });
     } else {
       throw new Error("Formato não suportado para auditoria.");
     }
 
-    const contentsPayload = [
-      {
-        role: "user",
-        parts: partesReq
-      }
-    ];
+    inputItems.push({
+      type: "text",
+      text: `A IA júnior fez as seguintes alterações no documento:\n${item.mudancasTexto}\n\nAvalie se ela acertou ou errou, e corrija se necessário.`
+    });
 
-    const result = await model.generateContent({ contents: contentsPayload });
+    const interaction = await client.interactions.create({
+      model: AUDITOR_MODEL_NAME,
+      system_instruction: systemInstruction,
+      input: inputItems
+    });
 
     let custoReq = 0;
-    if (result.response.usageMetadata) {
-      const promptTokens = result.response.usageMetadata.promptTokenCount || 0;
-      const outputTokens = result.response.usageMetadata.candidatesTokenCount || 0;
+    if (interaction.usage) {
+      const promptTokens = interaction.usage.total_input_tokens || 0;
+      const outputTokens = (interaction.usage.total_output_tokens || 0) + (interaction.usage.total_thought_tokens || 0);
       custoReq = calcularCusto(AUDITOR_MODEL_NAME, promptTokens, outputTokens);
     }
 
-    const responseText = result.response.text();
+    const responseText = interaction.output_text || "";
     const dados = extrairJSONSeguro(responseText);
 
     if (dados.veredicto) {
@@ -194,7 +196,7 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown:
     }
     if (geminiFileName) {
       try {
-        await fileManager.deleteFile(geminiFileName);
+        await client.files.delete({ name: geminiFileName });
       } catch (e) { }
     }
   }
@@ -207,7 +209,7 @@ export async function processarAuditoria(itensParaAuditar: EditalAuditavel[]): P
   }
 
   console.log("\n🕵️ ══════════════════════════════════════════════════════");
-  console.log("🕵️  PASSO 0.5: AUDITORIA COM IA SUPERIOR (GEMINI 3.6 FLASH)");
+  console.log("🕵️  PASSO 0.5: AUDITORIA COM IA SUPERIOR (GEMINI FLASH)");
   console.log("🕵️ ══════════════════════════════════════════════════════");
   console.log(`🕵️ [AUDITOR] Iniciando auditoria de ${itensParaAuditar.length} editais com alterações relevantes.`);
 

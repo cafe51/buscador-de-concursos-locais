@@ -153,7 +153,7 @@ export async function runFullScraperWorkflow(options: {
         if (resultadoSync.adicionados > 0) {
           if (options.enableAI !== false) {
             console.log("\n🧠 Ativando enriquecimento de dados via Inteligência Artificial...");
-            await processarComIA(resultadoSync.novasAdicoesReferencias, 'gemini-3.6-flash');
+            await processarComIA(resultadoSync.novasAdicoesReferencias, 'gemini-flash-latest');
           } else {
             console.log("\n⚠️ Inteligência Artificial desativada nas configurações.");
           }
